@@ -1,7 +1,7 @@
 {
-  "name": "news-quizzer",
+  "name": "NTUT Code Tester",
   "version": "1.6.5",
-  "description": "An application use generate reading comprehension questions",
+  "description": "Code",
   "main": "./out/main/index.js",
   "author": "Justin",
   "type": "module",
