@@ -3,6 +3,7 @@ import { join } from 'path';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import icon from '../../resources/icon.png?asset';
 import setupAllIPC from './ipcHandler';
+import { onAppQuit } from './ipcHandler';
 // import { fileURLToPath } from 'url';
 import log from 'electron-log';
 
@@ -67,7 +68,9 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.mjs'),
       sandbox: false,
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      webSecurity: false,
+      allowRunningInsecureContent: true,
     }
   });
 
@@ -121,6 +124,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  onAppQuit();
   if (process.platform !== 'darwin') {
     app.quit();
   }

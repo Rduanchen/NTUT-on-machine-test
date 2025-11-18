@@ -1,23 +1,28 @@
 import { ipcMain } from "electron";
-import { readConfig, appendTestResult } from "../runTimeStore";
+import { readConfig, appendTestResult } from '../runTimeStore';
 import { runPythonTestsAPI, stopProgram } from "./pyJudger";
 import { LocalProgramStore } from "../localProgram";
-const config = readConfig();
+// import { LocalProgramStore } from "../localProgram";
+import { sendTestResultToServer } from "../api";
 
 export class CodeJudger {
-  constructor() {
+  public static setup() {
     ipcMain.handle(
       "judger:judge",
-      async (_event, questionId: string, codeFile: File) => {
+      async (event, questionId: string, codeFilePath: string) => {
         console.log(
-          `Received judge request for questionId: ${questionId}, codeFile path: ${codeFile.path}`
+          `Received judge request for questionId: ${questionId}, codeFile path: ${codeFilePath}`
         );
-        let result = await this.judgeCode(questionId, codeFile);
+        let config = readConfig();
         let puzzle = config.puzzles.filter(
           (puzzle) => puzzle.id === questionId
         )[0];
-        result = await this.maskTheTestResults(result, puzzle.testCases);
+        let result = await this.judgeCode(questionId, codeFilePath);
+        result = this.maskTheTestResults(result, puzzle.testCases);
         appendTestResult(questionId, result);
+        LocalProgramStore.addFile(codeFilePath, `${questionId}`);
+        sendTestResultToServer();
+        event.sender.send("judger:judge-complete", result);
         return result;
       }
     );
@@ -26,18 +31,19 @@ export class CodeJudger {
       return { success: true };
     });
   }
-  private async judgeCode(questionId: string, codeFile: File) {
+  private static async judgeCode(questionId: string, codeFilePath: string) {
+    let config = readConfig();
     let puzzle = config.puzzles.filter((puzzle) => puzzle.id === questionId)[0];
     switch (puzzle.language) {
       case "python":
-        return await runPythonTestsAPI(codeFile.path, puzzle.testCases);
+        return await runPythonTestsAPI(codeFilePath, puzzle.testCases);
       case "Python":
-        return await runPythonTestsAPI(codeFile.path, puzzle.testCases);
+        return await runPythonTestsAPI(codeFilePath, puzzle.testCases);
       default:
         throw new Error("Unsupported language");
     }
   }
-  private async maskTheTestResults(results: any, testDefinitions: any) {
+  private static maskTheTestResults(results: any, testDefinitions: any) {
     const openIds = new Set<string>();
     for (const group of testDefinitions) {
       if (group.openTestCases) {

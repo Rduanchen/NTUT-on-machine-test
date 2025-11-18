@@ -51,9 +51,9 @@ import { Config } from '../electron/lib/runTimeStore.ts';
 const api = {
   // --- Config ---
   config: {
-    setJson: (jsonString: Config) => ipcRenderer.invoke('config:set-json', jsonString),
+    setJson: (jsonFilePath: string) => ipcRenderer.invoke('config:set-json', jsonFilePath),
     getFromServer: (host: string) => ipcRenderer.invoke('config:get-from-server', host),
-    getServerStatus: () => ipcRenderer.invoke('config:server-status')
+    getServerStatus: (hostname: string) => ipcRenderer.invoke('config:server-status', hostname)
   },
 
   // --- Store ---
@@ -62,7 +62,8 @@ const api = {
     updateStudentInformation: (newInfo: { studentID: string }) =>
       ipcRenderer.invoke('store:update-student-information', newInfo),
     readStudentInformation: () => ipcRenderer.invoke('store:read-student-information'),
-    getPuzzleInfo: () => ipcRenderer.invoke('store:get-puzzle-info')
+    getPuzzleInfo: () => ipcRenderer.invoke('store:get-puzzle-info'),
+    getTestInfo: () => ipcRenderer.invoke('config:get-test-info')
   },
 
   // --- Judger ---
@@ -71,9 +72,14 @@ const api = {
      * @param questionId The ID of the question to judge.
      * @param codeFile A File-like object that must have a `path` property (string) pointing to the code file.
      */
-    judge: (questionId: string, codeFile: File) =>
-      ipcRenderer.invoke('judger:judge', questionId, codeFile),
-    forceStop: () => ipcRenderer.invoke('judger:force-stop')
+    judge: (questionId: string, codeFilePath: string) =>
+      ipcRenderer.invoke('judger:judge', questionId, codeFilePath),
+    forceStop: () => ipcRenderer.invoke('judger:force-stop'),
+    onJudgeComplete: (callback) => {
+      ipcRenderer.on('judger:judge-complete', (_event, data) => {
+        callback(data);
+      });
+    }
   },
 
   // --- LocalProgram ---
