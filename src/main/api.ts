@@ -1,5 +1,6 @@
 import axios from "axios";
 import { Config, readConfig, readTestResult, readStudentInformation } from "./runTimeStore";
+import { verify } from "crypto";
 
 export async function fetchConfig(host: string) {
   try {
@@ -42,4 +43,13 @@ export async function sendTestResultToServer() {
     console.error("Failed to send test result to server:", error);
     throw error;
   }
+}
+
+
+export function verifyStudentIDFromServer(studentID: string){
+  const config = readConfig();
+  const hostLink = config.remoteHost;
+  return axios.post(`${hostLink}/api/is-student-valid`, {
+    studentID: studentID,
+  });
 }

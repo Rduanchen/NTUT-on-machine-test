@@ -37,9 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { get } from 'node:http';
-import { a } from 'vitest/dist/chunks/suite.d.FvehnV49.js';
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { VFileUpload } from 'vuetify/labs/VFileUpload';
 import { router } from '../router/index';
 
@@ -48,6 +46,15 @@ const serverHost = ref('');
 const selectedFile = ref<File | undefined>(undefined);
 const serverStatus = ref('disconnected');
 const isServerConnected = ref(false);
+
+
+onMounted(async () => {
+  let isSetupComplete = await window.api.config.getIsConfigSetupComplete();
+  console.log('Is Config Setup Complete:', isSetupComplete);
+  if (isSetupComplete) {
+    router.push('/Welcome');
+  }
+});
 
 const toggleDarkMode = () => {
   darkMode.value = !darkMode.value;

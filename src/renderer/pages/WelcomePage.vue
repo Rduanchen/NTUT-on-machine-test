@@ -33,11 +33,16 @@ const saveStudentInfo = async () => {
   if (re.success) {
     router.push('/TestPage');
   } else {
-    alert('儲存失敗，請重試');
+    alert('儲存失敗，請檢查學號是否正確，或者聯絡助教');
   }
 };
 
 onMounted(async () => {
+  const isStudentVerified = await window.api.store.isStudentInfoVerified();
+  if (isStudentVerified) {
+    router.push('/TestPage');
+    return;
+  }
   const info = await window.api.store.getTestInfo();
   testInfo.value.testTitle = info.testTitle;
   testInfo.value.description = info.description;

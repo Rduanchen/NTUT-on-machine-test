@@ -70,13 +70,43 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: false,
-      allowRunningInsecureContent: true,
+      allowRunningInsecureContent: true
+    }
+  });
+
+  mainWindow.on('close', (e) => {
+    const shouldWarn = true;
+
+    if (shouldWarn) {
+      // 1. 阻止視窗立即關閉
+      e.preventDefault();
+
+      // 2. 顯示同步原生對話框
+      const choice = dialog.showMessageBoxSync(mainWindow, {
+        type: 'warning',
+        buttons: ['取消', '關閉'], // 按鈕選項
+        defaultId: 0,
+        title: '您尚未完成考試，請勿關閉這個程式！',
+        message: '這個動作會影響到你的考試成績',
+        detail: '如果您擅自關閉，系統會通知監考人員'
+      });
+      if (choice === 1) {
+        mainWindow.destroy();
+      }
     }
   });
 
   if (!is.dev) {
     mainWindow.once('ready-to-show', () => {
       checkForUpdates();
+    });
+    mainWindow.webContents.on('devtools-opened', () => {
+      // 即使某些隱藏的呼叫嘗試開啟，也立即關閉它
+      mainWindow.webContents.closeDevTools();
+    });
+    mainWindow.webContents.on('context-menu', (e) => {
+      // 阻止右鍵選單彈出 (右鍵選單通常包含 'Inspect Element' 選項)
+      e.preventDefault();
     });
   }
 
@@ -128,4 +158,7 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+  // else {
+  //   app.quit();
+  // }
 });

@@ -1,10 +1,15 @@
 import { ipcMain } from 'electron';
+import { verifyStudentIDFromServer } from './api';
+import { is } from '@electron-toolkit/utils';
 
 let testResult: { [key: string]: any } = {};
 let studentInformation: {
+  name: string;
   studentID: string;
-} = { studentID: '' };
+} = { name: '', studentID: '' };
 let config: Config;
+let isStudentInfoVerified = false;
+
 // 單一 Test Case
 export interface TestCase {
   id: string;
@@ -35,12 +40,18 @@ export interface TestTime {
   forceQuit: boolean;
 }
 
+export interface AccessableUser {
+  id: string;
+  name: string;
+}
+
 // 整體 config 物件
 export interface Config {
   testTitle: string;
   description: string;
   publicKey: string;
   remoteHost: string;
+  accessableUsers: AccessableUser[];
   testTime: TestTime;
   puzzles: Puzzle[];
 }
@@ -79,10 +90,34 @@ class ConfigStore {
         return { id: puzzle.id, name: puzzle.name, language: puzzle.language };
       });
     });
-    ipcMain.handle('store:update-student-information', async (_event, newInfo: any) => {
-      updateStudentInformation(newInfo);
+    ipcMain.handle('store:update-student-information', async (_event, newInfo: any) =>  {  
+      const config = readConfig();
+      try {
+        let re = await verifyStudentIDFromServer(newInfo.studentID)  
+        console.log('Response from verifying student ID:', re.data);
+        if (re.data.isValid == true) {
+          updateStudentInformation(re.data.info);
+          isStudentInfoVerified = true;
+        } else {
+          return { success: false, message: "Student ID not found" };
+        }
+      } catch (error) {
+        const userFound = config.accessableUsers.find((user) => user.id === newInfo.studentID);
+        if (userFound) {
+          updateStudentInformation(userFound);
+          isStudentInfoVerified = true;
+          console.log('Student information updated from local config:', userFound);
+          return { success: true };
+        }
+        console.error('Error verifying student ID:', error);
+        return { success: false, message: "Error verifying student ID" };
+      }
       console.log('Student information updated:', newInfo);
+      isStudentInfoVerified = true;
       return { success: true };
+    });
+    ipcMain.handle('store:is-student-info-verified', async () => {
+      return isStudentInfoVerified;
     });
     ipcMain.handle('store:read-student-information', async () => {
       return readStudentInformation();

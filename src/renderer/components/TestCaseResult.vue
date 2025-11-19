@@ -30,7 +30,7 @@
               </template>
 
               <template v-slot:item.userOutput="{ item }">
-                <pre class="output-pre">{{ item.userOutput || "(無輸出)" }}</pre>
+                <pre class="output-pre">{{ item.userOutput || "(測資隱藏)" }}</pre>
               </template>
             </v-data-table>
           </v-card-text>
