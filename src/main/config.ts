@@ -4,7 +4,6 @@ import { fetchConfig, getServerStatus } from './api';
 import fs from 'fs';
 import { app } from 'electron';
 import path from 'path';
-import { is } from '@electron-toolkit/utils';
 
 let isDev = !app.isPackaged
 let isConfigLoaded = false;

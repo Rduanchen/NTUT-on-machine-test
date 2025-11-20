@@ -4,8 +4,8 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import icon from '../../resources/icon.png?asset';
 import setupAllIPC from './ipcHandler';
 import { onAppQuit } from './ipcHandler';
-// import { fileURLToPath } from 'url';
 import log from 'electron-log';
+import { setMainWindow } from './windowsManager';
 
 import pkg from 'electron-updater';
 const { autoUpdater } = pkg;
@@ -135,6 +135,7 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
+  setMainWindow(mainWindow);
 }
 
 app.whenReady().then(() => {

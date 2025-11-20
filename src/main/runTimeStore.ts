@@ -1,12 +1,8 @@
 import { ipcMain } from 'electron';
 import { verifyStudentIDFromServer } from './api';
-import { is } from '@electron-toolkit/utils';
+import { getMainWindow } from "./windowsManager";
 
-let testResult: { [key: string]: any } = {};
-let studentInformation: {
-  name: string;
-  studentID: string;
-} = { name: '', studentID: '' };
+
 let config: Config;
 let isStudentInfoVerified = false;
 
@@ -64,6 +60,9 @@ function readConfig() {
   return config;
 }
 
+
+let testResult: { [key: string]: any } = {};
+
 function appendTestResult(index: string, newResult: any) {
   testResult[index] = newResult;
 }
@@ -72,6 +71,11 @@ function readTestResult() {
   return testResult;
 }
 
+let studentInformation: {
+  name: string;
+  studentID: string;
+} = { name: '', studentID: '' };
+
 function updateStudentInformation(newInfo: any) {
   studentInformation = newInfo;
 }
@@ -79,6 +83,21 @@ function updateStudentInformation(newInfo: any) {
 function readStudentInformation() {
   return studentInformation;
 }
+
+let isServerAvailable = false;
+
+function updateServerAvailability(status: boolean) {
+  isServerAvailable = status;
+  const win = getMainWindow();
+  if (win) {
+    win.webContents.send('store:availability-updated', isServerAvailable);
+  }
+}
+
+function getServerAvailability() {
+  return isServerAvailable;
+}
+
 
 class ConfigStore {
   public static setup() {
@@ -139,5 +158,7 @@ export {
   readTestResult,
   updateStudentInformation,
   readStudentInformation,
+  updateServerAvailability,
+  getServerAvailability,
   ConfigStore
 };

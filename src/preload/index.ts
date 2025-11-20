@@ -1,5 +1,5 @@
 import { ipcRenderer, contextBridge } from 'electron';
-import { Config } from '../electron/lib/runTimeStore.ts';
+// import { Config } from '../electron/lib/runTimeStore.ts';
 
 const api = {
   // --- Config ---
@@ -18,7 +18,13 @@ const api = {
     readStudentInformation: () => ipcRenderer.invoke('store:read-student-information'),
     getPuzzleInfo: () => ipcRenderer.invoke('store:get-puzzle-info'),
     getTestInfo: () => ipcRenderer.invoke('config:get-test-info'),
-    isStudentInfoVerified: () => ipcRenderer.invoke('store:is-student-info-verified')
+    isStudentInfoVerified: () => ipcRenderer.invoke('store:is-student-info-verified'),
+    updateServerAvailability: (callback: (status: boolean) => void) => {
+      ipcRenderer.removeAllListeners('store:availability-updated');
+      ipcRenderer.on('store:availability-updated', (_event, status) => {
+        callback(status);
+      });
+    }
   },
 
   // --- Judger ---
