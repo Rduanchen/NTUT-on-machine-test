@@ -1,5 +1,5 @@
 import { ipcMain } from "electron";
-import { readConfig, appendTestResult } from '../runTimeStore';
+import { readConfig, appendTestResult } from '../local-store/runTimeStore';
 import { runPythonTestsAPI, stopProgram } from "./pyJudger";
 import { LocalProgramStore } from "../localProgram";
 // import { LocalProgramStore } from "../localProgram";

@@ -8,6 +8,7 @@ const api = {
     getFromServer: (host: string) => ipcRenderer.invoke('config:get-from-server', host),
     getServerStatus: (hostname: string) => ipcRenderer.invoke('config:server-status', hostname),
     getIsConfigSetupComplete: () => ipcRenderer.invoke('config:setup-complete'),
+    getLocalConfigStatus: () => ipcRenderer.invoke('config:local-config-status'),
   },
 
   // --- Store ---

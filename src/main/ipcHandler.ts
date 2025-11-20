@@ -1,6 +1,6 @@
 // import NewsSources from './news-sources';
 import { ipcMain } from 'electron';
-import { ConfigStore } from './runTimeStore';
+import { ConfigStore } from './local-store/runTimeStore';
 import { CodeJudger } from './judge/index';
 import { LocalProgramStore } from './localProgram';
 import { ConfigSystem } from './config';

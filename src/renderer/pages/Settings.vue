@@ -9,6 +9,8 @@
             v-model="serverHost"
           ></v-text-field>
           {{ serverStatus }}
+          <v-spacer></v-spacer>
+          {{ localConfigStatus }}
           <v-btn class="my-2" @click="verifyServerStatus()">驗證伺服器連線</v-btn>
           <v-btn class="my-2" v-if="isServerConnected" @click="getConfigFileFromServer()"
             >從伺服器取得設定檔案</v-btn>
@@ -46,6 +48,7 @@ const serverHost = ref('');
 const selectedFile = ref<File | undefined>(undefined);
 const serverStatus = ref('disconnected');
 const isServerConnected = ref(false);
+const localConfigStatus = ref('');
 
 
 onMounted(async () => {
@@ -54,6 +57,7 @@ onMounted(async () => {
   if (isSetupComplete) {
     router.push('/Welcome');
   }
+  localConfigStatus.value = await window.api.config.getLocalConfigStatus();
 });
 
 const toggleDarkMode = () => {

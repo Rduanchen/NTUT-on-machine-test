@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
-import { verifyStudentIDFromServer } from './api';
-import { getMainWindow } from "./windowsManager";
+import { verifyStudentIDFromServer } from '../api';
+import { getMainWindow } from "../windowsManager";
+import { actionLogger } from '../logger';
 
 
 let config: Config;
@@ -89,8 +90,19 @@ let isServerAvailable = false;
 function updateServerAvailability(status: boolean) {
   isServerAvailable = status;
   const win = getMainWindow();
-  if (win) {
-    win.webContents.send('store:availability-updated', isServerAvailable);
+  if (!win || win.isDestroyed()) {
+    return;
+  }
+
+  const contents = win.webContents;
+  if (!contents || contents.isDestroyed()) {
+    return;
+  }
+
+  try {
+    contents.send('store:availability-updated', isServerAvailable);
+  } catch (error) {
+    actionLogger.warn('Unable to notify renderer about server availability.', error);
   }
 }
 
@@ -112,8 +124,8 @@ class ConfigStore {
     ipcMain.handle('store:update-student-information', async (_event, newInfo: any) =>  {  
       const config = readConfig();
       try {
+        actionLogger.info(`User are trying to verify student ID: ${newInfo.studentID}`);
         let re = await verifyStudentIDFromServer(newInfo.studentID)  
-        console.log('Response from verifying student ID:', re.data);
         if (re.data.isValid == true) {
           updateStudentInformation(re.data.info);
           isStudentInfoVerified = true;
@@ -125,13 +137,12 @@ class ConfigStore {
         if (userFound) {
           updateStudentInformation(userFound);
           isStudentInfoVerified = true;
-          console.log('Student information updated from local config:', userFound);
           return { success: true };
         }
-        console.error('Error verifying student ID:', error);
+        actionLogger.error('Error verifying student ID:', error);
         return { success: false, message: "Error verifying student ID" };
       }
-      console.log('Student information updated:', newInfo);
+      actionLogger.info('Student information updated:', newInfo);
       isStudentInfoVerified = true;
       return { success: true };
     });

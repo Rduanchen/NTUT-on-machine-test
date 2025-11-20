@@ -1,33 +1,27 @@
 import axios from "axios";
-import { Config, readConfig, readTestResult, readStudentInformation, updateServerAvailability } from "./runTimeStore";
+import { Config, readConfig, readTestResult, readStudentInformation, updateServerAvailability } from "./local-store/runTimeStore";
+import { actionLogger } from "./logger";
 
 export async function fetchConfig(host: string) {
   try {
     const response = await axios.get(`${host}/api/get-config`);
+    actionLogger.info("Fetched config from server:");
+    actionLogger.silly(response.data);
     return response.data as Config;
   } catch (error) {
-    console.error("Failed to fetch config:", error);
+    actionLogger.silly("Failed to fetch config:", error);
     throw error;
   }
 }
 
 export async function getServerStatus(host: string) {
-  console.log("Host in getServerStatus:", `${host}/api/status`);
   try {
     const response = await axios.get(`${host}/api/status`);
-    console.log("Response in getServerStatus:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Failed to fetch server status:", error);
+    actionLogger.silly("Failed to get server status:", error);
     throw error;
   }
-}
-
-export enum LocalActionType {
-  START_TEST = "START_TEST",
-  CLOSE_WINDOW = "CLOSE_WINDOW",
-  JUDGE_SUBMISSION = "JUDGE_SUBMISSION",
-  EXPORT_ZIP = "EXPORT_ZIP",
 }
 
 
@@ -42,19 +36,15 @@ export async function sendTestResultToServer() {
   const config = readConfig();
   const host = config.remoteHost;
   const studentInfo = readStudentInformation();
-
-
-  console.log("Sending test result to server at:", `${host}/api/post-result`);
   try {
     const response = await axios.post(`${host}/api/post-result`, {
       studentInformation: studentInfo,
       key: config.publicKey,
       testResult: testResult
     });
-    console.log("Response from sending test result to server:", response.data);
+    actionLogger.info("Response from sending test result to server:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Failed to send test result to server:", error);
     throw error;
   }
 }
@@ -69,7 +59,7 @@ export async function verifyStudentIDFromServer(studentID: string){
     });
     return response;
   } catch (error) {
-    console.error("Failed to verify student ID from server:", error);
+    actionLogger.error("Failed to verify student ID from server: studentID =", studentID, error);
     throw error;
   }
 }
@@ -78,13 +68,13 @@ export async function verifyStudentIDFromServer(studentID: string){
 export async function logUserActionToServer(actionData: any) {
   const config = readConfig();
   const host = config.remoteHost;
-  console.log("Logging user action to server at:", `${host}/api/user-action-logger`);
+  actionLogger.info("Logging user action to server at:", `${host}/api/user-action-logger`);
   try {
     const response = await axios.post(`${host}/api/user-action-logger`, actionData);
-    console.log("Response from logging user action to server:", response.data);
+    actionLogger.info("Response from logging user action to server:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Failed to log user action to server:", error);
+    actionLogger.error("Failed to log user action to server:", error);
     throw error;
   }
 }
@@ -102,6 +92,7 @@ export class ApiSystem {
   }
 
   public static onremove() {
+    console.log("ApiSystem onremove called");
     if (this._interval) {
       clearInterval(this._interval);
       this._interval = null;
@@ -111,8 +102,8 @@ export class ApiSystem {
   private static startHealthCheck() {
     if (this._interval) return; 
     
-    this._interval = setInterval(() => {
-      this.checkServerAlive();
+    this._interval = setInterval( async () => {
+      await this.checkServerAlive();
     }, this.recheckIntervalMs);
   }
 
@@ -130,13 +121,11 @@ export class ApiSystem {
       } else {
         this._isAlive = false;
         updateServerAvailability(false);
-        console.log("[ApiSystem] Server is DOWN.");
       }
     } catch (err) {
       if (this._isAlive) {
         this._isAlive = false;
         updateServerAvailability(false);
-        console.log("[ApiSystem] Server is DOWN.");
       }
     }
   }
