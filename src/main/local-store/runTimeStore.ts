@@ -74,8 +74,8 @@ function readTestResult() {
 
 let studentInformation: {
   name: string;
-  studentID: string;
-} = { name: '', studentID: '' };
+  id: string;
+} = { name: '', id: '' };
 
 function updateStudentInformation(newInfo: any) {
   studentInformation = newInfo;

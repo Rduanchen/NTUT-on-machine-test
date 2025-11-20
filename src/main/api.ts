@@ -9,7 +9,7 @@ export async function fetchConfig(host: string) {
     actionLogger.silly(response.data);
     return response.data as Config;
   } catch (error) {
-    actionLogger.silly("Failed to fetch config:", error);
+    // actionLogger.silly("Failed to fetch config:", error);
     throw error;
   }
 }
@@ -66,16 +66,23 @@ export async function verifyStudentIDFromServer(studentID: string){
 
 
 export async function logUserActionToServer(actionData: any) {
-  const config = readConfig();
-  const host = config.remoteHost;
-  actionLogger.info("Logging user action to server at:", `${host}/api/user-action-logger`);
   try {
-    const response = await axios.post(`${host}/api/user-action-logger`, actionData);
-    actionLogger.info("Response from logging user action to server:", response.data);
-    return response.data;
+    const config = readConfig();
+    const host = config.remoteHost;
+    const studentInfo = readStudentInformation();
+    const payload = {
+      studentID: studentInfo.id,
+      ...actionData
+    };
+    try {
+      const response = await axios.post(`${host}/api/user-action-logger`, payload);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
   } catch (error) {
-    actionLogger.error("Failed to log user action to server:", error);
-    throw error;
+    // actionLogger.error("Failed to log user action to server:", error);
+    // throw error;
   }
 }
 

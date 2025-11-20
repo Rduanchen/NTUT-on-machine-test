@@ -1,15 +1,29 @@
-import log from 'electron-log';
+import log, { LogMessage, Transport } from 'electron-log';
 import { app } from 'electron';
 import path from 'path';
+import { logUserActionToServer } from './api';
 
-function updateLogToServer(logInfo) {
+const myServerTransport: Transport = ((msg: LogMessage) => {
+  const logLevelsToSend = ['info', 'warn', 'error'];
+  if (logLevelsToSend.includes(msg.level)) {
+    updateLogToServer(msg);
+  }
+}) as Transport;
+
+// 必須設定 level
+myServerTransport.level = 'info';  // 你想要處理的最低等級
+
+// transforms（如果你不需要轉換，可以給空陣列）
+myServerTransport.transforms = [];
+
+async function updateLogToServer(logInfo) {
   const payload = {
     level: logInfo.level,
     timestamp: logInfo.date.toISOString(),
     message: logInfo.text,
     details: logInfo.data
   };
-  console.log('Prepared log payload for server:', payload);
+  await logUserActionToServer(payload);
 }
 
 const actionLogger = log.create({ logId: 'ActionLogger' });
@@ -22,21 +36,8 @@ if (isDev) {
   logPath = path.join(app.getPath('userData'), 'main.log');
 }
 
-function bindConsoleToLogger() {
-  console.log = actionLogger.info.bind(actionLogger);
-  console.info = actionLogger.info.bind(actionLogger);
-  console.warn = actionLogger.warn.bind(actionLogger);
-  console.error = actionLogger.error.bind(actionLogger);
-  console.debug = actionLogger.debug.bind(actionLogger);
-  actionLogger.info('原生 Console 方法已綁定至 customLogger，所有 console 訊息將被捕獲。');
-}
 
 function loggerSetup() {
-  // 設定檔案 transport
-  // const formatDate = (date: Date) => {
-  //   // return date.toISOString(); 
-  //   return date.toLocaleString('zh-TW', { hour12: false });
-  // };
 
   actionLogger.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
 
@@ -47,16 +48,8 @@ function loggerSetup() {
   actionLogger.transports.file.maxSize = 5 * 1024 * 1024; // 檔案大小上限 5MB
   
   // 添加自定義 server transport
-  (actionLogger.transports as any).server = {
-    level: 'warn', // 只傳送 warn 及以上級別
-    transforms: [],
-    log: (logMessage) => {
-      updateLogToServer(logMessage);
-    }
-  };
-  
-  bindConsoleToLogger();
-  
+  actionLogger.transports.myServer = myServerTransport;
+  // bindConsoleToLogger();
   actionLogger.info('Logger 設定完成，warn 及以上級別將傳送至 server');
 }
 

@@ -30,7 +30,8 @@ export class ConfigSystem {
         isConfigLoaded = true;
         return { success: true };
       } catch (error) {
-        actionLogger.error('Failed to fetch config from server:', error);
+        actionLogger.error('Failed to fetch config from server');
+        // actionLogger.silly(error);
         return {
           success: false,
           message: 'Failed to fetch config from server'
@@ -48,7 +49,7 @@ export class ConfigSystem {
         }
         return { success: true, data: response };
       } catch (error) {
-        actionLogger.silly('Failed to get server status:', error);
+        // actionLogger.silly('Failed to get server status:', error);
         return { success: false, message: 'Failed to fetch server status' };
       }
     });
@@ -66,6 +67,7 @@ export class ConfigSystem {
     } else {
       configLocaltion = path.join(app.getPath("userData"), 'config.json');
     }
+
     if (fs.existsSync(configLocaltion)){
       let jsonFile = fs.readFileSync(configLocaltion, 'utf-8');
       let jsonString = JSON.parse(jsonFile);
@@ -81,7 +83,6 @@ export class ConfigSystem {
         isConfigLoaded = false; 
         localConfigInfo = 'Fail to fetch config from server by local config';
       }
-      updateConfig(jsonString);
     } else {
       actionLogger.info('No local config file found at startup');
       isConfigLoaded = false;
