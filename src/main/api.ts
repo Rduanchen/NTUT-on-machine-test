@@ -117,7 +117,6 @@ export class ApiSystem {
   private static async checkServerAlive() {
     const config = readConfig();
     const host = config.remoteHost; 
-
     try {
       let response = await axios.get(`${host}/api/status`, { timeout: this.serverTimeoutMs });
       this._isAlive = response.data.success;

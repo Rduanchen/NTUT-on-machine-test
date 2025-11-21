@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import { Config, updateConfig, readConfig } from './local-store/runTimeStore';
-import { fetchConfig, getServerStatus } from './api';
+import { ApiSystem, fetchConfig, getServerStatus } from './api';
 import fs from 'fs';
 import { app } from 'electron';
 import path from 'path';
@@ -23,9 +23,12 @@ export class ConfigSystem {
       return { success: true };
     });
     ipcMain.handle('config:get-from-server', async (_event, host: string) => {
+      console.log('Fetching config from server at host:', host);
       try {
         let response = await fetchConfig(host);
+        console.log('Configuration fetched from server:', response);
         actionLogger.info('Configuration fetched from server');
+        ApiSystem.setup();
         updateConfig(response);
         isConfigLoaded = true;
         return { success: true };
@@ -41,7 +44,8 @@ export class ConfigSystem {
     ipcMain.handle('config:server-status', async (_event, hostname: string) => {
       try {
         let response = await getServerStatus(hostname);
-        if (response.status !== true) {
+        console.log('Server status response:', response);
+        if (response.success !== true) {
           return {
             success: false,
             message: 'Server status not ok'
@@ -67,7 +71,6 @@ export class ConfigSystem {
     } else {
       configLocaltion = path.join(app.getPath("userData"), 'config.json');
     }
-
     if (fs.existsSync(configLocaltion)){
       let jsonFile = fs.readFileSync(configLocaltion, 'utf-8');
       let jsonString = JSON.parse(jsonFile);
@@ -76,11 +79,13 @@ export class ConfigSystem {
         let response = await fetchConfig(host);
         actionLogger.silly('Configuration fetched from server:', response);
         updateConfig(response);
+        ApiSystem.setup();
         actionLogger.info('Configuration loaded from server at startup');
         isConfigLoaded = true;
       } catch (error) {
-        actionLogger.warn('Failed to fetch config from server');
+        actionLogger.warn('Local config file found but fail to fetch from server, using local config');
         isConfigLoaded = false; 
+        updateConfig(jsonString);
         localConfigInfo = 'Fail to fetch config from server by local config';
       }
     } else {

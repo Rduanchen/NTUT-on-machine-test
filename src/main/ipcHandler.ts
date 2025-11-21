@@ -8,10 +8,9 @@ import { ApiSystem } from './api';
 
 function setupAllIPC() {
   ConfigStore.setup();
-  CodeJudger.setup();
   ConfigSystem.setup();
   LocalProgramStore.setup();
-  ApiSystem.setup();
+  CodeJudger.setup();
 }
 
 export function onAppQuit() {

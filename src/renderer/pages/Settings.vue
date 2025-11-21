@@ -96,6 +96,8 @@ const verifyServerStatus = async () => {
 };
 
 const getConfigFileFromServer = async() => {
+
+  console.log('從伺服器取得設定檔案:', serverHost.value);
   let re = await window.api.config.getFromServer(serverHost.value);
   if (re.success) {
     alert('從伺服器取得設定檔案成功');
@@ -107,9 +109,4 @@ const getConfigFileFromServer = async() => {
 
 const isConfigCompleted = ref(false);
 
-// const checkConfigCompletion = () => {
-//   isConfigCompleted.value = true;
-//   getConfigFileFromServer();
-//   //   isConfigCompleted.value = serverHost.value !== "" && selectedFile.value !== undefined;
-// };
 </script>
