@@ -1,105 +1,98 @@
 {
-  "app": {
-    "newsList": "News List",
-    "toggleTheme": "Toggle Theme"
-  },
-  "home": {
-    "onlineSource": "Online Source",
-    "selfUpload": "Self Upload",
-    "aiGenerate": "AI Generate"
-  },
-  "onlineSource": {
-    "sourceSelectLabel": "Choose a news source",
-    "errorSources": "Error fetching sources",
-    "errorSelect": "Error selecting source",
-    "errorHeadlines": "Error fetching headlines",
-    "noHeadlines": "No headlines found for the selected source.",
-    "errorContent": "Error fetching article content"
-  },
-  "newsCard": {
-    "readMore": "Read More",
-    "select": "Select"
-  },
-  "aiGenerate": {
-    "formTitle": "Generate Article with AI",
-    "levelLabel": "Difficulty Level (CEFR)",
-    "topicLabel": "Topic",
-    "wordCountLabel": "Word Count",
-    "generateButton": "Generate",
-    "regenerateButton": "Regenerate",
-    "errorPrefix": "Generation Failed",
-    "errorDefault": "An unknown error occurred.",
-    "createQuizButton": "Create Quiz with this Article"
-  },
-  "selfUpload": {
-    "formTitle": "Create Quiz from Your Text",
-    "titleLabel": "Title",
-    "contentLabel": "Content",
-    "submitButton": "Create Quiz"
-  },
-  "quizPage": {
-    "title": "This is the quiz page",
-    "by": "By",
-    "noData": "No Article Data Provided",
-    "noDataSubtitle": "Please select an article from the home page first.",
-    "goHome": "Go to Home",
-    "generatingTitle": "Generating Quiz...",
-    "generatingSubtitle": "Please wait while we prepare your questions.",
-    "errorGenerating": "Failed to generate questions"
-  },
-  "quizTaker": {
-    "title": "Quiz",
-    "submitButton": "Submit Quiz",
-    "unanswered": "unanswered"
-  },
-  "questionCard": {
-    "correct": "Correct",
-    "incorrect": "Incorrect",
-    "correctAnswer": "Correct Answer",
-    "yourAnswer": "Your Answer"
-  },
-  "settingsPreview": {
-    "title": "Generation Options",
-    "questionSettings": "Question Settings",
-    "questionAmount": "Number of Questions",
-    "testStyle": "Test Type",
-    "questionStyle": "Question Styles",
-    "aiSettings": "AI Settings",
-    "aiSource": "AI Source",
-    "model": "Model",
-    "reasoningEffort": "Reasoning Effort",
-    "startButton": "Start",
-    "errorLoading": "Failed to load settings preview.",
-    "serviceNotReady": "Generation service is not ready. Please check your settings.",
-    "notSet": "Not set"
-  },
-  "articleDisplay": {
-    "title": "Article Content",
-    "noContent": "Article content is not available."
-  },
-  "resultView": {
-    "yourGrade": "Your Grade",
-    "accuracy": "Accuracy",
-    "correct": "Correct",
-    "incorrect": "Incorrect",
-    "timeUsed": "Time Used",
-    "retake": "Retake Test"
-  },
-  "settingsDialog": {
-    "systemSettings": "System Settings",
-    "questionSettings": "Question Settings",
-    "questionAmount": "Number of Questions",
-    "questionStyle": "Question Styles",
-    "testStyle": "Test Type",
-    "llmSourceSelect": "LLM Source Selection",
-    "openaiSettings": "OpenAI Settings",
-    "apiKey": "API Key",
-    "model": "Model",
-    "pricePerQuestion": "Price per question",
-    "reasoningEffort": "Reasoning Effort",
-    "lmstudioSettings": "LM Studio Settings",
-    "lmstudioModelName": "Model Name",
-    "cancel": "Cancel",
-    "save": "Save"
+  "examSystem": {
+    "title": "NTUT Exam System",
+    "serverStatusLabel": "Server Status",
+    "serverStatus": {
+      "connected": "Connected",
+      "disconnected": "Disconnected"
+    },
+    "currentLanguage": "Language",
+    "switchToLight": "Switch to Light Theme",
+    "switchToDark": "Switch to Dark Theme",
+    "studentInfo": {
+      "name": "Student",
+      "id": "Exam ID"
+    },
+    "config": {
+      "title": "System Configuration",
+      "subtitle": "Please complete server and configuration file setup before starting the exam.",
+      "server": {
+        "title": "Server Settings",
+        "hostLabel": "Server Host URL",
+        "verifyButton": "Verify Server Connection",
+        "fetchConfigButton": "Fetch Config File",
+        "verifySuccess": "Server connection successful",
+        "verifyFailed": "Server connection failed",
+        "fetchConfigSuccess": "Successfully fetched config file from server",
+        "fetchConfigFailed": "Failed to fetch config file from server"
+      },
+      "upload": {
+        "title": "Upload Config File",
+        "label": "Select config file",
+        "success": "Config file uploaded successfully",
+        "failed": "Failed to upload config file"
+      },
+      "saveButton": "Save Settings",
+      "saveSuccess": "Settings saved"
+    },
+    "welcome": {
+      "studentIdLabel": "Enter your student ID",
+      "startButton": "Start Exam",
+      "testTime": "Estimated exam time: {minutes} minutes",
+      "helpText": "If you cannot log in, please contact the proctor or TA.",
+      "errors": {
+        "empty": "Student ID cannot be empty.",
+        "saveFailed": "Failed to save. Please check your student ID or contact the TA.",
+        "unexpected": "An unexpected error occurred. Please try again later or contact the TA."
+      }
+    },
+    "judge": {
+      "summaryTitle": "Judging Result",
+      "totalPassed": "Total passed: {passed}/{total}",
+      "groupIdLabel": "ID: {id}",
+      "groupPassed": "Passed: {passed}/{total}",
+      "casePassed": "Passed (AC)",
+      "caseFailed": "Failed (WA)",
+      "hiddenOutput": "(Hidden test case)",
+      "noResult": "There is no test result to display.",
+      "tableHeaders": {
+        "caseId": "Test Case ID",
+        "result": "Result",
+        "userOutput": "Your Output"
+      }
+    },
+    "common": {
+      "close": "Close",
+      "cancel": "Cancel"
+    },
+    "puzzles": {
+      "forceStop": "Force Stop All Tests",
+      "exportZip": "Export Answers as ZIP",
+      "summary": "{count} problems in total",
+      "headers": {
+        "id": "ID",
+        "name": "Problem Title",
+        "language": "Language",
+        "status": "Status",
+        "passRate": "Pass Rate",
+        "upload": "Upload Code"
+      },
+      "puzzleLabel": "Problem #{id}",
+      "status": {
+        "testing": "Testing",
+        "notSubmitted": "Not Submitted",
+        "completed": "Completed",
+        "partial": "Partially Passed",
+        "failed": "Failed",
+        "unknown": "Unknown"
+      },
+      "detailPassRateTitle": "Pass Rate Details for {name}",
+      "upload": {
+        "button": "Upload",
+        "title": "Upload Code for {name}",
+        "label": "Select a source file to upload",
+        "confirm": "Upload and Close"
+      }
+    }
   }
 }

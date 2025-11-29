@@ -1,46 +1,43 @@
-import { ipcMain } from "electron";
-import { readConfig, appendTestResult } from '../local-store/runTimeStore';
-import { runPythonTestsAPI, stopProgram } from "./pyJudger";
-import { LocalProgramStore } from "../localProgram";
-// import { LocalProgramStore } from "../localProgram";
-import { sendTestResultToServer } from "../api";
+import { ipcMain } from 'electron';
+import { store } from '../store/store';
+import { runPythonTestsAPI, stopProgram } from './pyJudger';
+import { LocalProgramStore } from '../localProgram';
+import { sendTestResultToServer } from '../api';
 
 export class CodeJudger {
   public static setup() {
-    ipcMain.handle(
-      "judger:judge",
-      async (event, questionId: string, codeFilePath: string) => {
-        console.log(
-          `Received judge request for questionId: ${questionId}, codeFile path: ${codeFilePath}`
-        );
-        let config = readConfig();
-        let puzzle = config.puzzles.filter(
-          (puzzle) => puzzle.id === questionId
-        )[0];
-        let result = await this.judgeCode(questionId, codeFilePath);
-        result = this.maskTheTestResults(result, puzzle.testCases);
-        appendTestResult(questionId, result);
-        LocalProgramStore.addFile(codeFilePath, `${questionId}`);
-        sendTestResultToServer();
-        event.sender.send("judger:judge-complete", result);
-        return result;
+    ipcMain.handle('judger:judge', async (event, questionId: string, codeFilePath: string) => {
+      console.log(
+        `Received judge request for questionId: ${questionId}, codeFile path: ${codeFilePath}`
+      );
+      let config = store.getConfig();
+      let puzzle = config.puzzles.filter((puzzle) => puzzle.id === questionId)[0];
+      let result = await this.judgeCode(questionId, codeFilePath);
+      result = this.maskTheTestResults(result, puzzle.testCases);
+      LocalProgramStore.addFile(codeFilePath, `${questionId}`);
+      sendTestResultToServer();
+      const isHigher = this.ifScoreHigherThanPrevious(questionId, result);
+      if (!isHigher) {
+        LocalProgramStore.syncToBackend();
       }
-    );
-    ipcMain.handle("judger:force-stop", async () => {
+      event.sender.send('judger:judge-complete', result);
+      return result;
+    });
+    ipcMain.handle('judger:force-stop', async () => {
       await stopProgram();
       return { success: true };
     });
   }
   private static async judgeCode(questionId: string, codeFilePath: string) {
-    let config = readConfig();
+    let config = store.getConfig();
     let puzzle = config.puzzles.filter((puzzle) => puzzle.id === questionId)[0];
     switch (puzzle.language) {
-      case "python":
+      case 'python':
         return await runPythonTestsAPI(codeFilePath, puzzle.testCases);
-      case "Python":
+      case 'Python':
         return await runPythonTestsAPI(codeFilePath, puzzle.testCases);
       default:
-        throw new Error("Unsupported language");
+        throw new Error('Unsupported language');
     }
   }
   private static maskTheTestResults(results: any, testDefinitions: any) {
@@ -53,17 +50,30 @@ export class CodeJudger {
       }
     }
 
-    // 2. 迭代並遮罩輸出
     const maskedResults = JSON.parse(JSON.stringify(results)); // 深拷貝
     for (const group of maskedResults.groupResults) {
       for (const testResult of group.testCasesResults) {
         // 如果 ID 不在白名單中 (即不是公開案例)，則遮罩輸出
         if (!openIds.has(testResult.id)) {
-          testResult.userOutput = "";
+          testResult.userOutput = '';
         }
       }
     }
 
     return maskedResults;
+  }
+  private static ifScoreHigherThanPrevious(id: string, newResult: any): boolean {
+    const previousResult = store.getTestResult()[id];
+    if (!previousResult) {
+      store.appendTestResult(id, newResult);
+      store.updateResultHigherThanPrevious(true);
+      return true;
+    }
+    if (newResult.correctCount > previousResult.correctCount) {
+      store.appendTestResult(id, newResult);
+      store.updateResultHigherThanPrevious(true);
+      return true;
+    }
+    return false;
   }
 }

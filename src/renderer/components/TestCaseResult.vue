@@ -1,86 +1,130 @@
 <template>
-  <!-- 直接使用 props.result，並用 v-if 確保它不是空物件 -->
-  <v-card v-if="result && Object.keys(result).length > 0" class="result">
-    <v-card-title>
-      判題結果　總通過: {{ result.correctCount }}/{{ result.testCaseAmount }}
-    </v-card-title>
-    <v-divider></v-divider>
-    <v-card-text>
-      <div v-for="group in result.groupResults" :key="group.id" class="mb-6">
-        <v-card class="mb-2" outlined>
-          <v-card-title>
-            {{ group.title }}
-            <v-chip class="mx-2" size="small" label>ID: {{ group.id }}</v-chip>
-            <v-spacer></v-spacer>
-            <span class="text-subtitle-1"
-              >通過: {{ group.correctCount }}/{{ group.testCaseAmount }}</span
-            >
-          </v-card-title>
-          <v-card-text>
-            <v-data-table
-              :headers="headers"
-              :items="group.testCasesResults"
-              class="elevation-1"
-              density="compact"
-            >
-              <template v-slot:item.correct="{ item }">
-                <v-chip :color="item.correct ? 'green' : 'red'" dark>
-                  {{ item.correct ? "通過 (AC)" : "失敗 (WA)" }}
-                </v-chip>
-              </template>
+  <div class="result-container w-100">
+    <!-- Summary Card -->
+    <v-card variant="flat" class="mb-4 bg-primary-lighten-5 border border-primary-lighten-4">
+      <v-card-text class="d-flex align-center py-3">
+        <v-icon color="primary" class="mr-2">mdi-chart-box-outline</v-icon>
+        <span class="text-subtitle-2 font-weight-bold text-primary-darken-1">
+          {{ t('examSystem.judge.summaryTitle') }}
+        </span>
+        <v-spacer />
+        <div class="d-flex align-center">
+           <span class="text-caption text-medium-emphasis mr-2">Passed:</span>
+           <span class="text-h6 font-weight-bold text-primary">
+             {{ result?.correctCount ?? 0 }}
+           </span>
+           <span class="text-body-2 text-medium-emphasis mx-1">/</span>
+           <span class="text-body-2 text-medium-emphasis">
+             {{ result?.testCaseAmount ?? 0 }}
+           </span>
+        </div>
+      </v-card-text>
+    </v-card>
 
-              <template v-slot:item.userOutput="{ item }">
-                <pre class="output-pre">{{ item.userOutput || "(測資隱藏)" }}</pre>
-              </template>
-            </v-data-table>
-          </v-card-text>
+    <!-- Groups -->
+    <template v-if="hasResult">
+      <div v-for="group in safeGroupResults" :key="group.id" class="mb-6">
+        <div class="d-flex align-center mb-2">
+          <v-chip size="small" color="secondary" variant="flat" class="mr-2 font-weight-bold">
+             Group {{ group.id }}
+          </v-chip>
+          <span class="text-subtitle-2 font-weight-bold">{{ group.title }}</span>
+          <v-spacer />
+          <v-progress-linear
+             :model-value="(group.correctCount / group.testCaseAmount) * 100"
+             color="success"
+             height="6"
+             rounded
+             style="width: 100px"
+          ></v-progress-linear>
+          <span class="ml-2 text-caption text-medium-emphasis" style="width: 40px; text-align: right;">
+            {{ group.correctCount }}/{{ group.testCaseAmount }}
+          </span>
+        </div>
+
+        <v-card variant="outlined" class="overflow-hidden rounded-lg border-opacity-50">
+           <v-table density="compact" class="result-table">
+             <thead>
+               <tr>
+                 <th class="text-left bg-surface-light" style="width: 60px">#</th>
+                 <th class="text-left bg-surface-light" style="width: 100px">Status</th>
+                 <th class="text-left bg-surface-light">Output</th>
+               </tr>
+             </thead>
+             <tbody>
+               <tr v-for="item in group.testCasesResults" :key="item.id">
+                 <td class="text-caption text-medium-emphasis">{{ item.id }}</td>
+                 <td>
+                   <v-chip
+                     :color="item.correct ? 'success' : 'error'"
+                     size="x-small"
+                     variant="flat"
+                     class="font-weight-bold"
+                   >
+                     {{ item.correct ? 'PASS' : 'FAIL' }}
+                   </v-chip>
+                 </td>
+                 <td class="py-2">
+                   <div class="code-block rounded pa-2 text-caption font-mono">
+                     {{ item.userOutput || t('examSystem.judge.hiddenOutput') }}
+                   </div>
+                 </td>
+               </tr>
+             </tbody>
+           </v-table>
         </v-card>
       </div>
-    </v-card-text>
-  </v-card>
-  <!-- 如果沒有有效的 result 資料，可以顯示一個提示 -->
-  <v-card v-else>
-    <v-card-text>無有效的測試結果資料。</v-card-text>
-  </v-card>
+    </template>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
-// 定義傳入的 props
-const props = defineProps({
-  result: {
-    type: Object,
-    // 雖然父元件用了 v-if, 但這裡保留 required 也是好的實踐
-    required: true, 
-  },
+const { t } = useI18n();
+
+// Types... (Same as before)
+type TestCaseResult = { id: string | number; correct: boolean; userOutput?: string; };
+type GroupResult = { id: string | number; title: string; correctCount: number; testCaseAmount: number; testCasesResults: TestCaseResult[]; };
+type JudgeResult = { correctCount: number; testCaseAmount: number; groupResults: GroupResult[]; };
+
+const props = defineProps<{
+  result: Partial<JudgeResult> | null | undefined;
+}>();
+
+const hasResult = computed(() => {
+  const r = props.result;
+  return !!(r && Array.isArray(r.groupResults) && r.groupResults.length > 0);
 });
 
-// 使用 watch 可以在開發時方便地觀察 prop 的變化
-watch(() => props.result, (newVal) => {
-  console.log("Result prop in child component updated: ", newVal);
-}, { immediate: true });
-
-
-// data-table 的表頭定義
-const headers = ref([
-  { title: "測試案例 ID", key: "id", sortable: false, width: '15%' },
-  { title: "結果", key: "correct", sortable: false, width: '15%' },
-  { title: "您的輸出", key: "userOutput", sortable: false },
-]);
+const safeGroupResults = computed<GroupResult[]>(() => {
+  if (!props.result || !Array.isArray(props.result.groupResults)) return [];
+  return props.result.groupResults as GroupResult[];
+});
 </script>
 
 <style scoped>
-.result {
-  width: 100%;
-  max-height: 80vh; /* 增加最大高度以支援滾動 */
-  overflow-y: auto;
+.bg-primary-lighten-5 {
+  background-color: rgba(var(--v-theme-primary), 0.05);
+}
+.text-primary-darken-1 {
+  color: rgb(var(--v-theme-primary-darken-1));
+}
+.font-mono {
+  font-family: 'Roboto Mono', 'Fira Code', monospace;
+}
+.code-block {
+  background-color: rgba(0, 0, 0, 0.03);
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.4;
 }
 
-.output-pre {
-  white-space: pre-wrap; /* 自動換行 */
-  word-break: break-all; /* 打斷長字串 */
-  margin: 0;
-  font-family: monospace;
+/* Dark mode adaptation */
+@media (prefers-color-scheme: dark) {
+  .code-block {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
 }
 </style>

@@ -1,105 +1,98 @@
 {
-  "app": {
-    "newsList": "新聞列表",
-    "toggleTheme": "切換主題"
-  },
-  "home": {
-    "onlineSource": "線上來源",
-    "selfUpload": "自行上傳",
-    "aiGenerate": "AI 生成"
-  },
-  "onlineSource": {
-    "sourceSelectLabel": "選擇新聞來源",
-    "errorSources": "獲取來源時發生錯誤",
-    "errorSelect": "選擇來源時發生錯誤",
-    "errorHeadlines": "獲取頭條新聞時發生錯誤",
-    "noHeadlines": "找不到所選來源的頭條新聞。",
-    "errorContent": "獲取文章內容時發生錯誤"
-  },
-  "newsCard": {
-    "readMore": "閱讀更多",
-    "select": "選擇"
-  },
-  "aiGenerate": {
-    "formTitle": "使用 AI 生成文章",
-    "levelLabel": "難易度 (CEFR)",
-    "topicLabel": "主題",
-    "wordCountLabel": "字數",
-    "generateButton": "生成",
-    "regenerateButton": "重新生成",
-    "errorPrefix": "生成失敗",
-    "errorDefault": "發生未知錯誤。",
-    "createQuizButton": "使用此文章建立測驗"
-  },
-  "selfUpload": {
-    "formTitle": "從您的文本建立測驗",
-    "titleLabel": "標題",
-    "contentLabel": "內容",
-    "submitButton": "建立測驗"
-  },
-  "quizPage": {
-    "title": "測驗頁面",
-    "by": "作者",
-    "noData": "未提供文章資料",
-    "noDataSubtitle": "請先從主頁選擇一篇文章。",
-    "goHome": "返回主頁",
-    "generatingTitle": "正在生成測驗...",
-    "generatingSubtitle": "請稍候，我們正在為您準備問題。",
-    "errorGenerating": "生成問題失敗"
-  },
-  "quizTaker": {
-    "title": "測驗",
-    "submitButton": "提交測驗",
-    "unanswered": "未作答"
-  },
-  "questionCard": {
-    "correct": "正確",
-    "incorrect": "錯誤",
-    "correctAnswer": "正確答案",
-    "yourAnswer": "您的答案"
-  },
-  "settingsPreview": {
-    "title": "生成選項",
-    "questionSettings": "問題設定",
-    "questionAmount": "問題數量",
-    "testStyle": "測驗類型",
-    "questionStyle": "問題樣式",
-    "aiSettings": "AI 設定",
-    "aiSource": "AI 來源",
-    "model": "模型",
-    "reasoningEffort": "推理強度",
-    "startButton": "開始測驗",
-    "errorLoading": "載入設定預覽失敗。",
-    "serviceNotReady": "生成服務尚未就緒，請檢查您的設定。",
-    "notSet": "未設定"
-  },
-  "articleDisplay": {
-    "title": "文章內容",
-    "noContent": "沒有可用的文章內容。"
-  },
-  "resultView": {
-    "yourGrade": "您的成績",
-    "accuracy": "準確率",
-    "correct": "正確",
-    "incorrect": "錯誤",
-    "timeUsed": "花費時間",
-    "retake": "重新測驗"
-  },
-  "settingsDialog": {
-    "systemSettings": "系統設定",
-    "questionSettings": "題目設定",
-    "questionAmount": "題目數量",
-    "questionStyle": "題目風格",
-    "testStyle": "考試類型",
-    "llmSourceSelect": "AI 來源選擇",
-    "openaiSettings": "OpenAI 設定",
-    "apiKey": "API 金鑰",
-    "model": "模型",
-    "pricePerQuestion": "單題價格",
-    "reasoningEffort": "推理強度",
-    "lmstudioSettings": "LM Studio 設定",
-    "lmstudioModelName": "模型名稱",
-    "cancel": "取消",
-    "save": "儲存"
+  "examSystem": {
+    "title": "北科大考試系統",
+    "serverStatusLabel": "伺服器狀態",
+    "serverStatus": {
+      "connected": "已連線",
+      "disconnected": "未連線"
+    },
+    "currentLanguage": "目前語言",
+    "switchToLight": "切換為亮色主題",
+    "switchToDark": "切換為暗色主題",
+    "studentInfo": {
+      "name": "學生姓名",
+      "id": "學號"
+    },
+    "config": {
+      "title": "系統設定",
+      "subtitle": "請先完成伺服器與設定檔的相關設定再開始考試。",
+      "server": {
+        "title": "伺服器設定",
+        "hostLabel": "伺服器主機連結",
+        "verifyButton": "驗證伺服器連線",
+        "fetchConfigButton": "從伺服器取得設定檔案",
+        "verifySuccess": "伺服器連線成功",
+        "verifyFailed": "伺服器連線失敗",
+        "fetchConfigSuccess": "從伺服器取得設定檔案成功",
+        "fetchConfigFailed": "從伺服器取得設定檔案失敗"
+      },
+      "upload": {
+        "title": "上傳設定檔案",
+        "label": "選擇設定檔案",
+        "success": "設定檔案上傳成功",
+        "failed": "設定檔案上傳失敗"
+      },
+      "saveButton": "儲存設定",
+      "saveSuccess": "設定已儲存"
+    },
+    "welcome": {
+      "studentIdLabel": "請輸入學號",
+      "startButton": "開始測驗",
+      "testTime": "測驗時間：約 {minutes} 分鐘",
+      "helpText": "若無法登入，請聯絡監考老師或助教。",
+      "errors": {
+        "empty": "學號不得為空。",
+        "saveFailed": "儲存失敗，請檢查學號是否正確，或者聯絡助教。",
+        "unexpected": "系統發生錯誤，請稍後再試或聯絡助教。"
+      }
+    },
+    "judge": {
+      "summaryTitle": "判題結果",
+      "totalPassed": "總通過：{passed}/{total}",
+      "groupIdLabel": "ID: {id}",
+      "groupPassed": "通過：{passed}/{total}",
+      "casePassed": "通過 (AC)",
+      "caseFailed": "失敗 (WA)",
+      "hiddenOutput": "(測資隱藏)",
+      "noResult": "目前沒有可顯示的測試結果。",
+      "tableHeaders": {
+        "caseId": "測試案例 ID",
+        "result": "結果",
+        "userOutput": "您的輸出"
+      }
+    },
+    "common": {
+      "close": "關閉",
+      "cancel": "取消"
+    },
+    "puzzles": {
+      "forceStop": "強制停止所有評測",
+      "exportZip": "匯出作答壓縮檔",
+      "summary": "共 {count} 題",
+      "headers": {
+        "id": "編號",
+        "name": "題目名稱",
+        "language": "語言",
+        "status": "狀態",
+        "passRate": "通過率",
+        "upload": "上傳程式"
+      },
+      "puzzleLabel": "題目編號 #{id}",
+      "status": {
+        "testing": "測試中",
+        "notSubmitted": "未繳交",
+        "completed": "已完成",
+        "partial": "部分通過",
+        "failed": "未通過",
+        "unknown": "未知狀態"
+      },
+      "detailPassRateTitle": "{name} 的詳細通過率",
+      "upload": {
+        "button": "上傳",
+        "title": "上傳程式碼給 {name}",
+        "label": "選擇要上傳的程式檔案",
+        "confirm": "關閉並上傳"
+      }
+    }
   }
 }

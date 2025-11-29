@@ -21,11 +21,11 @@ const api = {
     getTestInfo: () => ipcRenderer.invoke('config:get-test-info'),
     isStudentInfoVerified: () => ipcRenderer.invoke('store:is-student-info-verified'),
     updateServerAvailability: (callback: (status: boolean) => void) => {
-      ipcRenderer.removeAllListeners('store:availability-updated');
       ipcRenderer.on('store:availability-updated', (_event, status) => {
         callback(status);
       });
-    }
+    },
+    getServerAvailability: () => ipcRenderer.invoke('store:get-server-availability'),
   },
 
   // --- Judger ---

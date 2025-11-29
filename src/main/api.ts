@@ -1,29 +1,42 @@
-import axios from "axios";
-import { Config, readConfig, readTestResult, readStudentInformation, updateServerAvailability } from "./local-store/runTimeStore";
-import { actionLogger } from "./logger";
+import axios from 'axios';
+import { store } from './store/store';
+import { Config } from './store/types';
+import { actionLogger } from './system/logger';
+import FormData from 'form-data';
+import { LocalProgramStore } from './localProgram';
+
+// 提取一個通用的錯誤處理函數，避免重複程式碼，並統一不 throw error
+function handleApiError(context: string, error: any) {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+
+  // 發生錯誤通常代表連線有問題，統一標記為 false
+  store.updateServerAvailability(false);
+
+  // 不再 throw error，回傳 undefined 讓呼叫端自行處理
+  return undefined;
+}
 
 export async function fetchConfig(host: string) {
   try {
     const response = await axios.get(`${host}/api/get-config`);
-    actionLogger.info("Fetched config from server:");
+    actionLogger.info('Fetched config from server.');
     actionLogger.silly(response.data);
+    store.updateServerAvailability(true);
     return response.data as Config;
   } catch (error) {
-    // actionLogger.silly("Failed to fetch config:", error);
-    throw error;
+    return handleApiError('Failed to fetch config', error);
   }
 }
 
 export async function getServerStatus(host: string) {
   try {
     const response = await axios.get(`${host}/api/status`);
+    store.updateServerAvailability(true);
     return response.data;
   } catch (error) {
-    actionLogger.silly("Failed to get server status:", error);
-    throw error;
+    return handleApiError('Failed to get server status', error);
   }
 }
-
 
 export interface actionReport {
   studentID: string;
@@ -32,114 +45,214 @@ export interface actionReport {
 }
 
 export async function sendTestResultToServer() {
-  const testResult = readTestResult();
-  const config = readConfig();
+  if (!store.hasConfig()) {
+    return;
+  }
+  if (!store.isTestResultDirty()) {
+    return;
+  }
+  const testResult = store.getTestResult();
+  const config = store.getConfig();
   const host = config.remoteHost;
-  const studentInfo = readStudentInformation();
+  const studentInfo = store.getStudentInformation();
+
   try {
     const response = await axios.post(`${host}/api/post-result`, {
       studentInformation: studentInfo,
       key: config.publicKey,
       testResult: testResult
     });
-    actionLogger.info("Response from sending test result to server:", response.data);
+    console.log('Response from sending test result to server:', response.data);
+    store.markTestResultSynced();
+    store.updateServerAvailability(true);
+    ApiSystemInstance.processQueuedActions();
     return response.data;
   } catch (error) {
-    throw error;
+    store.updateServerAvailability(false);
+    return handleApiError('Failed to send test result', error);
   }
 }
 
-
-export async function verifyStudentIDFromServer(studentID: string){
-  const config = readConfig();
+export async function verifyStudentIDFromServer(studentID: string) {
+  if (!store.hasConfig()) {
+    actionLogger.info('Config unavailable while verifying student ID.');
+    return undefined;
+  }
+  const config = store.getConfig();
   const hostLink = config.remoteHost;
   try {
     let response = await axios.post(`${hostLink}/api/is-student-valid`, {
-      studentID: studentID,
+      studentID: studentID
     });
+    // 驗證成功代表網路暢通，嘗試觸發隊列處理
+    ApiSystemInstance.processQueuedActions();
     return response;
   } catch (error) {
-    actionLogger.error("Failed to verify student ID from server: studentID =", studentID, error);
-    throw error;
+    return handleApiError(`Failed to verify student ID: ${studentID}`, error);
   }
 }
 
-
-export async function logUserActionToServer(actionData: any) {
+export async function sendProgramFileToServer(buffer: Buffer) {
+  if (store.getIsResultHigherThanPrevious() === false) {
+    return { success: false, message: 'Result not higher than previous' };
+  }
+  if (!store.hasConfig()) {
+    actionLogger.info('Config unavailable while sending program file.');
+    return { success: false, message: 'Config unavailable' };
+  }
+  console.log('Sending program file to server...');
+  const studentID = store.getStudentInformation().id;
+  console.log(`Student ID: ${studentID}`);
+  const config = store.getConfig();
+  const hostLink = config.remoteHost;
+  const MAX_FILE_SIZE = 10 * 1024 * 1024
   try {
-    const config = readConfig();
-    const host = config.remoteHost;
-    const studentInfo = readStudentInformation();
-    const payload = {
-      studentID: studentInfo.id,
-      ...actionData
-    };
-    try {
-      const response = await axios.post(`${host}/api/user-action-logger`, payload);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
+    const form = new FormData();
+    form.append("file", buffer, {
+      filename: `${studentID}.zip`,
+      contentType: 'application/zip'
+    });
+    form.append("studentID", studentID);
+    form.append("key", config.publicKey);
+    const response = await axios.post(`${hostLink}/api/upload-program`, form, {
+      headers: form.getHeaders(),
+      maxContentLength: MAX_FILE_SIZE,
+      maxBodyLength: MAX_FILE_SIZE
+    });
+    store.updateServerAvailability(true);
+    ApiSystemInstance.processQueuedActions();
+    store.updateResultHigherThanPrevious(false);
+    return response.data;
   } catch (error) {
-    // actionLogger.error("Failed to log user action to server:", error);
-    // throw error;
+    store.updateServerAvailability(false);
+    return handleApiError('Failed to send program file', error);
   }
 }
+export async function logUserActionToServer(actionData: any) {
+  const studentInfo = store.getStudentInformation();
+  const payload = {
+    studentID: studentInfo.id,
+    ...actionData
+  };
 
+  if (!store.hasConfig()) {
+    ApiSystemInstance.addLogToQueue(payload);
+    return;
+  }
+
+  const config = store.getConfig();
+  const host = config.remoteHost;
+
+  try {
+    const response = await axios.post(`${host}/api/user-action-logger`, payload);
+    // 成功發送後，觸發佇列檢查 (同樣依賴鎖機制防止迴圈)
+    ApiSystemInstance.processQueuedActions();
+    return response.data;
+  } catch (error) {
+    // 發送失敗，加入佇列並記錄 Log (不 throw)
+    handleApiError('Failed to log user action', error);
+    ApiSystemInstance.addLogToQueue(payload);
+  }
+}
 
 export class ApiSystem {
   private static _isAlive: boolean = true;
   private static _interval: NodeJS.Timeout | null = null;
-  private static recheckIntervalMs: number = 3000;
-  private static serverTimeoutMs: number = 2000;
+  private static recheckIntervalMs: number = 10000;
+  private static serverTimeoutMs: number = 4000;
+  private static userActionLogQueue: any[] = [];
+  private static _isSyncing: boolean = false;
 
   public static setup() {
-    // 啟動健康檢查（每 3 秒）
     this.startHealthCheck();
   }
 
   public static onremove() {
-    console.log("ApiSystem onremove called");
+    console.log('ApiSystem onremove called');
     if (this._interval) {
       clearInterval(this._interval);
       this._interval = null;
-    }    
+    }
   }
 
   private static startHealthCheck() {
-    if (this._interval) return; 
-    
-    this._interval = setInterval( async () => {
+    if (this._interval) return;
+
+    this._interval = setInterval(async () => {
       await this.checkServerAlive();
     }, this.recheckIntervalMs);
   }
 
   private static async checkServerAlive() {
-    const config = readConfig();
-    const host = config.remoteHost; 
+    if (!store.hasConfig()) {
+      return;
+    }
+    const config = store.getConfig();
+    const host = config.remoteHost;
     try {
       let response = await axios.get(`${host}/api/status`, { timeout: this.serverTimeoutMs });
-      this._isAlive = response.data.success;
-      if (this._isAlive) {
+      if (response) {
         this._isAlive = true;
-        updateServerAvailability(true);
+        store.updateServerAvailability(true);
         await this.processQueuedActions();
-      } else {
-        this._isAlive = false;
-        updateServerAvailability(false);
       }
     } catch (err) {
       if (this._isAlive) {
         this._isAlive = false;
-        updateServerAvailability(false);
+        store.updateServerAvailability(false);
+        actionLogger.silly('Server health check failed (server went offline).');
+      }
+    }
+  }
+
+  public static addLogToQueue(actionData: any) {
+    this.userActionLogQueue.push(actionData);
+  }
+
+  private static async resolveQueuedLog() {
+    if (!store.hasConfig()) {
+      return;
+    }
+    while (this.userActionLogQueue.length > 0) {
+      const actionData = this.userActionLogQueue.shift();
+      const studentInfo = store.getStudentInformation();
+      const payload = {
+        studentID: studentInfo.id,
+        ...actionData
+      };
+      const config = store.getConfig();
+      const host = config.remoteHost;
+
+      try {
+        await axios.post(`${host}/api/user-action-logger`, payload);
+      } catch (error) {
+        this.userActionLogQueue.unshift(actionData);
+        handleApiError('Failed to resolve queued log', error);
+        break;
       }
     }
   }
 
   public static async processQueuedActions() {
-    // 你在這裡實作：
-    // - 讀出 queue 中的 request
-    // - 逐個重送
-    // 這裡我不動它，只保留呼叫流程
+    // 1. 檢查鎖：如果正在同步中，直接離開，避開無窮遞迴
+    if (this._isSyncing) {
+      return;
+    }
+    this._isSyncing = true;
+    try {
+      await this.resolveQueuedLog();
+      await sendTestResultToServer();
+      if (store.getIsResultHigherThanPrevious()) {
+        LocalProgramStore.syncToBackend();
+        store.updateResultHigherThanPrevious(false);
+      }
+    } catch (error) {
+      console.error('Error processing queued actions:', error);
+    } finally {
+      this._isSyncing = false;
+    }
   }
 }
+
+const ApiSystemInstance = ApiSystem;
+export default ApiSystemInstance;

@@ -1,39 +1,144 @@
 <template>
-  <v-container class="pa-4 d-flex justify-center" fluid>
-    <v-card min-width="700" class="pa-4 mb-4" outlined>
-      <v-row>
-        <v-col cols="6" class="mb-4">
-          <h2 class="my-3">設定</h2>
-          <v-text-field
-            label="伺服器主機連結"
-            v-model="serverHost"
-          ></v-text-field>
-          {{ serverStatus }}
-          <v-spacer></v-spacer>
-          {{ localConfigStatus }}
-          <v-btn class="my-2" @click="verifyServerStatus()">驗證伺服器連線</v-btn>
-          <v-btn class="my-2" v-if="isServerConnected" @click="getConfigFileFromServer()"
-            >從伺服器取得設定檔案</v-btn>
-        </v-col>
-        <v-col cols="6" class="">
-          <h2 class="my-3">上傳設定檔案</h2>
-          <v-file-upload
-            v-model="selectedFile"
-            :multiple="false"
-            density="default"
-            @update:model-value="uploadConfigFile(selectedFile!)"
-          ></v-file-upload>
-        </v-col>
-      </v-row>
-      <v-row>
-        <!-- <v-btn v-if="isConfigCompleted" :disabled="!isConfigCompleted" color="primary"
-          >開始考試</v-btn
-        > -->
+  <v-container class="fill-height d-flex justify-center align-center pa-4 bg-background" fluid>
+    <v-card
+      class="config-card w-100"
+      max-width="900"
+      elevation="2"
+      rounded="lg"
+    >
+      <!-- Header -->
+      <div class="px-6 py-5 border-b">
+        <div class="d-flex align-center">
+          <v-avatar color="primary" variant="tonal" class="mr-4" rounded>
+            <v-icon>mdi-cog</v-icon>
+          </v-avatar>
+          <div>
+            <h2 class="text-h6 font-weight-bold">
+              {{ t('examSystem.config.title') }}
+            </h2>
+            <div class="text-caption text-medium-emphasis">
+              {{ t('examSystem.config.subtitle') }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <v-card-text class="px-6 py-6">
+        <v-row>
+          <!-- Server settings -->
+          <!-- 關鍵修正：將 md="6" 改為 sm="6"，在 800px~900px 視窗下會並排顯示 -->
+          <v-col cols="12" sm="6" class="pr-sm-4 border-e-sm border-b border-b-sm-0 pb-6 pb-sm-0">
+            <h3 class="text-subtitle-1 font-weight-bold mb-4 d-flex align-center">
+              <v-icon size="20" color="primary" class="mr-2">mdi-server-network</v-icon>
+              {{ t('examSystem.config.server.title') }}
+            </h3>
+
+            <v-text-field
+              v-model="serverHost"
+              :label="t('examSystem.config.server.hostLabel')"
+              variant="outlined"
+              density="comfortable"
+              placeholder="e.g., http://192.168.1.100:3000"
+              bg-color="surface"
+              hide-details="auto"
+              class="mb-3"
+            >
+              <template #append-inner>
+                <v-icon :color="serverStatus === 'connected' ? 'success' : 'grey'">
+                  {{ serverStatus === 'connected' ? 'mdi-check-circle' : 'mdi-minus-circle' }}
+                </v-icon>
+              </template>
+            </v-text-field>
+
+            <div class="d-flex align-center mb-4 pl-1">
+              <span class="text-caption text-medium-emphasis mr-2">
+                {{ t('examSystem.serverStatusLabel') }}:
+              </span>
+              <span
+                class="text-caption font-weight-bold"
+                :class="serverStatus === 'connected' ? 'text-success' : 'text-error'"
+              >
+                {{ t(`examSystem.serverStatus.${serverStatus}`) }}
+              </span>
+            </div>
+
+            <v-btn
+              color="primary"
+              variant="tonal"
+              block
+              class="mb-3"
+              height="44"
+              :loading="verifying"
+              @click="verifyServerStatus"
+            >
+              <v-icon start>mdi-connection</v-icon>
+              {{ t('examSystem.config.server.verifyButton') }}
+            </v-btn>
+
+            <v-slide-y-transition>
+              <v-btn
+                v-if="isServerConnected"
+                color="secondary"
+                variant="outlined"
+                block
+                height="44"
+                @click="getConfigFileFromServer"
+              >
+                <v-icon start>mdi-cloud-download-outline</v-icon>
+                {{ t('examSystem.config.server.fetchConfigButton') }}
+              </v-btn>
+            </v-slide-y-transition>
+          </v-col>
+
+          <!-- Upload config file -->
+          <v-col cols="12" sm="6" class="pl-sm-4 pt-6 pt-sm-0">
+            <h3 class="text-subtitle-1 font-weight-bold mb-4 d-flex align-center">
+              <v-icon size="20" color="secondary" class="mr-2">mdi-file-cog-outline</v-icon>
+              {{ t('examSystem.config.upload.title') }}
+            </h3>
+
+            <div class="text-body-2 text-medium-emphasis mb-3">
+              {{ t('examSystem.config.upload.description', 'Alternatively, you can upload a configuration file manually.') }}
+            </div>
+
+            <v-file-upload
+              v-model="selectedFile"
+              :multiple="false"
+              density="comfortable"
+              show-size
+              variant="outlined"
+              prepend-icon=""
+              :label="t('examSystem.config.upload.label')"
+              @update:model-value="onFileSelected"
+              class="w-100"
+              height="120"
+            >
+                <template #message>
+                    <div class="d-flex flex-column align-center text-medium-emphasis">
+                         <v-icon size="32" class="mb-2">mdi-upload-outline</v-icon>
+                         <span>Drag & Drop or Click</span>
+                    </div>
+                </template>
+            </v-file-upload>
+          </v-col>
+        </v-row>
+      </v-card-text>
+
+      <v-divider></v-divider>
+
+      <v-card-actions class="pa-4 bg-surface-light">
         <v-spacer></v-spacer>
-      </v-row>
-      <v-row>
-        <v-btn block>儲存設定</v-btn>
-      </v-row>
+        <v-btn
+          color="primary"
+          variant="elevated"
+          size="large"
+          width="120"
+          :disabled="!canSave"
+          @click="saveSettings"
+        >
+          {{ t('examSystem.config.saveButton') }}
+        </v-btn>
+      </v-card-actions>
     </v-card>
   </v-container>
 </template>
@@ -42,71 +147,74 @@
 import { ref, computed, onMounted } from 'vue';
 import { VFileUpload } from 'vuetify/labs/VFileUpload';
 import { router } from '../router/index';
+import { useI18n } from 'vue-i18n';
 
-const darkMode = ref(false);
+const { t } = useI18n();
+
 const serverHost = ref('');
 const selectedFile = ref<File | undefined>(undefined);
-const serverStatus = ref('disconnected');
+const serverStatus = ref<'connected' | 'disconnected'>('disconnected');
 const isServerConnected = ref(false);
-const localConfigStatus = ref('');
-
+const verifying = ref(false);
 
 onMounted(async () => {
-  let isSetupComplete = await window.api.config.getIsConfigSetupComplete();
-  console.log('Is Config Setup Complete:', isSetupComplete);
-  if (isSetupComplete) {
-    router.push('/Welcome');
+  if (window.api?.config) {
+    const isSetupComplete = await window.api.config.getIsConfigSetupComplete();
+    if (isSetupComplete) {
+      router.push('/Welcome');
+    }
   }
-  localConfigStatus.value = await window.api.config.getLocalConfigStatus();
 });
 
-const toggleDarkMode = () => {
-  darkMode.value = !darkMode.value;
-  // 這裡可以加入切換深色模式的邏輯，例如修改 CSS 變數或切換主題
+const canSave = computed(() => !!serverHost.value || !!selectedFile.value);
+
+const onFileSelected = async (files: File | File[] | undefined) => {
+  const file = Array.isArray(files) ? files[0] : files;
+  if (!file) return;
+  selectedFile.value = file;
+  await uploadConfigFile(file);
 };
 
 const uploadConfigFile = async (file: File) => {
-  // 處理上傳設定檔案的邏輯
-  console.log('上傳的設定檔案:', file);
-  let re = await window.api.config.setJson(file.path);
-  console.log(re);
+  if (!window.api?.config) return;
+  const re = await window.api.config.setJson(file.path);
   if (re.success) {
-    alert('設定檔案上傳成功');
     router.push('/Welcome');
   } else {
-    alert('設定檔案上傳失敗');
+    alert(t('examSystem.config.upload.failed'));
   }
-  // checkConfigCompletion();
 };
 
 const verifyServerStatus = async () => {
-  // 處理驗證伺服器連線的邏輯
-  console.log('驗證伺服器連線:', serverHost.value);
-  let re = await window.api.config.getServerStatus(serverHost.value);
-  console.log(re);
-  if (re.success) {
-    alert('伺服器連線成功');
-    serverStatus.value = 'connected';
-    isServerConnected.value = true;
-  } else {
-    alert('伺服器連線失敗');
-    serverStatus.value = 'disconnected';
-    isServerConnected.value = false;
+  if (!serverHost.value || !window.api?.config) return;
+  verifying.value = true;
+  try {
+    const re = await window.api.config.getServerStatus(serverHost.value);
+    if (re.success) {
+      serverStatus.value = 'connected';
+      isServerConnected.value = true;
+    } else {
+      serverStatus.value = 'disconnected';
+      isServerConnected.value = false;
+      alert(t('examSystem.config.server.verifyFailed'));
+    }
+  } finally {
+    verifying.value = false;
   }
 };
 
-const getConfigFileFromServer = async() => {
-
-  console.log('從伺服器取得設定檔案:', serverHost.value);
-  let re = await window.api.config.getFromServer(serverHost.value);
+const getConfigFileFromServer = async () => {
+  if (!window.api?.config) return;
+  const re = await window.api.config.getFromServer(serverHost.value);
   if (re.success) {
-    alert('從伺服器取得設定檔案成功');
     router.push('/Welcome');
   } else {
-    alert('從伺服器取得設定檔案失敗');
+    alert(t('examSystem.config.server.fetchConfigFailed'));
   }
 };
 
-const isConfigCompleted = ref(false);
-
+const saveSettings = () => {
+  // Logic...
+  alert(t('examSystem.config.saveSuccess'));
+};
 </script>
