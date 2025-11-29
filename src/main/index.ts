@@ -7,16 +7,15 @@ import { onAppQuit } from './ipcHandler';
 import log from 'electron-log';
 import { setMainWindow } from './system/windowsManager';
 import { loggerSetup, clearLogOnStartup, actionLogger } from './system/logger';
-import { store } from './store/store';
 
 clearLogOnStartup();
 loggerSetup();
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
-    width: 900,
+    width: 1200,
     minWidth: 800,
-    height: 670,
+    height: 900,
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
@@ -42,11 +41,11 @@ function createWindow(): void {
         // 2. 顯示同步原生對話框
         const choice = dialog.showMessageBoxSync(mainWindow, {
           type: 'warning',
-          buttons: ['取消', '關閉'], // 按鈕選項
+          buttons: ['取消[cancel]', '關閉[close]'], // 按鈕選項
           defaultId: 0,
-          title: '您尚未完成考試，請勿關閉這個程式！',
-          message: '這個動作會影響到你的考試成績',
-          detail: '如果您擅自關閉，系統會通知監考人員'
+          title: '您尚未完成考試，請勿關閉這個程式！[Do not close the application]',
+          message: '這個動作會影響到你的考試成績 [This action will affect your test results]',
+          detail: '如果您擅自關閉，系統會通知監考人員 [If you close it unauthorized, the system will notify the proctor]'
         });
         if (choice === 1) {
           mainWindow.destroy();

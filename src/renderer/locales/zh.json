@@ -68,6 +68,7 @@
     "puzzles": {
       "forceStop": "強制停止所有評測",
       "exportZip": "匯出作答壓縮檔",
+      "finisheTheExam": "結束考試",
       "summary": "共 {count} 題",
       "headers": {
         "id": "編號",

@@ -1,13 +1,14 @@
 <template>
   <v-container class="fill-height d-flex justify-center align-center pa-4 bg-background" fluid>
     <v-card
-      class="config-card w-100"
+      class="config-card w-100 d-flex flex-column"
       max-width="900"
+      max-height="90vh"
       elevation="2"
       rounded="lg"
     >
-      <!-- Header -->
-      <div class="px-6 py-5 border-b">
+      <!-- Header: 固定在頂部 -->
+      <div class="px-6 py-5 border-b flex-shrink-0">
         <div class="d-flex align-center">
           <v-avatar color="primary" variant="tonal" class="mr-4" rounded>
             <v-icon>mdi-cog</v-icon>
@@ -23,10 +24,10 @@
         </div>
       </div>
 
-      <v-card-text class="px-6 py-6">
+      <!-- Main Content: 可捲動區域 (Scrollable) -->
+      <v-card-text class="px-6 py-6 flex-grow-1 overflow-y-auto">
         <v-row>
           <!-- Server settings -->
-          <!-- 關鍵修正：將 md="6" 改為 sm="6"，在 800px~900px 視窗下會並排顯示 -->
           <v-col cols="12" sm="6" class="pr-sm-4 border-e-sm border-b border-b-sm-0 pb-6 pb-sm-0">
             <h3 class="text-subtitle-1 font-weight-bold mb-4 d-flex align-center">
               <v-icon size="20" color="primary" class="mr-2">mdi-server-network</v-icon>
@@ -67,7 +68,6 @@
               variant="tonal"
               block
               class="mb-3"
-              height="44"
               :loading="verifying"
               @click="verifyServerStatus"
             >
@@ -81,7 +81,6 @@
                 color="secondary"
                 variant="outlined"
                 block
-                height="44"
                 @click="getConfigFileFromServer"
               >
                 <v-icon start>mdi-cloud-download-outline</v-icon>
@@ -97,21 +96,20 @@
               {{ t('examSystem.config.upload.title') }}
             </h3>
 
-            <div class="text-body-2 text-medium-emphasis mb-3">
+            <!-- <div class="text-body-2 text-medium-emphasis mb-3">
               {{ t('examSystem.config.upload.description', 'Alternatively, you can upload a configuration file manually.') }}
-            </div>
+            </div> -->
 
             <v-file-upload
               v-model="selectedFile"
               :multiple="false"
-              density="comfortable"
+              density="default"
               show-size
               variant="outlined"
               prepend-icon=""
               :label="t('examSystem.config.upload.label')"
               @update:model-value="onFileSelected"
               class="w-100"
-              height="120"
             >
                 <template #message>
                     <div class="d-flex flex-column align-center text-medium-emphasis">
@@ -126,13 +124,13 @@
 
       <v-divider></v-divider>
 
-      <v-card-actions class="pa-4 bg-surface-light">
+      <!-- Footer: 固定在底部 (因為是 Flex Column 的最後一個元素) -->
+      <v-card-actions class="pa-4 bg-surface-light flex-shrink-0">
         <v-spacer></v-spacer>
         <v-btn
           color="primary"
           variant="elevated"
           size="large"
-          width="120"
           :disabled="!canSave"
           @click="saveSettings"
         >

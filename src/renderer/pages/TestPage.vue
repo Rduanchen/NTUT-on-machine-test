@@ -35,6 +35,15 @@
           >
             {{ t('examSystem.puzzles.exportZip') }}
           </v-btn>
+          <v-btn
+            color="primary"
+            variant="elevated"
+            prepend-icon="mdi-folder-zip-outline"
+            @click="outputToZip"
+            height="40"
+          >
+            {{ t('examSystem.puzzles.finishTheExam') }}
+          </v-btn>
         </div>
       </div>
 

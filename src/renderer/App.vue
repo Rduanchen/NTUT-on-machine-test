@@ -219,7 +219,7 @@ watch(
 /* 頁面切換動畫 */
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity 0.5s ease;
 }
 
 .fade-enter-from,

@@ -68,6 +68,7 @@
     "puzzles": {
       "forceStop": "Force Stop All Tests",
       "exportZip": "Export Answers as ZIP",
+      "finisheTheExam": "Finish the Exam",
       "summary": "{count} problems in total",
       "headers": {
         "id": "ID",
