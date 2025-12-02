@@ -13,6 +13,7 @@ export class CodeJudger {
       let config = store.getConfig();
       let puzzle = config.puzzles.filter((puzzle) => puzzle.id === questionId)[0];
       let result = await this.judgeCode(questionId, codeFilePath);
+      store.appendTestResult(questionId, result);
       result = this.maskTheTestResults(result, puzzle.testCases);
       LocalProgramStore.addFile(codeFilePath, `${questionId}`);
       sendTestResultToServer();
@@ -65,12 +66,10 @@ export class CodeJudger {
   private static ifScoreHigherThanPrevious(id: string, newResult: any): boolean {
     const previousResult = store.getTestResult()[id];
     if (!previousResult) {
-      store.appendTestResult(id, newResult);
       store.updateResultHigherThanPrevious(true);
       return true;
     }
     if (newResult.correctCount > previousResult.correctCount) {
-      store.appendTestResult(id, newResult);
       store.updateResultHigherThanPrevious(true);
       return true;
     }
