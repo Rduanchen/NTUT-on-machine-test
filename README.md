@@ -14,6 +14,7 @@
 2. Clone this repository to your local machine.
 3. Run `npm install` to install the dependencies.
 4. Run `npm start` to start the development server.
+5. Run `npm run copy-python:win` or `npm run copy-python:unix` to copy the python environment to the output folder.
 
 ## Note:
 
