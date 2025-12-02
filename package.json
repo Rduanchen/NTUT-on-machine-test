@@ -1,5 +1,5 @@
 {
-  "name": "NTUT Code Tester",
+  "name": "ntut-code-tester",
   "version": "1.6.5",
   "description": "Code",
   "main": "./out/main/index.js",
