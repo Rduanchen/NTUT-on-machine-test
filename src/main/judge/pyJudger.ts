@@ -52,8 +52,8 @@ interface ExecutionResult {
 const getPythonPath = (): string => {
   switch (process.platform) {
     case 'win32':
-      // return path.join(__dirname, 'python', 'python.exe');
-      return 'python'; // 假設系統已安裝 Python 並設定在 PATH 中
+      return path.join(__dirname, 'python', 'python.exe');
+    // return 'python'; // 假設系統已安裝 Python 並設定在 PATH 中
     case 'darwin':
       return 'python3';
     case 'linux':

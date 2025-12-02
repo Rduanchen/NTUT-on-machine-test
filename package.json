@@ -22,7 +22,10 @@
     "build:mac": "npm run build && electron-builder --mac",
     "build:linux": "npm run build && electron-builder --linux",
     "test": "vitest",
-    "rebuild": "electron-rebuild -f -w sqlite3"
+    "rebuild": "electron-rebuild -f -w sqlite3",
+    "copy-python:win": "xcopy /E /I /Y .\\src\\main\\judge\\python .\\out\\main\\python\\",
+    "copy-python:unix": "cp -r ./src/main/judge/python ./out/main/python",
+    "copy-python": "npm run copy-python:win || npm run copy-python:unix"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.0",
