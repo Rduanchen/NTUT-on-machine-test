@@ -17,8 +17,10 @@ export class CodeJudger {
       result = this.maskTheTestResults(result, puzzle.testCases);
       LocalProgramStore.addFile(codeFilePath, `${questionId}`);
       sendTestResultToServer();
+      console.warn('Judging complete. Result:', result);
       const isHigher = this.ifScoreHigherThanPrevious(questionId, result);
-      if (!isHigher) {
+      console.log(`Judging complete. Is score higher than previous? ${isHigher}`);
+      if (true) {
         LocalProgramStore.syncToBackend();
       }
       event.sender.send('judger:judge-complete', result);
@@ -65,7 +67,9 @@ export class CodeJudger {
   }
   private static ifScoreHigherThanPrevious(id: string, newResult: any): boolean {
     const previousResult = store.getTestResult()[id];
+    console.warn('Previous Result:', previousResult);
     if (!previousResult) {
+      console.warn('No previous result found, marking as higher.');
       store.updateResultHigherThanPrevious(true);
       return true;
     }

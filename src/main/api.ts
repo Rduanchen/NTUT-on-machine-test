@@ -55,7 +55,7 @@ export async function sendTestResultToServer() {
   const config = store.getConfig();
   const host = config.remoteHost;
   const studentInfo = store.getStudentInformation();
-
+  console.log('Sending test result to server...', studentInfo, testResult);
   try {
     const response = await axios.post(`${host}/api/post-result`, {
       studentInformation: studentInfo,
@@ -78,12 +78,20 @@ export async function verifyStudentIDFromServer(studentID: string) {
     actionLogger.info('Config unavailable while verifying student ID.');
     return undefined;
   }
+  console.warn(`Verifying student ID: ${studentID} with server...`);
   const config = store.getConfig();
   const hostLink = config.remoteHost;
   try {
     let response = await axios.post(`${hostLink}/api/is-student-valid`, {
       studentID: studentID
     });
+
+    store.updateServerAvailability(true);
+    const toStore = {
+      id: response.data.info?.student_ID || '',
+      name: response.data.info?.name || '',
+    }
+    store.updateStudentInformation(toStore);
     // 驗證成功代表網路暢通，嘗試觸發隊列處理
     ApiSystemInstance.processQueuedActions();
     return response;
@@ -93,26 +101,28 @@ export async function verifyStudentIDFromServer(studentID: string) {
 }
 
 export async function sendProgramFileToServer(buffer: Buffer) {
-  if (store.getIsResultHigherThanPrevious() === false) {
-    return { success: false, message: 'Result not higher than previous' };
-  }
+  console.log('Preparing to send program file to server...');
+  // if (store.getIsResultHigherThanPrevious() === false) {
+  //   return { success: false, message: 'Result not higher than previous' };
+  // }
   if (!store.hasConfig()) {
     actionLogger.info('Config unavailable while sending program file.');
     return { success: false, message: 'Config unavailable' };
   }
   console.log('Sending program file to server...');
   const studentID = store.getStudentInformation().id;
+  console.warn(store.getStudentInformation());
   console.log(`Student ID: ${studentID}`);
   const config = store.getConfig();
   const hostLink = config.remoteHost;
   const MAX_FILE_SIZE = 10 * 1024 * 1024
   try {
     const form = new FormData();
+    form.append("studentID", studentID);
     form.append("file", buffer, {
       filename: `${studentID}.zip`,
       contentType: 'application/zip'
     });
-    form.append("studentID", studentID);
     form.append("key", config.publicKey);
     const response = await axios.post(`${hostLink}/api/upload-program`, form, {
       headers: form.getHeaders(),

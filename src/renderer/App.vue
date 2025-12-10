@@ -128,7 +128,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, computed } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useTheme } from 'vuetify';
@@ -163,21 +163,35 @@ const toggleTheme = () => {
 };
 
 // server status
-onMounted(async () => {
-  if (window.api?.store) {
-    window.api.store.updateServerAvailability(async () => {
-      await updateServerAvailability();
-    });
-    const initialStatus = await window.api.store.getServerAvailability();
-    await updateServerAvailability(initialStatus);
-  }
-});
+const pollTimer = ref(null);
 
 const updateServerAvailability = async () => {
   if (!window.api?.store) return;
   const situation = await window.api.store.getServerAvailability();
   serverStatus.value = situation ? 'connected' : 'disconnected';
 };
+
+onMounted(async () => {
+  if (window.api?.store) {
+    // 即時更新一次
+    await updateServerAvailability();
+
+    // 註冊由主程序通知時的更新（若有）
+    window.api.store.updateServerAvailability(async () => {
+      await updateServerAvailability();
+    });
+
+    // 每 5 秒輪詢一次伺服器狀態
+    pollTimer.value = setInterval(updateServerAvailability, 3000);
+  }
+});
+
+onBeforeUnmount(() => {
+  if (pollTimer.value) {
+    clearInterval(pollTimer.value);
+    pollTimer.value = null;
+  }
+});
 
 watch(
   () => route.path,

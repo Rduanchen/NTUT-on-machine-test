@@ -26,10 +26,14 @@ export class ConfigSystem {
       console.log('Fetching config from server at host:', host);
       try {
         let response = await fetchConfig(host);
+        if (response) {
+          store.updateServerAvailability(true);
+        }
         console.log('Configuration fetched from server:', response);
         actionLogger.info('Configuration fetched from server');
         store.updateConfig(response);
-        ApiSystem.setup();
+
+        // ApiSystem.setup();
         ApiSystem.processQueuedActions();
         isConfigLoaded = true;
         return { success: true };
