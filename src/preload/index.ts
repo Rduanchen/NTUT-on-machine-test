@@ -41,12 +41,14 @@ const api = {
       ipcRenderer.on('judger:judge-complete', (_event, data) => {
         callback(data);
       });
-    }
+    },
+    syncScoreToBackend: () => ipcRenderer.invoke('judger:sync-score-to-backend')
   },
 
   // --- LocalProgram ---
   localProgram: {
-    getZipFile: () => ipcRenderer.invoke('localProgram:getZipFile')
+    getZipFile: () => ipcRenderer.invoke('localProgram:getZipFile'),
+    syncToBackend: () => ipcRenderer.invoke('localProgram:syncToBackend'),
   }
 };
 

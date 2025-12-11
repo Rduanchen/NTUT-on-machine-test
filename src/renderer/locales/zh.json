@@ -68,8 +68,14 @@
     "puzzles": {
       "forceStop": "強制停止所有評測",
       "exportZip": "匯出作答壓縮檔",
-      "finisheTheExam": "結束考試",
       "summary": "共 {count} 題",
+      "finisheTheExam": { 
+        "label": "完成考試",
+        "finisheTheExamIntro": "請依照以下步驟完成考試：",
+        "updateResult": "上傳結果",
+        "updateFile": "上傳程式碼",
+        "end": "完成所有步驟後，請通知助教檢查您的成績。"
+      },
       "headers": {
         "id": "編號",
         "name": "題目名稱",
@@ -92,7 +98,8 @@
         "button": "上傳",
         "title": "上傳程式碼給 {name}",
         "label": "選擇要上傳的程式檔案",
-        "confirm": "關閉並上傳"
+        "confirm": "關閉並上傳",
+        "description": "請選擇您要上傳的程式碼檔案。"
       }
     }
   }

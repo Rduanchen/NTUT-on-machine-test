@@ -5,12 +5,7 @@
       <div class="px-4 py-3 border-b d-flex flex-wrap align-center gap-2 bg-surface">
         <div class="d-flex align-center flex-grow-1">
           <h2 class="text-h6 font-weight-bold mr-4">{{ t('examSystem.title') }}</h2>
-          <v-chip
-            size="small"
-            variant="tonal"
-            color="primary"
-            class="font-weight-medium"
-          >
+          <v-chip size="small" variant="tonal" color="primary" class="font-weight-medium">
             {{ t('examSystem.puzzles.summary', { count: puzzleInfo.length }) }}
           </v-chip>
         </div>
@@ -35,15 +30,66 @@
           >
             {{ t('examSystem.puzzles.exportZip') }}
           </v-btn>
-          <v-btn
-            color="primary"
-            variant="elevated"
-            prepend-icon="mdi-folder-zip-outline"
-            @click="outputToZip"
-            height="40"
-          >
-            {{ t('examSystem.puzzles.finishTheExam') }}
-          </v-btn>
+          <v-dialog max-width="400">
+            <template #activator="{ props: activatorProps }">
+              <v-btn
+                v-bind="activatorProps"
+                color="primary"
+                variant="elevated"
+                prepend-icon="mdi-folder-zip-outline"
+                height="40"
+              >
+                {{ t('examSystem.puzzles.finisheTheExam.label') }}
+              </v-btn>
+            </template>
+
+            <template v-slot:default="{ isActive }">
+              <v-card title="Dialog">
+                <v-card-text>
+                  <text>{{ t('examSystem.puzzles.finisheTheExam.finisheTheExamIntro') }}</text>
+                  <v-spacer></v-spacer>
+                  <v-btn
+                    color="primary"
+                    class="mt-2"
+                    variant="elevated"
+                    prepend-icon="mdi-folder-zip-outline"
+                    @click="outputToZip"
+                    height="40"
+                  >
+                    {{ t('examSystem.puzzles.exportZip') }}
+                  </v-btn>
+                  <v-spacer></v-spacer>
+                  <v-btn
+                    color="primary"
+                    class="mt-2"
+                    variant="elevated"
+                    prepend-icon="mdi-folder-zip-outline"
+                    @click="syncScoreToBackend"
+                    height="40"
+                  >
+                    {{ t('examSystem.puzzles.finisheTheExam.updateResult') }}
+                  </v-btn>
+                  <v-btn
+                    color="primary"
+                    class="mt-2"
+                    variant="elevated"
+                    prepend-icon="mdi-folder-zip-outline"
+                    @click="syncCodeToBackend"
+                    height="40"
+                  >
+                    {{ t('examSystem.puzzles.finisheTheExam.updateFile') }}
+                  </v-btn>
+                  <v-spacer></v-spacer>
+                  <text>{{ t('examSystem.puzzles.finisheTheExam.end') }}</text>
+                </v-card-text>
+                <v-card-actions>
+                  <v-spacer></v-spacer>
+
+                  <v-btn text="Close Dialog" @click="isActive.value = false"></v-btn>
+                </v-card-actions>
+              </v-card>
+            </template>
+          </v-dialog>
         </div>
       </div>
 
@@ -52,22 +98,37 @@
         <v-table density="comfortable" hover fixed-header class="h-100 text-body-2">
           <thead>
             <tr>
-              <th class="text-left font-weight-bold text-uppercase text-medium-emphasis" style="width: 80px">
+              <th
+                class="text-left font-weight-bold text-uppercase text-medium-emphasis"
+                style="width: 80px"
+              >
                 {{ t('examSystem.puzzles.headers.id') }}
               </th>
               <th class="text-left font-weight-bold text-uppercase text-medium-emphasis">
                 {{ t('examSystem.puzzles.headers.name') }}
               </th>
-              <th class="text-left font-weight-bold text-uppercase text-medium-emphasis" style="width: 100px">
+              <th
+                class="text-left font-weight-bold text-uppercase text-medium-emphasis"
+                style="width: 100px"
+              >
                 {{ t('examSystem.puzzles.headers.language') }}
               </th>
-              <th class="text-left font-weight-bold text-uppercase text-medium-emphasis" style="width: 140px">
+              <th
+                class="text-left font-weight-bold text-uppercase text-medium-emphasis"
+                style="width: 140px"
+              >
                 {{ t('examSystem.puzzles.headers.status') }}
               </th>
-              <th class="text-left font-weight-bold text-uppercase text-medium-emphasis" style="width: 100px">
+              <th
+                class="text-left font-weight-bold text-uppercase text-medium-emphasis"
+                style="width: 100px"
+              >
                 {{ t('examSystem.puzzles.headers.passRate') }}
               </th>
-              <th class="text-left font-weight-bold text-uppercase text-medium-emphasis" style="width: 120px">
+              <th
+                class="text-left font-weight-bold text-uppercase text-medium-emphasis"
+                style="width: 120px"
+              >
                 {{ t('examSystem.puzzles.headers.upload') }}
               </th>
             </tr>
@@ -79,7 +140,9 @@
 
               <td class="py-3">
                 <div class="d-flex flex-column">
-                  <span class="text-body-1 font-weight-medium text-high-emphasis">{{ item.name }}</span>
+                  <span class="text-body-1 font-weight-medium text-high-emphasis">{{
+                    item.name
+                  }}</span>
                 </div>
               </td>
 
@@ -96,8 +159,15 @@
                   variant="tonal"
                   class="font-weight-bold"
                 >
-                  <v-icon start size="14" v-if="onSent[String(item.id)]">mdi-loading mdi-spin</v-icon>
-                  {{ t(puzzleStatuses[String(item.id)]?.i18nKey || 'examSystem.puzzles.status.unknown') }}
+                  <v-icon start size="14" v-if="onSent[String(item.id)]"
+                    >mdi-loading mdi-spin</v-icon
+                  >
+                  {{
+                    t(
+                      puzzleStatuses[String(item.id)]?.i18nKey ||
+                        'examSystem.puzzles.status.unknown'
+                    )
+                  }}
                 </v-chip>
               </td>
 
@@ -116,7 +186,7 @@
                         class="mr-2"
                         bg-color="grey-lighten-2"
                       >
-                        <span class="text-caption font-weight-bold" style="font-size: 10px;">
+                        <span class="text-caption font-weight-bold" style="font-size: 10px">
                           {{ getNumericRate(item.id) }}
                         </span>
                       </v-progress-circular>
@@ -124,7 +194,7 @@
                   </template>
 
                   <template #default="{ isActive }">
-                    <v-card rounded="lg" class="d-flex flex-column" style="max-height: 85vh;">
+                    <v-card rounded="lg" class="d-flex flex-column" style="max-height: 85vh">
                       <v-card-title class="d-flex align-center py-3 px-4 border-b bg-surface">
                         <span class="text-h6 font-weight-bold">
                           {{ item.name }}
@@ -137,12 +207,14 @@
 
                       <v-card-text class="pa-0 bg-background overflow-hidden d-flex flex-column">
                         <div class="pa-4 overflow-y-auto custom-scrollbar">
-                           <ResultTableCard
+                          <ResultTableCard
                             v-if="testResult[String(item.id)]"
                             :result="testResult[String(item.id)]"
                           />
                           <div v-else class="text-center py-8 text-medium-emphasis">
-                            <v-icon size="48" class="mb-2 opacity-50">mdi-clipboard-text-outline</v-icon>
+                            <v-icon size="48" class="mb-2 opacity-50"
+                              >mdi-clipboard-text-outline</v-icon
+                            >
                             <div>{{ t('examSystem.judge.noResult') }}</div>
                           </div>
                         </div>
@@ -174,7 +246,12 @@
 
                       <v-card-text class="px-4 py-2">
                         <p class="text-body-2 text-medium-emphasis mb-4">
-                          {{ t('examSystem.puzzles.upload.description', 'Please select your source code file to upload.') }}
+                          {{
+                            t(
+                              'examSystem.puzzles.upload.description',
+                              'Please select your source code file to upload.'
+                            )
+                          }}
                         </p>
                         <v-file-upload
                           v-model="selectedFile"
@@ -190,10 +267,7 @@
 
                       <v-card-actions class="px-4 pb-4 pt-2">
                         <v-spacer />
-                        <v-btn
-                          variant="text"
-                          @click="onUploadCancel(isActive)"
-                        >
+                        <v-btn variant="text" @click="onUploadCancel(isActive)">
                           {{ t('examSystem.common.cancel') }}
                         </v-btn>
                         <v-btn
@@ -254,65 +328,84 @@ const puzzleStatuses = computed<Record<string, StatusInfo>>(() => {
     const result = testResult.value[puzzleId];
 
     if (onSent.value[puzzleId]) {
-      statuses[puzzleId] = { text: '', color: 'info', i18nKey: 'examSystem.puzzles.status.testing' };
+      statuses[puzzleId] = {
+        text: '',
+        color: 'info',
+        i18nKey: 'examSystem.puzzles.status.testing'
+      };
       continue;
     }
 
     if (!result || typeof result.correctCount !== 'number') {
-      statuses[puzzleId] = { text: '', color: 'grey', i18nKey: 'examSystem.puzzles.status.notSubmitted' };
+      statuses[puzzleId] = {
+        text: '',
+        color: 'grey',
+        i18nKey: 'examSystem.puzzles.status.notSubmitted'
+      };
       continue;
     }
 
     const { correctCount, testCaseAmount } = result;
     if (testCaseAmount === 0 || correctCount === testCaseAmount) {
-      statuses[puzzleId] = { text: '', color: 'success', i18nKey: 'examSystem.puzzles.status.completed' };
+      statuses[puzzleId] = {
+        text: '',
+        color: 'success',
+        i18nKey: 'examSystem.puzzles.status.completed'
+      };
     } else if (correctCount > 0) {
-      statuses[puzzleId] = { text: '', color: 'warning', i18nKey: 'examSystem.puzzles.status.partial' };
+      statuses[puzzleId] = {
+        text: '',
+        color: 'warning',
+        i18nKey: 'examSystem.puzzles.status.partial'
+      };
     } else {
-      statuses[puzzleId] = { text: '', color: 'error', i18nKey: 'examSystem.puzzles.status.failed' };
+      statuses[puzzleId] = {
+        text: '',
+        color: 'error',
+        i18nKey: 'examSystem.puzzles.status.failed'
+      };
     }
   }
   return statuses;
 });
 
 const puzzlePassRates = computed<Record<string, StatusInfo>>(() => {
-    // ... (保留原始邏輯)
-    const rates: Record<string, StatusInfo> = {};
-    for (const puzzle of puzzleInfo.value) {
-        const puzzleId = String(puzzle.id);
-        const result = testResult.value[puzzleId];
-        if (!result || typeof result.correctCount !== 'number' || !result.testCaseAmount) {
-            rates[puzzleId] = { text: 'N/A', color: 'grey-lighten-1' };
-            continue;
-        }
-        const rate = Math.round((result.correctCount / result.testCaseAmount) * 100);
-        let color = 'error';
-        if (rate === 100) color = 'success';
-        else if (rate > 0) color = 'warning';
-        rates[puzzleId] = { text: `${rate}%`, color };
+  // ... (保留原始邏輯)
+  const rates: Record<string, StatusInfo> = {};
+  for (const puzzle of puzzleInfo.value) {
+    const puzzleId = String(puzzle.id);
+    const result = testResult.value[puzzleId];
+    if (!result || typeof result.correctCount !== 'number' || !result.testCaseAmount) {
+      rates[puzzleId] = { text: 'N/A', color: 'grey-lighten-1' };
+      continue;
     }
-    return rates;
+    const rate = Math.round((result.correctCount / result.testCaseAmount) * 100);
+    let color = 'error';
+    if (rate === 100) color = 'success';
+    else if (rate > 0) color = 'warning';
+    rates[puzzleId] = { text: `${rate}%`, color };
+  }
+  return rates;
 });
 
-
 onMounted(async () => {
-  if(window.api?.store){
-     puzzleInfo.value = await window.api.store.getPuzzleInfo();
-     window.api.judger.onJudgeComplete(async () => {
-        await updateTestCaseResults();
-     });
-     await updateTestCaseResults();
+  if (window.api?.store) {
+    puzzleInfo.value = await window.api.store.getPuzzleInfo();
+    window.api.judger.onJudgeComplete(async () => {
+      await updateTestCaseResults();
+    });
+    await updateTestCaseResults();
   }
 });
 
 const updateTestCaseResults = async () => {
-  if(window.api?.store){
-      testResult.value = await window.api.store.readTestResult();
-      for (const puzzle of puzzleInfo.value) {
-        if (onSent.value[puzzle.id]) {
-            onSent.value[puzzle.id] = false;
-        }
+  if (window.api?.store) {
+    testResult.value = await window.api.store.readTestResult();
+    for (const puzzle of puzzleInfo.value) {
+      if (onSent.value[puzzle.id]) {
+        onSent.value[puzzle.id] = false;
       }
+    }
   }
 };
 
@@ -331,29 +424,53 @@ const onUploadCancel = (isActive: { value: boolean }) => {
 };
 
 const stopTestCase = () => {
-  if(window.api?.judger) window.api.judger.forceStop();
+  if (window.api?.judger) window.api.judger.forceStop();
   onSent.value = {};
 };
 
-const outputToZip = async () => {
-    // ... (保留原始邏輯)
-    try {
-        if(!window.api?.localProgram) return;
-        const zipDataBuffer = await window.api.localProgram.getZipFile();
-        const studentInfo = await window.api.store.readStudentInformation();
-        if (!zipDataBuffer) return;
-        const blob = new Blob([zipDataBuffer], { type: 'application/zip' });
-        const blobUrl = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = `${studentInfo.id}.zip`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(blobUrl);
-    } catch (error) {
-        console.error('Error', error);
+const syncCodeToBackend = async () => {
+  try {
+    if (window.api?.localProgram?.syncToBackend) {
+      await window.api.localProgram.syncToBackend();
+    } else {
+      console.error('syncToBackend method not available');
     }
+  } catch (error) {
+    console.error('Error', error);
+  }
+};
+
+const syncScoreToBackend = async () => {
+  try {
+    if (window.api?.judger?.syncScoreToBackend) {
+      await window.api.judger.syncScoreToBackend();
+    } else {
+      console.error('syncScoreToBackend method not available');
+    }
+  } catch (error) {
+    console.error('Error', error);
+  }
+};
+
+const outputToZip = async () => {
+  // ... (保留原始邏輯)
+  try {
+    if (!window.api?.localProgram) return;
+    const zipDataBuffer = await window.api.localProgram.getZipFile();
+    const studentInfo = await window.api.store.readStudentInformation();
+    if (!zipDataBuffer) return;
+    const blob = new Blob([zipDataBuffer], { type: 'application/zip' });
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = `${studentInfo.id}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(blobUrl);
+  } catch (error) {
+    console.error('Error', error);
+  }
 };
 </script>
 

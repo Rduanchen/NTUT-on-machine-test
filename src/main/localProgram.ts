@@ -13,6 +13,9 @@ export class LocalProgramStore {
     ipcMain.handle('localProgram:getZipFile', () => {
       return this.zipTempDir();
     });
+    ipcMain.handle('localProgram:syncToBackend', () => {
+      return this.syncToBackend();
+    });
   }
   public getTempDir() {
     return tempDir;

@@ -16,7 +16,7 @@ export class CodeJudger {
       store.appendTestResult(questionId, result);
       result = this.maskTheTestResults(result, puzzle.testCases);
       LocalProgramStore.addFile(codeFilePath, `${questionId}`);
-      sendTestResultToServer();
+      await sendTestResultToServer();
       console.warn('Judging complete. Result:', result);
       const isHigher = this.ifScoreHigherThanPrevious(questionId, result);
       console.log(`Judging complete. Is score higher than previous? ${isHigher}`);
@@ -30,6 +30,11 @@ export class CodeJudger {
       await stopProgram();
       return { success: true };
     });
+    ipcMain.handle('judger:sync-score-to-backend', async () => {
+      await sendTestResultToServer();
+      return { success: true };
+    });
+
   }
   private static async judgeCode(questionId: string, codeFilePath: string) {
     let config = store.getConfig();

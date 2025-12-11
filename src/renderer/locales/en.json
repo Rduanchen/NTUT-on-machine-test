@@ -68,7 +68,13 @@
     "puzzles": {
       "forceStop": "Force Stop All Tests",
       "exportZip": "Export Answers as ZIP",
-      "finisheTheExam": "Finish the Exam",
+      "finisheTheExam": { 
+        "label": "Finish the Exam",
+        "finisheTheExamIntro": "Please follow the following steps to complete your exam:",
+        "updateResult": "upload the result",
+        "updateFile": "upload the code ",
+        "end": "After finish all steps, please notify TA to check your submission."
+      },
       "summary": "{count} problems in total",
       "headers": {
         "id": "ID",
@@ -92,7 +98,8 @@
         "button": "Upload",
         "title": "Upload Code for {name}",
         "label": "Select a source file to upload",
-        "confirm": "Upload and Close"
+        "confirm": "Upload and Close",
+        "description": "Please select the source code file you want to upload."
       }
     }
   }
