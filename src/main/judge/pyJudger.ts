@@ -1,5 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
+import { app } from 'electron';
+import fs from 'fs';
 
 // --- 1. 介面定義 (Interfaces) ---
 
@@ -49,22 +51,59 @@ interface ExecutionResult {
   exitCode: number | null;
 }
 
-const getPythonPath = (): string => {
-  switch (process.platform) {
-    case 'win32':
-      return path.join(__dirname, 'python', 'python.exe');
-    // return 'python'; // 假設系統已安裝 Python 並設定在 PATH 中
-    case 'darwin':
-      return 'python3';
-    case 'linux':
-      return 'python3';
-    default:
-      console.warn(`不支援的作業系統: ${process.platform}，將嘗試使用 'python3'。`);
-      return 'python3';
+/**
+ * 取得「python 資料夾」根目錄。
+ * - dev: <appPath>/src/main/judge/python
+ * - packaged: <resourcesPath>/python   (對應 electron-builder extraResources.to: python)
+ */
+const getBundledPythonDir = (): string => {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'python');
   }
+  return path.join(app.getAppPath(), 'src', 'main', 'judge', 'python');
 };
 
-const PYTHON_PATH: string = getPythonPath();
+/**
+ * 取得 python 執行檔路徑（優先使用內建 interpreter；找不到才 fallback 到系統 python3）
+ */
+const getPythonPath = (): string => {
+  const pythonDir = getBundledPythonDir();
+
+  // 依平台推定內建 python 的位置（請依你的 python 資料夾實際結構調整）
+  const bundledCandidates =
+    process.platform === 'win32'
+      ? [path.join(pythonDir, 'python.exe')]
+      : [
+        // 常見：<pythonDir>/bin/python3
+        path.join(pythonDir, 'bin', 'python3'),
+        // 有些包是 python3 在根目錄
+        path.join(pythonDir, 'python3'),
+        // 也可能是 python 在 bin
+        path.join(pythonDir, 'bin', 'python')
+      ];
+
+  for (const p of bundledCandidates) {
+    if (fs.existsSync(p)) return p;
+  }
+
+  // fallback（可選）：若你希望「一定要用內建」那就直接 throw
+  if (process.platform === 'win32') {
+    // windows 沒內建基本上就一定失敗，拋出讓外層顯示更清楚訊息
+    throw new Error(`找不到內建 Python: ${bundledCandidates.join(', ')}`);
+  }
+
+  // mac/linux fallback 到系統 python3
+  return 'python3';
+};
+
+let PYTHON_PATH: string;
+try {
+  PYTHON_PATH = getPythonPath();
+} catch (e) {
+  // 讓後續錯誤訊息能顯示出來
+  PYTHON_PATH = '__missing_python__';
+}
+
 const MAX_EXECUTION_TIME: number = 10000; // 10 秒超時限制 (毫秒)
 
 /** 當前正在執行的 Python 程序 */
@@ -85,6 +124,13 @@ export async function runPythonTestsAPI(
   scriptPath: string,
   groupedTestCases: TestGroup[]
 ): Promise<RunTestsResult> {
+  // 每次執行前重新解析一次，避免 packaged/dev 狀態或路徑變動造成問題
+  try {
+    PYTHON_PATH = getPythonPath();
+  } catch (e) {
+    PYTHON_PATH = '__missing_python__';
+  }
+
   const groupResults: GroupResult[] = [];
   let testCaseAmount: number = 0;
   let correctCount: number = 0;
@@ -94,7 +140,6 @@ export async function runPythonTestsAPI(
     let groupTestCaseAmount: number = 0;
     let groupCorrectCount: number = 0;
 
-    // 輔助函式，用於處理 openTestCases 或 hiddenTestCases
     const processTestCases = async (tests: TestCase[] | undefined) => {
       if (Array.isArray(tests)) {
         for (const test of tests) {
@@ -111,10 +156,7 @@ export async function runPythonTestsAPI(
       }
     };
 
-    // 處理 openTestCases
     await processTestCases(group.openTestCases);
-
-    // 處理 hiddenTestCases
     await processTestCases(group.hiddenTestCases);
 
     groupResults.push({
@@ -133,36 +175,30 @@ export async function runPythonTestsAPI(
   };
 }
 
-/**
- * 運行單個測試案例。
- * @param scriptPath 待測試的 Python 腳本路徑。
- * @param test 單個測試案例物件。
- * @returns 包含測試結果的 Promise。
- */
 async function runSingleCase(scriptPath: string, test: TestCase): Promise<TestResult> {
   try {
+    if (PYTHON_PATH === '__missing_python__') {
+      throw Object.assign(new Error('Missing bundled python'), { code: 'ENOENT' });
+    }
+
     const { actualOutput, errorOutput, exitCode }: ExecutionResult =
       await executeSingleTestInternal(PYTHON_PATH, scriptPath, test, MAX_EXECUTION_TIME);
 
     let isCorrect: boolean = false;
-    // 移除輸出頭尾空白後進行比對
     let userOutputTrimmed: string = actualOutput.trim();
 
     if (exitCode === 0) {
-      // 成功退出，比對輸出
       if (userOutputTrimmed === test.output.trim()) {
         isCorrect = true;
       }
     }
 
     if (errorOutput) {
-      // 如果有標準錯誤輸出，通常視為執行失敗 (例如編譯錯誤或運行時錯誤)
       userOutputTrimmed += `\n[運行錯誤] ${errorOutput.trim()}`;
     }
 
     if (exitCode === null) {
       console.warn(`測試 ${test.id} 被外部終止或超時。`);
-      // 超時錯誤的訊息已經在內部函式中加入，這裡只需確保正確返回
     }
 
     return {
@@ -171,12 +207,11 @@ async function runSingleCase(scriptPath: string, test: TestCase): Promise<TestRe
       userOutput: userOutputTrimmed
     };
   } catch (error: any) {
-    // 啟動失敗或致命錯誤
     console.error(`啟動或執行腳本錯誤 (Test ${test.id}):`, error);
-    // 如果是因為找不到 python3，錯誤訊息會類似 "spawn python3 ENOENT"
+
     const errorMessage =
       error.code === 'ENOENT'
-        ? `執行失敗：找不到 Python 直譯器 (${PYTHON_PATH})，請確認已安裝並設定環境變數。`
+        ? `執行失敗：找不到 Python 直譯器 (${PYTHON_PATH})。打包後請確認 extraResources 已包含 python，且 mac/linux 需有可執行權限(chmod +x)。`
         : `執行失敗：${error.message}`;
 
     return {
@@ -187,14 +222,6 @@ async function runSingleCase(scriptPath: string, test: TestCase): Promise<TestRe
   }
 }
 
-/**
- * 內部函式：執行單個測試案例的 Python 程序。
- * @param pythonPath Python 執行檔的路徑。
- * @param scriptPath 待執行的腳本路徑。
- * @param test 測試案例物件。
- * @param timeoutMs 超時時間（毫秒）。
- * @returns 包含原始輸出和退出碼的 Promise。
- */
 function executeSingleTestInternal(
   pythonPath: string,
   scriptPath: string,
@@ -207,38 +234,32 @@ function executeSingleTestInternal(
 
     try {
       const proc: ChildProcess = spawn(pythonPath, [scriptPath], {
-        // 'pipe' for stdin, stdout, stderr
         stdio: ['pipe', 'pipe', 'pipe']
       });
       currentPythonProcess = proc;
 
-      // 設定超時計時器
       timeoutTimer = setTimeout(() => {
         if (proc) {
-          stopProgram(proc); // 強制停止程序
+          stopProgram(proc);
           resolve({
             actualOutput: actualOutput + '\n[執行超時，已強制停止]',
             errorOutput: '超時錯誤',
-            exitCode: null // 使用 null 表示超時終止
+            exitCode: null
           });
         }
       }, timeoutMs);
 
-      // 寫入輸入數據並結束 stdin
       proc.stdin!.write(test.input);
       proc.stdin!.end();
 
-      // 監聽 stdout 輸出
       proc.stdout!.on('data', (data) => {
         actualOutput += data.toString();
       });
 
-      // 監聽 stderr 輸出
       proc.stderr!.on('data', (data) => {
         errorOutput += data.toString();
       });
 
-      // 程序關閉事件 (正常退出或被信號終止)
       proc.on('close', (code: number | null) => {
         if (timeoutTimer) {
           clearTimeout(timeoutTimer);
@@ -246,13 +267,12 @@ function executeSingleTestInternal(
         }
         currentPythonProcess = null;
         resolve({
-          actualOutput: actualOutput,
-          errorOutput: errorOutput,
+          actualOutput,
+          errorOutput,
           exitCode: code
         });
       });
 
-      // 啟動程序錯誤事件
       proc.on('error', (err: Error) => {
         if (timeoutTimer) clearTimeout(timeoutTimer);
         currentPythonProcess = null;
@@ -264,35 +284,27 @@ function executeSingleTestInternal(
   });
 }
 
-/**
- * 外部函式：強制停止當前正在運行的 Python 程序 (如果存在)。
- * @param proc 要停止的程序實例 (可選，預設為全局 currentPythonProcess)。
- * @returns 是否成功停止程序。
- */
 export function stopProgram(proc: ChildProcess | null = currentPythonProcess): boolean {
   if (proc && !proc.killed) {
     console.warn('⚠️ 正在強制停止程序...');
 
-    // 優先清除計時器
     if (timeoutTimer) {
       clearTimeout(timeoutTimer);
       timeoutTimer = null;
     }
 
-    // 嘗試溫和終止
     proc.kill('SIGTERM');
 
-    // 等待 500ms 後，如果還沒結束則強制終止
     setTimeout(() => {
       if (proc && !proc.killed) {
         proc.kill('SIGKILL');
         console.warn('程序已使用 SIGKILL 強制終止。');
       }
-      // 清除全局引用
       if (currentPythonProcess === proc) {
         currentPythonProcess = null;
       }
     }, 500);
+
     return true;
   }
   return false;

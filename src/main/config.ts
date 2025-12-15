@@ -23,15 +23,14 @@ export class ConfigSystem {
       return { success: true };
     });
     ipcMain.handle('config:get-from-server', async (_event, host: string) => {
-      console.log('Fetching config from server at host:', host);
       try {
         let response = await fetchConfig(host);
         if (response) {
           store.updateServerAvailability(true);
+          store.updateConfig(response);
         }
-        console.log('Configuration fetched from server:', response);
         actionLogger.info('Configuration fetched from server');
-        store.updateConfig(response);
+
 
         // ApiSystem.setup();
         ApiSystem.processQueuedActions();
@@ -48,8 +47,7 @@ export class ConfigSystem {
     ipcMain.handle('config:server-status', async (_event, hostname: string) => {
       try {
         let response = await getServerStatus(hostname);
-        console.log('Server status response:', response);
-        if (response.success !== true) {
+        if (response?.success !== true) {
           return {
             success: false,
             message: 'Server status not ok'

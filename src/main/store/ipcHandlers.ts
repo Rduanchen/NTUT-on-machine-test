@@ -27,7 +27,7 @@ export class StoreIpcManager {
       const config = store.getConfig();
       try {
         let response = await verifyStudentIDFromServer(newInfo.studentID);
-        if (response.data.isValid === true) {
+        if (response?.data.isValid === true) {
           store.updateStudentInformation(response.data.info);
           store.setStudentVerified(true);
         } else {

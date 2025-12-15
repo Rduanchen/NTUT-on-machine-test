@@ -15,7 +15,7 @@ class InMemoryStore {
         isResultHigherThanPrevious: true,
     };
 
-    private pendingAvailability: boolean | null = null;
+    // private pendingAvailability: boolean | null = null;
 
     private constructor() { }
 

@@ -135,7 +135,13 @@
           </thead>
 
           <tbody>
-            <tr v-for="item in puzzleInfo" :key="item.id" class="transition-colors">
+            <!-- ✅ 這裡：在 row 上加 click 事件，點整行就能打開結果 dialog -->
+            <tr
+              v-for="item in puzzleInfo"
+              :key="item.id"
+              class="transition-colors puzzle-row"
+              @click="openResultDialog(item)"
+            >
               <td class="font-weight-bold text-medium-emphasis">#{{ item.id }}</td>
 
               <td class="py-3">
@@ -172,11 +178,13 @@
               </td>
 
               <td>
-                <v-dialog scrollable max-width="900">
+                <!-- ✅ 改成用 v-model 控制；同時阻止點圓圈內部事件冒泡，避免重複觸發 -->
+                <v-dialog v-model="resultDialog.isOpen" scrollable max-width="900">
                   <template #activator="{ props: activatorProps }">
                     <div
                       v-bind="activatorProps"
                       class="cursor-pointer d-inline-flex align-center hover-scale"
+                      @click.stop
                     >
                       <v-progress-circular
                         :model-value="getNumericRate(item.id)"
@@ -197,7 +205,7 @@
                     <v-card rounded="lg" class="d-flex flex-column" style="max-height: 85vh">
                       <v-card-title class="d-flex align-center py-3 px-4 border-b bg-surface">
                         <span class="text-h6 font-weight-bold">
-                          {{ item.name }}
+                          {{ resultDialog.item?.name ?? item.name }}
                         </span>
                         <v-spacer />
                         <v-btn icon variant="text" @click="isActive.value = false">
@@ -208,8 +216,8 @@
                       <v-card-text class="pa-0 bg-background overflow-hidden d-flex flex-column">
                         <div class="pa-4 overflow-y-auto custom-scrollbar">
                           <ResultTableCard
-                            v-if="testResult[String(item.id)]"
-                            :result="testResult[String(item.id)]"
+                            v-if="resultDialog.item && testResult[String(resultDialog.item.id)]"
+                            :result="testResult[String(resultDialog.item.id)]"
                           />
                           <div v-else class="text-center py-8 text-medium-emphasis">
                             <v-icon size="48" class="mb-2 opacity-50"
@@ -233,6 +241,7 @@
                       variant="text"
                       size="small"
                       prepend-icon="mdi-upload"
+                      @click.stop
                     >
                       {{ t('examSystem.puzzles.upload.button') }}
                     </v-btn>
@@ -267,14 +276,14 @@
 
                       <v-card-actions class="px-4 pb-4 pt-2">
                         <v-spacer />
-                        <v-btn variant="text" @click="onUploadCancel(isActive)">
+                        <v-btn variant="text" @click.stop="onUploadCancel(isActive)">
                           {{ t('examSystem.common.cancel') }}
                         </v-btn>
                         <v-btn
                           color="primary"
                           variant="elevated"
                           :disabled="!selectedFile"
-                          @click="submitUpload(item.id, isActive)"
+                          @click.stop="submitUpload(item.id, isActive)"
                         >
                           {{ t('examSystem.puzzles.upload.confirm') }}
                         </v-btn>
@@ -310,8 +319,19 @@ const testResult = ref<Record<string, any>>({});
 const selectedFile = ref<File | undefined>(undefined);
 const onSent = ref<Record<string, boolean>>({});
 
-// ... (保留原有的狀態計算邏輯不變)
-// 為了節省篇幅，重複邏輯未修改部分省略，請確保 puzzleStatuses, puzzlePassRates, onMounted 等邏輯與原檔一致
+// ✅ 新增：用同一個 dialog 顯示「目前點到的那一題」
+const resultDialog = ref<{
+  isOpen: boolean;
+  item: { id: string | number; name: string; language: string } | null;
+}>({
+  isOpen: false,
+  item: null
+});
+
+const openResultDialog = (item: { id: string | number; name: string; language: string }) => {
+  resultDialog.value.item = item;
+  resultDialog.value.isOpen = true;
+};
 
 // 新增 Helper
 const getNumericRate = (id: string | number): number => {
@@ -370,7 +390,6 @@ const puzzleStatuses = computed<Record<string, StatusInfo>>(() => {
 });
 
 const puzzlePassRates = computed<Record<string, StatusInfo>>(() => {
-  // ... (保留原始邏輯)
   const rates: Record<string, StatusInfo> = {};
   for (const puzzle of puzzleInfo.value) {
     const puzzleId = String(puzzle.id);
@@ -453,7 +472,6 @@ const syncScoreToBackend = async () => {
 };
 
 const outputToZip = async () => {
-  // ... (保留原始邏輯)
   try {
     if (!window.api?.localProgram) return;
     const zipDataBuffer = await window.api.localProgram.getZipFile();
@@ -487,6 +505,12 @@ const outputToZip = async () => {
 .hover-scale:hover {
   transform: scale(1.1);
 }
+
+/* ✅ 讓整行看起來可點（但不影響原本 hover） */
+.puzzle-row {
+  cursor: pointer;
+}
+
 /* 自定義滾動條 */
 .custom-scrollbar::-webkit-scrollbar {
   width: 8px;

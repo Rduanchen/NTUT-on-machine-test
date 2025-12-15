@@ -1,7 +1,9 @@
-appId: com.github.Rduanchen.NewsQuizzer
-productName: NTUT on-machine test
+appId: com.github.Rduanchen.ntut-on-machine-test
+productName: NTUT On Machine Test
+
 directories:
   buildResources: build
+
 files:
   - '!**/.vscode/*'
   - '!src/*'
@@ -9,16 +11,20 @@ files:
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+
 asarUnpack:
   - resources/**
+
 win:
   executableName: NTUTOnMachineTest
   icon: resources/icon.ico
+
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   icon: resources/icon.icns
@@ -28,8 +34,10 @@ mac:
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   notarize: false
+
 dmg:
   artifactName: ${name}-${version}.${ext}
+
 linux:
   target:
     - AppImage
@@ -38,13 +46,16 @@ linux:
   maintainer: Rduanchen
   category: Utility
   icon: resources/icon.png
+
 appImage:
   artifactName: ${name}-${version}.${ext}
-npmRebuild: false
-extraFiles:
-  - from: ./src/main/judge/python
-    to: main/python
 
+npmRebuild: false
+
+# ✅ 改用 extraResources，把 python 整包帶進 resources 旁邊（最適合放直譯器）
+extraResources:
+  - from: ./src/main/judge/python
+    to: python
 
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/

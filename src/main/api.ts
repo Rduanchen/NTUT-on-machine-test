@@ -8,11 +8,8 @@ import { LocalProgramStore } from './localProgram';
 // 提取一個通用的錯誤處理函數，避免重複程式碼，並統一不 throw error
 function handleApiError(context: string, error: any) {
   const errorMessage = error instanceof Error ? error.message : String(error);
-
-  // 發生錯誤通常代表連線有問題，統一標記為 false
+  console.error(`${context}: ${errorMessage}`);
   store.updateServerAvailability(false);
-
-  // 不再 throw error，回傳 undefined 讓呼叫端自行處理
   return undefined;
 }
 
