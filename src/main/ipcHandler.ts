@@ -18,6 +18,6 @@ function setupAllIPC() {
 export function onAppQuit() {
   // 在應用程式退出時執行清理操作
   LocalProgramStore.clearTempDir();
-  ApiSystem.onremove();
+  ApiSystem.onRemove();
 }
 export default setupAllIPC;
