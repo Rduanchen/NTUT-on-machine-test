@@ -69,7 +69,7 @@ export async function sendTestResultToServer() {
   }
 }
 
-export async function verifyStudentIDFromServer(studentID: string) {
+export async function verifyStudentIDFromServer(studentID: string): Promise<any> {
   if (!store.hasConfig()) {
     actionLogger.info('Config unavailable while verifying student ID.');
     return undefined;
@@ -92,7 +92,8 @@ export async function verifyStudentIDFromServer(studentID: string) {
     await ApiSystemInstance.processQueuedActions();
     return response;
   } catch (error) {
-    return handleApiError(`Failed to verify student ID: ${studentID}`, error);
+    handleApiError(`Failed to verify student ID: ${studentID}`, error);
+    return 'offline';
   }
 }
 

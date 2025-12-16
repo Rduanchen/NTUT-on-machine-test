@@ -31,8 +31,7 @@ export class ConfigSystem {
         }
         actionLogger.info('Configuration fetched from server');
 
-
-        // ApiSystem.setup();
+        ApiSystem.setup();
         ApiSystem.processQueuedActions();
         isConfigLoaded = true;
         return { success: true };
