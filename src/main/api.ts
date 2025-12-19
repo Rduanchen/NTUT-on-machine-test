@@ -4,6 +4,7 @@ import { Config } from './store/types';
 import { actionLogger } from './system/logger';
 import FormData from 'form-data';
 import { LocalProgramStore } from './localProgram';
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 function handleApiError(context: string, error: any) {
   const errorMessage = error instanceof Error ? error.message : String(error);
@@ -34,10 +35,10 @@ export async function getServerStatus(host: string) {
   }
 }
 
-export interface actionReport {
+export interface ActionReport {
   studentID: string;
   actionType: string;
-  details?: any;
+  details?: unknown;
 }
 
 export async function sendTestResultToServer() {
@@ -51,17 +52,15 @@ export async function sendTestResultToServer() {
   const config = store.getConfig();
   const host = config.remoteHost;
   const studentInfo = store.getStudentInformation();
-  console.log('Sending test result to server...', studentInfo, testResult);
   try {
     const response = await axios.post(`${host}/api/post-result`, {
       studentInformation: studentInfo,
       key: config.publicKey,
       testResult: testResult
     });
-    console.log('Response from sending test result to server:', response.data);
     store.markTestResultSynced();
     store.updateServerAvailability(true);
-    ApiSystemInstance.processQueuedActions();
+    await ApiSystemInstance.processQueuedActions();
     return response.data;
   } catch (error) {
     store.updateServerAvailability(false);
@@ -89,7 +88,7 @@ export async function verifyStudentIDFromServer(studentID: string) {
     };
     store.updateStudentInformation(toStore);
     // 驗證成功代表網路暢通，嘗試觸發隊列處理
-    ApiSystemInstance.processQueuedActions();
+    await ApiSystemInstance.processQueuedActions();
     return response;
   } catch (error) {
     return handleApiError(`Failed to verify student ID: ${studentID}`, error);
@@ -97,18 +96,15 @@ export async function verifyStudentIDFromServer(studentID: string) {
 }
 
 export async function sendProgramFileToServer(buffer: Buffer) {
-  console.log('Preparing to send program file to server...');
   // if (store.getIsResultHigherThanPrevious() === false) {
   //   return { success: false, message: 'Result not higher than previous' };
-  // }
+  // } TODO
   if (!store.hasConfig()) {
     actionLogger.info('Config unavailable while sending program file.');
     return { success: false, message: 'Config unavailable' };
   }
-  console.log('Sending program file to server...');
   const studentID = store.getStudentInformation().id;
   console.warn(store.getStudentInformation());
-  console.log(`Student ID: ${studentID}`);
   const config = store.getConfig();
   const hostLink = config.remoteHost;
   const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -126,7 +122,7 @@ export async function sendProgramFileToServer(buffer: Buffer) {
       maxBodyLength: MAX_FILE_SIZE
     });
     store.updateServerAvailability(true);
-    ApiSystemInstance.processQueuedActions();
+    await ApiSystemInstance.processQueuedActions();
     store.updateResultHigherThanPrevious(false);
     return response.data;
   } catch (error) {
@@ -134,7 +130,13 @@ export async function sendProgramFileToServer(buffer: Buffer) {
     return handleApiError('Failed to send program file', error);
   }
 }
-export async function logUserActionToServer(actionData: any) {
+
+// Define the expected structure for user action data
+export interface UserActionData {
+  [key: string]: unknown; // Adjust this as needed for stricter typing
+}
+
+export async function logUserActionToServer(actionData: UserActionData) {
   const studentInfo = store.getStudentInformation();
   const payload = {
     studentID: studentInfo.id,
@@ -145,8 +147,8 @@ export async function logUserActionToServer(actionData: any) {
     ApiSystemInstance.addLogToQueue(payload);
     return;
   }
-
   const config = store.getConfig();
+  await ApiSystemInstance.processQueuedActions();
   const host = config.remoteHost;
 
   try {
@@ -164,15 +166,14 @@ export class ApiSystem {
   private static _interval: NodeJS.Timeout | null = null;
   private static recheckIntervalMs: number = 10000;
   private static serverTimeoutMs: number = 4000;
-  private static userActionLogQueue: any[] = [];
+  private static userActionLogQueue: any[] = []; //FIXME: any
   private static _isSyncing: boolean = false;
 
   public static setup() {
     this.startHealthCheck();
   }
 
-  public static onremove() {
-    console.log('ApiSystem onremove called');
+  public static onRemove() {
     if (this._interval) {
       clearInterval(this._interval);
       this._interval = null;
@@ -209,7 +210,7 @@ export class ApiSystem {
     }
   }
 
-  public static addLogToQueue(actionData: any) {
+  public static addLogToQueue(actionData: unknown) {
     this.userActionLogQueue.push(actionData);
   }
 
@@ -240,7 +241,7 @@ export class ApiSystem {
   public static async processQueuedActions() {
     // 1. 檢查鎖：如果正在同步中，直接離開，避開無窮遞迴
     if (this._isSyncing) {
-      return;
+      await LocalProgramStore.syncToBackend();
     }
     this._isSyncing = true;
     try {

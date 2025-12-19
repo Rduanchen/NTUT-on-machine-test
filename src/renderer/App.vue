@@ -1,6 +1,5 @@
 <template>
   <v-app id="inspire">
-    <!-- Top status bar: 緊湊模式，適合桌面應用程式 -->
     <v-system-bar
       window
       height="32"
@@ -30,6 +29,8 @@
         </div>
 
         <div class="d-flex align-center no-drag">
+          <v-text class="mr-3">This system is developed by VerechoTJI | 阿端</v-text>
+          <v-spacer></v-spacer>
           <v-icon size="16" class="mr-1 text-medium-emphasis">mdi-web</v-icon>
           <span class="text-caption text-medium-emphasis">
             {{ currentLocaleLabel }}
@@ -45,23 +46,18 @@
       density="comfortable"
       class="border-b"
     >
-      <v-app-bar-title class="font-weight-bold text-h6 d-flex align-center" style="min-width: 200px">
-        <v-icon
-          class="mr-2"
-          :color="isDark ? 'primary' : 'white'"
-        >
-          mdi-school-outline
-        </v-icon>
+      <v-app-bar-title
+        class="font-weight-bold text-h6 d-flex align-center"
+        style="min-width: 200px"
+      >
+        <v-icon class="mr-2" :color="isDark ? 'primary' : 'white'"> mdi-school-outline </v-icon>
         {{ t('examSystem.title') }}
       </v-app-bar-title>
 
       <v-spacer></v-spacer>
 
       <!-- Student info: 在小寬度下保持整潔 -->
-      <div
-        v-if="studentInfo"
-        class="d-flex align-center mr-2 mr-sm-4 text-body-2 hidden-xs"
-      >
+      <div v-if="studentInfo" class="d-flex align-center mr-2 mr-sm-4 text-body-2 hidden-xs">
         <v-sheet
           class="d-flex align-center px-3 py-1 rounded-pill"
           :color="isDark ? 'grey-darken-3' : 'primary-darken-1'"
@@ -76,14 +72,11 @@
 
       <!-- Actions -->
       <div class="d-flex align-center">
-        <v-btn
-          icon
-          variant="text"
-          size="small"
-          id="language-activator"
-        >
+        <v-btn icon variant="text" size="small" id="language-activator">
           <v-icon>mdi-translate</v-icon>
-          <v-tooltip activator="parent" location="bottom">{{ t('examSystem.currentLanguage') }}</v-tooltip>
+          <v-tooltip activator="parent" location="bottom">{{
+            t('examSystem.currentLanguage')
+          }}</v-tooltip>
         </v-btn>
 
         <v-menu activator="#language-activator" location="bottom end">
@@ -100,12 +93,7 @@
           </v-list>
         </v-menu>
 
-        <v-btn
-          icon
-          variant="text"
-          size="small"
-          @click="toggleTheme"
-        >
+        <v-btn icon variant="text" size="small" @click="toggleTheme">
           <v-icon>{{ isDark ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
           <v-tooltip activator="parent" location="bottom">
             {{ isDark ? t('examSystem.switchToLight') : t('examSystem.switchToDark') }}
@@ -142,7 +130,7 @@ const { t, locale } = useI18n();
 
 const localeOptions = [
   { value: 'zh-TW', label: '繁體中文' },
-  { value: 'en', label: 'English' },
+  { value: 'en', label: 'English' }
 ];
 
 const currentLocaleLabel = computed(() => {
