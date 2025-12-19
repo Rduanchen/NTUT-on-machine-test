@@ -5,7 +5,6 @@ import { actionLogger } from './system/logger';
 import FormData from 'form-data';
 import { LocalProgramStore } from './localProgram';
 
-// 提取一個通用的錯誤處理函數，避免重複程式碼，並統一不 throw error
 function handleApiError(context: string, error: any) {
   const errorMessage = error instanceof Error ? error.message : String(error);
   console.error(`${context}: ${errorMessage}`);
@@ -86,8 +85,8 @@ export async function verifyStudentIDFromServer(studentID: string) {
     store.updateServerAvailability(true);
     const toStore = {
       id: response.data.info?.student_ID || '',
-      name: response.data.info?.name || '',
-    }
+      name: response.data.info?.name || ''
+    };
     store.updateStudentInformation(toStore);
     // 驗證成功代表網路暢通，嘗試觸發隊列處理
     ApiSystemInstance.processQueuedActions();
@@ -112,15 +111,15 @@ export async function sendProgramFileToServer(buffer: Buffer) {
   console.log(`Student ID: ${studentID}`);
   const config = store.getConfig();
   const hostLink = config.remoteHost;
-  const MAX_FILE_SIZE = 10 * 1024 * 1024
+  const MAX_FILE_SIZE = 10 * 1024 * 1024;
   try {
     const form = new FormData();
-    form.append("studentID", studentID);
-    form.append("file", buffer, {
+    form.append('studentID', studentID);
+    form.append('file', buffer, {
       filename: `${studentID}.zip`,
       contentType: 'application/zip'
     });
-    form.append("key", config.publicKey);
+    form.append('key', config.publicKey);
     const response = await axios.post(`${hostLink}/api/upload-program`, form, {
       headers: form.getHeaders(),
       maxContentLength: MAX_FILE_SIZE,
@@ -152,11 +151,9 @@ export async function logUserActionToServer(actionData: any) {
 
   try {
     const response = await axios.post(`${host}/api/user-action-logger`, payload);
-    // 成功發送後，觸發佇列檢查 (同樣依賴鎖機制防止迴圈)
     ApiSystemInstance.processQueuedActions();
     return response.data;
   } catch (error) {
-    // 發送失敗，加入佇列並記錄 Log (不 throw)
     handleApiError('Failed to log user action', error);
     ApiSystemInstance.addLogToQueue(payload);
   }

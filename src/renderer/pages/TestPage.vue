@@ -262,6 +262,7 @@
                             )
                           }}
                         </p>
+                        <!-- 限制上傳 .py 檔案 -->
                         <v-file-upload
                           v-model="selectedFile"
                           :multiple="false"
@@ -271,6 +272,7 @@
                           :label="t('examSystem.puzzles.upload.label')"
                           clearable
                           show-size
+                          accept=".py"
                         />
                       </v-card-text>
 
