@@ -25,16 +25,10 @@ export class StoreIpcManager {
     // 更新學生資訊 (包含驗證邏輯)
     ipcMain.handle('store:update-student-information', async (_event, newInfo: any) => {
       const config = store.getConfig();
-      try {
-        let response = await verifyStudentIDFromServer(newInfo.studentID);
-        if (response?.data.isValid === true) {
-          store.updateStudentInformation(response.data.info);
-          store.setStudentVerified(true);
-        } else {
-          return { success: false, message: 'Student ID not found' };
-        }
-      } catch (error) {
-        // 如果伺服器失敗，嘗試從本地 Config 白名單驗證
+
+      let response = await verifyStudentIDFromServer(newInfo.studentID);
+      console.warn('Server verification response:', response);
+      if (response == 'offline') {
         const userFound = config.accessableUsers.find((user) => user.id === newInfo.studentID);
 
         if (userFound) {
@@ -45,6 +39,13 @@ export class StoreIpcManager {
 
         actionLogger.error('Error verifying student ID');
         return { success: false, message: 'Error verifying student ID' };
+      }
+
+      if (response?.data.isValid === true) {
+        store.updateStudentInformation(response.data.info);
+        store.setStudentVerified(true);
+      } else {
+        return { success: false, message: 'Student ID not found' };
       }
 
       actionLogger.info('Student information updated:', newInfo);

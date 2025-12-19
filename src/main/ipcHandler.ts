@@ -12,7 +12,7 @@ function setupAllIPC() {
   LocalProgramStore.setup();
   CodeJudger.setup();
   StoreIpcManager.setup();
-  ApiSystem.setup();
+  // ApiSystem.setup();
 }
 
 export function onAppQuit() {
