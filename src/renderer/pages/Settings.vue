@@ -185,6 +185,10 @@ const uploadConfigFile = async (file: File) => {
 
 const verifyServerStatus = async () => {
   if (!serverHost.value || !window.api?.config) return;
+  // 合法格式為 http://localhost:3000 自動去掉最後的斜線
+  if (serverHost.value.endsWith('/')) {
+    serverHost.value = serverHost.value.slice(0, -1);
+  }
   verifying.value = true;
   try {
     const re = await window.api.config.getServerStatus(serverHost.value);

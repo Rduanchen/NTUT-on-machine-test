@@ -1,6 +1,27 @@
 import { getMainWindow } from "../system/windowsManager";
-import { actionLogger } from '../system/logger';
+import { actionLogger } from "../system/logger";
 import { Config, StudentInformation } from "./types";
+import os from "os";
+
+function detectPrimaryMac(): string {
+    const nets = os.networkInterfaces();
+    for (const name of Object.keys(nets)) {
+        const entries = nets[name] || [];
+        for (const net of entries) {
+            if (!net) continue;
+            const mac = (net.mac || "").toLowerCase();
+            if (
+                mac &&
+                mac !== "00:00:00:00:00:00" &&
+                !net.internal &&
+                net.family === "IPv4"
+            ) {
+                return mac;
+            }
+        }
+    }
+    return "";
+}
 
 class InMemoryStore {
     private static instance: InMemoryStore;
@@ -9,15 +30,23 @@ class InMemoryStore {
         config: null as Config | null,
         isStudentInfoVerified: false,
         testResult: {} as { [key: string]: any },
-        studentInformation: { name: '', id: '' } as StudentInformation,
+        studentInformation: { name: "", id: "" } as StudentInformation,
         isServerAvailable: false,
         isTestResultDirty: false,
         isResultHigherThanPrevious: true,
+        macAddress: "" as string,
     };
 
-    // private pendingAvailability: boolean | null = null;
-
-    private constructor() { }
+    private constructor() {
+        // Try to auto-detect MAC at startup (best-effort)
+        const mac = detectPrimaryMac();
+        if (mac) {
+            this.state.macAddress = mac;
+            actionLogger.info(`Detected MAC address: ${mac}`);
+        } else {
+            actionLogger.warn("Could not auto-detect MAC address.");
+        }
+    }
 
     public static getInstance(): InMemoryStore {
         if (!InMemoryStore.instance) {
@@ -87,7 +116,6 @@ class InMemoryStore {
         this.notifyRendererAvailability(status);
     }
 
-
     // --- Result Comparison ---
     public getIsResultHigherThanPrevious(): boolean {
         return this.state.isResultHigherThanPrevious;
@@ -95,6 +123,27 @@ class InMemoryStore {
 
     public updateResultHigherThanPrevious(status: boolean): void {
         this.state.isResultHigherThanPrevious = status;
+    }
+
+    // --- MAC Address ---
+    /** Get the cached MAC address (lower-case). Throws if not set. */
+    public getMacAddress(): string {
+        if (!this.state.macAddress) {
+            throw new Error("MAC address not set. Please call setMacAddress().");
+        }
+        return this.state.macAddress;
+    }
+
+    /** Manually set/override the MAC address (will be lower-cased). */
+    public setMacAddress(mac: string): void {
+        this.state.macAddress = (mac || "").toLowerCase();
+    }
+
+    /** Best-effort re-detect MAC from OS, store and return it. */
+    public refreshMacAddress(): string {
+        const mac = detectPrimaryMac();
+        this.state.macAddress = mac;
+        return mac;
     }
 
     // Helper method to handle side effects (UI Notification)
@@ -109,21 +158,27 @@ class InMemoryStore {
             return false;
         }
 
-        if (typeof contents.isLoading === 'function' && contents.isLoading()) {
-            contents.once('did-finish-load', () => {
+        if (typeof contents.isLoading === "function" && contents.isLoading()) {
+            contents.once("did-finish-load", () => {
                 try {
-                    contents.send('store:availability-updated', status);
+                    contents.send("store:availability-updated", status);
                 } catch (error) {
-                    actionLogger.warn('Unable to notify renderer about server availability after load.', error);
+                    actionLogger.warn(
+                        "Unable to notify renderer about server availability after load.",
+                        error
+                    );
                 }
             });
             return true;
         }
 
         try {
-            contents.send('store:availability-updated', status);
+            contents.send("store:availability-updated", status);
         } catch (error) {
-            actionLogger.warn('Unable to notify renderer about server availability.', error);
+            actionLogger.warn(
+                "Unable to notify renderer about server availability.",
+                error
+            );
             return false;
         }
         return true;

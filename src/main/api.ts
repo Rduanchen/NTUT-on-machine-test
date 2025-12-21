@@ -13,9 +13,42 @@ function handleApiError(context: string, error: any) {
   return undefined;
 }
 
+// 取得當前 studentID（必須已寫入 store）
+function getStudentIdOrThrow(): string {
+  const studentInfo = store.getStudentInformation();
+  const id = studentInfo?.id ?? '';
+  if (!id) {
+    throw new Error('Student ID is not set in store.');
+  }
+  return id;
+}
+
+// 取得當前 macAddress（必須已寫入 store）
+function getMacAddressOrThrow(): string {
+  const mac = (store as any).getMacAddress?.() ?? '';
+  if (!mac) {
+    throw new Error('Mac address is not set. Please set it before making requests.');
+  }
+  return mac;
+}
+
+// 取得 IP：前端若可偵測，請填入；此處用空字串代表前端無法得知，由伺服器端取得
+function getIpAddress(): string {
+  return '';
+}
+
 export async function fetchConfig(host: string) {
   try {
-    const response = await axios.get(`${host}/api/get-config`);
+    // /api/get-config 需求：附帶 ipAddress；(可選)帶上 studentID、macAddress 以保持一致
+    const studentID = getStudentIdOrThrow();
+    const macAddress = getMacAddressOrThrow();
+    const response = await axios.get(`${host}/api/get-config`, {
+      params: {
+        ipAddress: getIpAddress(),
+        studentID,
+        macAddress,
+      },
+    });
     actionLogger.info('Fetched config from server.');
     actionLogger.silly(response.data);
     store.updateServerAvailability(true);
@@ -26,6 +59,7 @@ export async function fetchConfig(host: string) {
 }
 
 export async function getServerStatus(host: string) {
+  // /api/status 可不帶 studentID / macAddress
   try {
     const response = await axios.get(`${host}/api/status`);
     store.updateServerAvailability(true);
@@ -42,21 +76,21 @@ export interface ActionReport {
 }
 
 export async function sendTestResultToServer() {
-  if (!store.hasConfig()) {
-    return;
-  }
-  if (!store.isTestResultDirty()) {
-    return;
-  }
+  if (!store.hasConfig()) return;
+  if (!store.isTestResultDirty()) return;
+
   const testResult = store.getTestResult();
   const config = store.getConfig();
   const host = config.remoteHost;
   const studentInfo = store.getStudentInformation();
+  const macAddress = getMacAddressOrThrow();
+
   try {
     const response = await axios.post(`${host}/api/post-result`, {
       studentInformation: studentInfo,
       key: config.publicKey,
-      testResult: testResult
+      testResult,
+      macAddress,
     });
     store.markTestResultSynced();
     store.updateServerAvailability(true);
@@ -76,18 +110,19 @@ export async function verifyStudentIDFromServer(studentID: string): Promise<any>
   console.warn(`Verifying student ID: ${studentID} with server...`);
   const config = store.getConfig();
   const hostLink = config.remoteHost;
+  const macAddress = getMacAddressOrThrow();
   try {
-    let response = await axios.post(`${hostLink}/api/is-student-valid`, {
-      studentID: studentID
+    const response = await axios.post(`${hostLink}/api/is-student-valid`, {
+      studentID,
+      macAddress,
     });
 
     store.updateServerAvailability(true);
     const toStore = {
       id: response.data.info?.student_ID || '',
-      name: response.data.info?.name || ''
+      name: response.data.info?.name || '',
     };
     store.updateStudentInformation(toStore);
-    // 驗證成功代表網路暢通，嘗試觸發隊列處理
     await ApiSystemInstance.processQueuedActions();
     return response;
   } catch (error) {
@@ -97,30 +132,28 @@ export async function verifyStudentIDFromServer(studentID: string): Promise<any>
 }
 
 export async function sendProgramFileToServer(buffer: Buffer) {
-  // if (store.getIsResultHigherThanPrevious() === false) {
-  //   return { success: false, message: 'Result not higher than previous' };
-  // } TODO
   if (!store.hasConfig()) {
     actionLogger.info('Config unavailable while sending program file.');
     return { success: false, message: 'Config unavailable' };
   }
-  const studentID = store.getStudentInformation().id;
-  console.warn(store.getStudentInformation());
+  const studentID = getStudentIdOrThrow();
+  const macAddress = getMacAddressOrThrow();
   const config = store.getConfig();
   const hostLink = config.remoteHost;
-  const MAX_FILE_SIZE = 10 * 1024 * 1024;
   try {
     const form = new FormData();
     form.append('studentID', studentID);
+    form.append('macAddress', macAddress);
     form.append('file', buffer, {
       filename: `${studentID}.zip`,
-      contentType: 'application/zip'
+      contentType: 'application/zip',
     });
     form.append('key', config.publicKey);
+
     const response = await axios.post(`${hostLink}/api/upload-program`, form, {
       headers: form.getHeaders(),
       maxContentLength: MAX_FILE_SIZE,
-      maxBodyLength: MAX_FILE_SIZE
+      maxBodyLength: MAX_FILE_SIZE,
     });
     store.updateServerAvailability(true);
     await ApiSystemInstance.processQueuedActions();
@@ -134,14 +167,16 @@ export async function sendProgramFileToServer(buffer: Buffer) {
 
 // Define the expected structure for user action data
 export interface UserActionData {
-  [key: string]: unknown; // Adjust this as needed for stricter typing
+  [key: string]: unknown;
 }
 
 export async function logUserActionToServer(actionData: UserActionData) {
   const studentInfo = store.getStudentInformation();
+  const macAddress = getMacAddressOrThrow();
   const payload = {
     studentID: studentInfo.id,
-    ...actionData
+    macAddress,
+    ...actionData,
   };
 
   if (!store.hasConfig()) {
@@ -167,7 +202,7 @@ export class ApiSystem {
   private static _interval: NodeJS.Timeout | null = null;
   private static recheckIntervalMs: number = 10000;
   private static serverTimeoutMs: number = 4000;
-  private static userActionLogQueue: any[] = []; //FIXME: any
+  private static userActionLogQueue: any[] = [];
   private static _isSyncing: boolean = false;
 
   public static setup() {
@@ -196,13 +231,13 @@ export class ApiSystem {
     const config = store.getConfig();
     const host = config.remoteHost;
     try {
-      let response = await axios.get(`${host}/api/status`, { timeout: this.serverTimeoutMs });
+      const response = await axios.get(`${host}/api/status`, { timeout: this.serverTimeoutMs });
       if (response) {
         this._isAlive = true;
         store.updateServerAvailability(true);
         await this.processQueuedActions();
       }
-    } catch (err) {
+    } catch (_err) {
       if (this._isAlive) {
         this._isAlive = false;
         store.updateServerAvailability(false);
@@ -212,7 +247,14 @@ export class ApiSystem {
   }
 
   public static addLogToQueue(actionData: unknown) {
-    this.userActionLogQueue.push(actionData);
+    // queue must also carry macAddress
+    const macAddress = getMacAddressOrThrow();
+    const studentID = getStudentIdOrThrow();
+    this.userActionLogQueue.push({
+      studentID,
+      macAddress,
+      ...actionData,
+    });
   }
 
   private static async resolveQueuedLog() {
@@ -221,10 +263,12 @@ export class ApiSystem {
     }
     while (this.userActionLogQueue.length > 0) {
       const actionData = this.userActionLogQueue.shift();
-      const studentInfo = store.getStudentInformation();
+      const studentID = getStudentIdOrThrow();
+      const macAddress = getMacAddressOrThrow();
       const payload = {
-        studentID: studentInfo.id,
-        ...actionData
+        studentID,
+        macAddress,
+        ...actionData,
       };
       const config = store.getConfig();
       const host = config.remoteHost;
@@ -240,7 +284,6 @@ export class ApiSystem {
   }
 
   public static async processQueuedActions() {
-    // 1. 檢查鎖：如果正在同步中，直接離開，避開無窮遞迴
     if (this._isSyncing) {
       await LocalProgramStore.syncToBackend();
     }
