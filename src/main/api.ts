@@ -14,14 +14,14 @@ function handleApiError(context: string, error: any) {
 }
 
 // 取得當前 studentID（必須已寫入 store）
-function getStudentIdOrThrow(): string {
+function getStudentId(): string {
   const studentInfo = store.getStudentInformation();
   const id = studentInfo.id || 'unknown';
   return id;
 }
 
 // 取得當前 macAddress（必須已寫入 store）
-function getMacAddressOrThrow(): string {
+function getMacAddress(): string {
   const mac = (store as any).getMacAddress?.() ?? '';
   if (!mac) {
     throw new Error('Mac address is not set. Please set it before making requests.');
@@ -29,19 +29,13 @@ function getMacAddressOrThrow(): string {
   return mac;
 }
 
-// 取得 IP：前端若可偵測，請填入；此處用空字串代表前端無法得知，由伺服器端取得
-function getIpAddress(): string {
-  return '';
-}
-
 export async function fetchConfig(host: string) {
   try {
     // /api/get-config 需求：附帶 ipAddress；(可選)帶上 studentID、macAddress 以保持一致
-    const studentID = getStudentIdOrThrow();
-    const macAddress = getMacAddressOrThrow();
+    const studentID = getStudentId();
+    const macAddress = getMacAddress();
     const response = await axios.get(`${host}/api/get-config`, {
       params: {
-        ipAddress: getIpAddress(),
         studentID,
         macAddress,
       },
@@ -66,41 +60,29 @@ export async function getServerStatus(host: string) {
   }
 }
 
-export interface ActionReport {
-  studentID: string;
-  actionType: string;
-  details?: unknown;
-}
-
 export async function sendTestResultToServer() {
   if (!store.hasConfig()) return;
-  if (!store.isTestResultDirty()) return;
-  let isHigher = store.getIsResultHigherThanPrevious();
-  isHigher = isHigher || false;
-  if (!isHigher) {
-    // actionLogger.info('Test result not higher than previous, skipping upload.');
-    return;
-  }
-
   const testResult = store.getTestResult();
   const config = store.getConfig();
   const host = config.remoteHost;
   const studentInfo = store.getStudentInformation();
-  const macAddress = getMacAddressOrThrow();
+  const macAddress = getMacAddress();
 
   try {
+    console.dir({ studentInfo, testResult, macAddress }, { depth: null });
     const response = await axios.post(`${host}/api/post-result`, {
       studentInformation: studentInfo,
+      studentID: studentInfo.id,
       key: config.publicKey,
       testResult,
       macAddress,
     });
     store.markTestResultSynced();
     store.updateServerAvailability(true);
-    await ApiSystemInstance.processQueuedActions();
+    ApiSystemInstance.clearPendingTestResult();
     return response.data;
   } catch (error) {
-    store.updateServerAvailability(false);
+    ApiSystemInstance.markPendingTestResult();
     return handleApiError('Failed to send test result', error);
   }
 }
@@ -113,7 +95,7 @@ export async function verifyStudentIDFromServer(studentID: string): Promise<any>
   console.warn(`Verifying student ID: ${studentID} with server...`);
   const config = store.getConfig();
   const hostLink = config.remoteHost;
-  const macAddress = getMacAddressOrThrow();
+  const macAddress = getMacAddress();
   try {
     const response = await axios.post(`${hostLink}/api/is-student-valid`, {
       studentID,
@@ -126,7 +108,6 @@ export async function verifyStudentIDFromServer(studentID: string): Promise<any>
       name: response.data.info?.name || '',
     };
     store.updateStudentInformation(toStore);
-    await ApiSystemInstance.processQueuedActions();
     return response;
   } catch (error) {
     handleApiError(`Failed to verify student ID: ${studentID}`, error);
@@ -136,13 +117,20 @@ export async function verifyStudentIDFromServer(studentID: string): Promise<any>
 
 export async function sendProgramFileToServer(buffer: Buffer) {
   if (!store.hasConfig()) {
-    actionLogger.info('Config unavailable while sending program file.');
     return { success: false, message: 'Config unavailable' };
   }
-  const studentID = getStudentIdOrThrow();
-  const macAddress = getMacAddressOrThrow();
+
+  let isHigher = store.getIsResultHigherThanPrevious();
+  isHigher = isHigher || false;
+  if (!isHigher) {
+    return { success: true, message: 'No need to upload program file' };
+  }
+
+  const studentID = getStudentId();
+  const macAddress = getMacAddress();
   const config = store.getConfig();
   const hostLink = config.remoteHost;
+
   try {
     const form = new FormData();
     form.append('studentID', studentID);
@@ -152,18 +140,17 @@ export async function sendProgramFileToServer(buffer: Buffer) {
       contentType: 'application/zip',
     });
     form.append('key', config.publicKey);
-
     const response = await axios.post(`${hostLink}/api/upload-program`, form, {
       headers: form.getHeaders(),
       maxContentLength: MAX_FILE_SIZE,
       maxBodyLength: MAX_FILE_SIZE,
     });
     store.updateServerAvailability(true);
-    await ApiSystemInstance.processQueuedActions();
     store.updateResultHigherThanPrevious(false);
+    ApiSystemInstance.clearPendingProgramFile();
     return response.data;
   } catch (error) {
-    store.updateServerAvailability(false);
+    ApiSystemInstance.markPendingProgramFile(buffer);
     return handleApiError('Failed to send program file', error);
   }
 }
@@ -175,7 +162,7 @@ export interface UserActionData {
 
 export async function logUserActionToServer(actionData: UserActionData) {
   const studentInfo = store.getStudentInformation();
-  const macAddress = getMacAddressOrThrow();
+  const macAddress = getMacAddress();
   const payload = {
     studentID: studentInfo.id,
     macAddress,
@@ -187,12 +174,10 @@ export async function logUserActionToServer(actionData: UserActionData) {
     return;
   }
   const config = store.getConfig();
-  await ApiSystemInstance.processQueuedActions();
   const host = config.remoteHost;
 
   try {
     const response = await axios.post(`${host}/api/user-action-logger`, payload);
-    ApiSystemInstance.processQueuedActions();
     return response.data;
   } catch (error) {
     handleApiError('Failed to log user action', error);
@@ -207,6 +192,8 @@ export class ApiSystem {
   private static serverTimeoutMs: number = 4000;
   private static userActionLogQueue: any[] = [];
   private static _isSyncing: boolean = false;
+  private static _pendingTestResult: boolean = false;
+  private static _pendingProgramFile: Buffer | null = null;
 
   public static setup() {
     this.startHealthCheck();
@@ -223,11 +210,23 @@ export class ApiSystem {
     if (this._interval) return;
 
     this._interval = setInterval(async () => {
-      await this.checkServerAlive();
+      await this.checkServerAlive({ triggerFlush: false });
     }, this.recheckIntervalMs);
   }
 
-  private static async checkServerAlive() {
+  /**
+   * External entry for other services to trigger a re-check when they believe server recovered.
+   * Will flush queues only if server is confirmed alive and not currently syncing.
+   */
+  public static async recheckServerStatus() {
+    if (this._isSyncing) {
+      actionLogger.silly('Recheck skipped: currently syncing queued actions.');
+      return;
+    }
+    await this.checkServerAlive({ triggerFlush: true });
+  }
+
+  private static async checkServerAlive(opts: { triggerFlush: boolean }) {
     if (!store.hasConfig()) {
       return;
     }
@@ -236,14 +235,28 @@ export class ApiSystem {
     try {
       const response = await axios.get(`${host}/api/status`, { timeout: this.serverTimeoutMs });
       if (response) {
+        const wasAlive = this._isAlive;
         this._isAlive = true;
         store.updateServerAvailability(true);
-        await this.processQueuedActions();
+
+        // Only flush when explicitly requested AND not already syncing
+        const hasPending =
+          this.userActionLogQueue.length > 0 ||
+          this._pendingTestResult ||
+          !!this._pendingProgramFile;
+        if (opts.triggerFlush && hasPending && !this._isSyncing) {
+          await this.processQueuedActions();
+        } else if (opts.triggerFlush && !hasPending) {
+          actionLogger.silly('Recheck: server alive, no pending queue to flush.');
+        } else if (!opts.triggerFlush && !wasAlive && this._isAlive) {
+          actionLogger.silly('Health check detected recovery; waiting for explicit recheck to flush.');
+        }
       }
     } catch (_err) {
-      if (this._isAlive) {
-        this._isAlive = false;
-        store.updateServerAvailability(false);
+      const wasAlive = this._isAlive;
+      this._isAlive = false;
+      store.updateServerAvailability(false);
+      if (wasAlive) {
         actionLogger.silly('Server health check failed (server went offline).');
       }
     }
@@ -251,12 +264,12 @@ export class ApiSystem {
 
   public static addLogToQueue(actionData: unknown) {
     // queue must also carry macAddress
-    const macAddress = getMacAddressOrThrow();
-    const studentID = getStudentIdOrThrow();
+    const macAddress = getMacAddress();
+    const studentID = getStudentId();
     this.userActionLogQueue.push({
       studentID,
       macAddress,
-      ...(actionData && typeof actionData === 'object' ? actionData : {})
+      ...(actionData && typeof actionData === 'object' ? actionData : {}),
     });
   }
 
@@ -266,8 +279,8 @@ export class ApiSystem {
     }
     while (this.userActionLogQueue.length > 0) {
       const actionData = this.userActionLogQueue.shift();
-      const studentID = getStudentIdOrThrow();
-      const macAddress = getMacAddressOrThrow();
+      const studentID = getStudentId();
+      const macAddress = getMacAddress();
       const payload = {
         studentID,
         macAddress,
@@ -286,16 +299,46 @@ export class ApiSystem {
     }
   }
 
+  private static async flushPendingTestResult() {
+    if (!this._pendingTestResult) return;
+    try {
+      await sendTestResultToServer();
+      this._pendingTestResult = false;
+    } catch (error) {
+      handleApiError('Failed to flush pending test result', error);
+    }
+  }
+
+  private static async flushPendingProgramFile() {
+    if (!this._pendingProgramFile) return;
+    try {
+      await sendProgramFileToServer(this._pendingProgramFile);
+      this._pendingProgramFile = null;
+    } catch (error) {
+      handleApiError('Failed to flush pending program file', error);
+    }
+  }
+
   public static async processQueuedActions() {
     if (this._isSyncing) {
-      await LocalProgramStore.syncToBackend();
+      // Guard to avoid concurrent flush attempts
+      return;
     }
+    if (!this._isAlive) {
+      actionLogger.silly('Skip processing queue: server not alive.');
+      return;
+    }
+
     this._isSyncing = true;
     try {
+      // Order: user actions -> test result -> program file
       await this.resolveQueuedLog();
-      await sendTestResultToServer();
+      await this.flushPendingTestResult();
+      await this.flushPendingProgramFile();
+
+      // Local program sync after program upload and when higher score flagged
       if (store.getIsResultHigherThanPrevious()) {
-        LocalProgramStore.syncToBackend();
+        await LocalProgramStore.syncToBackend();
         store.updateResultHigherThanPrevious(false);
       }
     } catch (error) {
@@ -304,7 +347,28 @@ export class ApiSystem {
       this._isSyncing = false;
     }
   }
+
+  public static markPendingTestResult() {
+    this._pendingTestResult = true;
+  }
+
+  public static clearPendingTestResult() {
+    this._pendingTestResult = false;
+  }
+
+  public static markPendingProgramFile(buffer: Buffer) {
+    this._pendingProgramFile = buffer;
+  }
+
+  public static clearPendingProgramFile() {
+    this._pendingProgramFile = null;
+  }
 }
 
 const ApiSystemInstance = ApiSystem;
 export default ApiSystemInstance;
+
+// Helper export for external callers
+export async function recheckServerStatus() {
+  return ApiSystem.recheckServerStatus();
+}
