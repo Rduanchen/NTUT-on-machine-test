@@ -87,7 +87,6 @@ export class ConfigSystem {
         store.updateConfig(jsonString);
         isConfigLoaded = false;
         localConfigInfo = 'Failed to load config from server, using local config file';
-        ApiSystem.processQueuedActions();
       }
     } else {
       actionLogger.info('No local config file found at startup');

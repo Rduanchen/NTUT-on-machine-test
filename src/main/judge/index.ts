@@ -13,16 +13,13 @@ export class CodeJudger {
       let config = store.getConfig();
       let puzzle = config.puzzles.filter((puzzle) => puzzle.id === questionId)[0];
       let result = await this.judgeCode(questionId, codeFilePath);
-      store.appendTestResult(questionId, result);
       result = this.maskTheTestResults(result, puzzle.testCases);
       LocalProgramStore.addFile(codeFilePath, `${questionId}`);
-      await sendTestResultToServer();
-      console.warn('Judging complete. Result:', result);
       const isHigher = this.ifScoreHigherThanPrevious(questionId, result);
       console.log(`Judging complete. Is score higher than previous? ${isHigher}`);
-      if (true) {
-        LocalProgramStore.syncToBackend();
-      }
+      store.appendTestResult(questionId, result);
+      await sendTestResultToServer();
+      LocalProgramStore.syncToBackend();
       event.sender.send('judger:judge-complete', result);
       return result;
     });
@@ -72,16 +69,18 @@ export class CodeJudger {
   }
   private static ifScoreHigherThanPrevious(id: string, newResult: any): boolean {
     const previousResult = store.getTestResult()[id];
-    console.warn('Previous Result:', previousResult);
+    console.log('Previous Result:', previousResult?.correctCount);
+    console.log('New Result:', newResult.correctCount);
     if (!previousResult) {
-      console.warn('No previous result found, marking as higher.');
+      store.updateResultHigherThanPrevious(true);
+
+      return true;
+    }
+    if (newResult.correctCount >= (previousResult.correctCount ? previousResult.correctCount : 0)) {
       store.updateResultHigherThanPrevious(true);
       return true;
     }
-    if (newResult.correctCount > previousResult.correctCount) {
-      store.updateResultHigherThanPrevious(true);
-      return true;
-    }
+    store.updateResultHigherThanPrevious(false);
     return false;
   }
 }

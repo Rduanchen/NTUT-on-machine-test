@@ -7,9 +7,8 @@ import { ApiSystem } from './api';
 import { StoreIpcManager } from './store/ipcHandlers';
 
 function setupAllIPC() {
-  // ConfigStore.setup();
-  ConfigSystem.setup();
   LocalProgramStore.setup();
+  ConfigSystem.setup();
   CodeJudger.setup();
   StoreIpcManager.setup();
   // ApiSystem.setup();

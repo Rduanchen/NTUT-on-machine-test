@@ -24,7 +24,7 @@ export class LocalProgramStore {
     const destPath = path.join(tempDir, `${fileName}.py`);
     fs.copyFileSync(filePath, destPath);
     actionLogger.info(`File ${filePath} copied to temporary directory as ${destPath}`);
-    this.syncToBackend();
+    // this.syncToBackend();
     return destPath;
   }
   public static syncToBackend() {

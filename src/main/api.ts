@@ -16,10 +16,7 @@ function handleApiError(context: string, error: any) {
 // 取得當前 studentID（必須已寫入 store）
 function getStudentIdOrThrow(): string {
   const studentInfo = store.getStudentInformation();
-  const id = studentInfo?.id ?? '';
-  if (!id) {
-    throw new Error('Student ID is not set in store.');
-  }
+  const id = studentInfo.id || 'unknown';
   return id;
 }
 
@@ -78,6 +75,12 @@ export interface ActionReport {
 export async function sendTestResultToServer() {
   if (!store.hasConfig()) return;
   if (!store.isTestResultDirty()) return;
+  let isHigher = store.getIsResultHigherThanPrevious();
+  isHigher = isHigher || false;
+  if (!isHigher) {
+    // actionLogger.info('Test result not higher than previous, skipping upload.');
+    return;
+  }
 
   const testResult = store.getTestResult();
   const config = store.getConfig();
@@ -253,7 +256,7 @@ export class ApiSystem {
     this.userActionLogQueue.push({
       studentID,
       macAddress,
-      ...actionData,
+      ...(actionData && typeof actionData === 'object' ? actionData : {})
     });
   }
 
@@ -268,7 +271,7 @@ export class ApiSystem {
       const payload = {
         studentID,
         macAddress,
-        ...actionData,
+        ...(actionData && typeof actionData === 'object' ? actionData : {}),
       };
       const config = store.getConfig();
       const host = config.remoteHost;

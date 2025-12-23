@@ -2,6 +2,7 @@ import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import { app } from 'electron';
 import fs from 'fs';
+import { store } from '../store/store';
 
 // --- 1. 介面定義 (Interfaces) ---
 
@@ -104,7 +105,9 @@ try {
   PYTHON_PATH = '__missing_python__';
 }
 
-const MAX_EXECUTION_TIME: number = 10000; // 10 秒超時限制 (毫秒)
+// const config = store.getConfig();
+const DEFAULT_MAX_EXECUTION_TIME = 25000; // 預設 25 秒
+let MAX_EXECUTION_TIME: number = DEFAULT_MAX_EXECUTION_TIME;   // 預設 25 秒
 
 /** 當前正在執行的 Python 程序 */
 let currentPythonProcess: ChildProcess | null = null;
@@ -181,6 +184,7 @@ async function runSingleCase(scriptPath: string, test: TestCase): Promise<TestRe
       throw Object.assign(new Error('Missing bundled python'), { code: 'ENOENT' });
     }
 
+    MAX_EXECUTION_TIME = store.getConfig().maxExecutionTime || DEFAULT_MAX_EXECUTION_TIME;
     const { actualOutput, errorOutput, exitCode }: ExecutionResult =
       await executeSingleTestInternal(PYTHON_PATH, scriptPath, test, MAX_EXECUTION_TIME);
 

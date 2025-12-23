@@ -39,6 +39,7 @@ export interface Config {
     description: string;
     publicKey: string;
     remoteHost: string;
+    maxExecutionTime: number;
     accessableUsers: AccessableUser[];
     testTime: TestTime;
     puzzles: Puzzle[];

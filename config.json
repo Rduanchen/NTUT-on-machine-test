@@ -1,36 +1,10 @@
 {
   "testTitle": "北科大計算機程式設計期中考",
   "description": "the test will be start at 18:00 and end at 20:00",
-  "publicKey": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCvad2H5XaTO0FYatEIyStVdcRTDoM63dD6LMbjC6ILtd5zuXi8vcYKKpu5zsfPZCMAdWUxXl1bx2JvVRaPGeB0zfZo2MU1xPp8fF6ivoagSPueoQH6zhlZ1+1ayg8lmhxf05UFLEAynM38MjHnv9+2VWUgSWPFKMPIK6JAW5AIzwIDAQAB",
   "remoteHost": "http://localhost:3001",
   "testTime": {
     "startTime": "2023-11-13T10:30:00Z",
     "endTime": "2023-11-13T12:30:00Z",
     "forceQuit": true
-  },
-  "accessableUsers": [
-    { "id": "0", "name": "TA" },
-    { "id": "114590001", "name": "王小明" },
-    { "id": "114590034", "name": "李小華" },
-    { "id": "114590056", "name": "張大同" }
-  ],
-  "puzzles": [
-    {
-      "id": "1",
-      "name": "Sample1",
-      "language": "Python",
-      "testCases": [
-        {
-          "title": "Group1",
-          "id": 1,
-          "openTestCases": [
-            { "id": "", "input": "", "output": "" }
-          ],
-          "hiddenTestCases": [
-            { "id": "", "input": "", "output": "" }
-          ]
-        }
-      ]
-    }
-  ]
+  }
 }

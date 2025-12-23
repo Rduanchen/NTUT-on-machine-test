@@ -27,7 +27,6 @@ export class StoreIpcManager {
       const config = store.getConfig();
 
       let response = await verifyStudentIDFromServer(newInfo.studentID);
-      console.warn('Server verification response:', response);
       if (response == 'offline') {
         const userFound = config.accessableUsers.find((user) => user.id === newInfo.studentID);
 
@@ -47,7 +46,6 @@ export class StoreIpcManager {
       } else {
         return { success: false, message: 'Student ID not found' };
       }
-
       actionLogger.info('Student information updated:', newInfo);
       store.setStudentVerified(true);
       return { success: true };
