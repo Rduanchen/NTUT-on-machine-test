@@ -208,6 +208,7 @@ const verifyServerStatus = async () => {
 const getConfigFileFromServer = async () => {
   if (!window.api?.config) return;
   const re = await window.api.config.getFromServer(serverHost.value);
+  console.log(re);
   if (re.success) {
     router.push('/Welcome');
   } else {

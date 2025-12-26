@@ -2,6 +2,7 @@
   <v-container fluid class="pa-4 pa-md-6 h-100">
     <v-card class="h-100 d-flex flex-column" elevation="2" rounded="lg">
       <!-- Toolbar -->
+
       <div class="px-4 py-3 border-b d-flex flex-wrap align-center gap-2 bg-surface">
         <div class="d-flex align-center flex-grow-1">
           <h2 class="text-h6 font-weight-bold mr-4">{{ t('examSystem.title') }}</h2>

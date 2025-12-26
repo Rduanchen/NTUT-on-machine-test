@@ -4,10 +4,15 @@ import { Config } from './store/types';
 import { actionLogger } from './system/logger';
 import FormData from 'form-data';
 import { LocalProgramStore } from './localProgram';
+
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+// --- [修改點 1] 設定全域 Timeout 時間 (毫秒) ---
+const API_TIMEOUT = 5000;
 
 function handleApiError(context: string, error: any) {
   const errorMessage = error instanceof Error ? error.message : String(error);
+  // 如果是 timeout 錯誤，errorMessage 通常會包含 "timeout of 5000ms exceeded"
   console.error(`${context}: ${errorMessage}`);
   store.updateServerAvailability(false);
   return undefined;
@@ -31,14 +36,15 @@ function getMacAddress(): string {
 
 export async function fetchConfig(host: string) {
   try {
-    // /api/get-config 需求：附帶 ipAddress；(可選)帶上 studentID、macAddress 以保持一致
     const studentID = getStudentId();
     const macAddress = getMacAddress();
+    // --- [修改點 2] 加入 timeout ---
     const response = await axios.get(`${host}/api/get-config`, {
       params: {
         studentID,
-        macAddress,
+        macAddress
       },
+      timeout: API_TIMEOUT
     });
     actionLogger.info('Fetched config from server.');
     actionLogger.silly(response.data);
@@ -50,9 +56,11 @@ export async function fetchConfig(host: string) {
 }
 
 export async function getServerStatus(host: string) {
-  // /api/status 可不帶 studentID / macAddress
   try {
-    const response = await axios.get(`${host}/api/status`);
+    // --- [修改點 3] 加入 timeout ---
+    const response = await axios.get(`${host}/api/status`, {
+      timeout: API_TIMEOUT
+    });
     store.updateServerAvailability(true);
     return response.data;
   } catch (error) {
@@ -69,14 +77,20 @@ export async function sendTestResultToServer() {
   const macAddress = getMacAddress();
 
   try {
-    console.dir({ studentInfo, testResult, macAddress }, { depth: null });
-    const response = await axios.post(`${host}/api/post-result`, {
-      studentInformation: studentInfo,
-      studentID: studentInfo.id,
-      key: config.publicKey,
-      testResult,
-      macAddress,
-    });
+    // --- [修改點 4] axios.post 的第三個參數加入 timeout ---
+    const response = await axios.post(
+      `${host}/api/post-result`,
+      {
+        studentInformation: studentInfo,
+        studentID: studentInfo.id,
+        key: config.publicKey,
+        testResult,
+        macAddress
+      },
+      {
+        timeout: API_TIMEOUT
+      }
+    );
     store.markTestResultSynced();
     store.updateServerAvailability(true);
     ApiSystemInstance.clearPendingTestResult();
@@ -97,15 +111,22 @@ export async function verifyStudentIDFromServer(studentID: string): Promise<any>
   const hostLink = config.remoteHost;
   const macAddress = getMacAddress();
   try {
-    const response = await axios.post(`${hostLink}/api/is-student-valid`, {
-      studentID,
-      macAddress,
-    });
+    // --- [修改點 5] 加入 timeout ---
+    const response = await axios.post(
+      `${hostLink}/api/is-student-valid`,
+      {
+        studentID,
+        macAddress
+      },
+      {
+        timeout: API_TIMEOUT
+      }
+    );
 
     store.updateServerAvailability(true);
     const toStore = {
       id: response.data.info?.student_ID || '',
-      name: response.data.info?.name || '',
+      name: response.data.info?.name || ''
     };
     store.updateStudentInformation(toStore);
     return response;
@@ -137,13 +158,16 @@ export async function sendProgramFileToServer(buffer: Buffer) {
     form.append('macAddress', macAddress);
     form.append('file', buffer, {
       filename: `${studentID}.zip`,
-      contentType: 'application/zip',
+      contentType: 'application/zip'
     });
     form.append('key', config.publicKey);
+
+    // --- [修改點 6] 在上傳檔案的 config 中加入 timeout ---
     const response = await axios.post(`${hostLink}/api/upload-program`, form, {
       headers: form.getHeaders(),
       maxContentLength: MAX_FILE_SIZE,
       maxBodyLength: MAX_FILE_SIZE,
+      timeout: API_TIMEOUT
     });
     store.updateServerAvailability(true);
     store.updateResultHigherThanPrevious(false);
@@ -155,7 +179,6 @@ export async function sendProgramFileToServer(buffer: Buffer) {
   }
 }
 
-// Define the expected structure for user action data
 export interface UserActionData {
   [key: string]: unknown;
 }
@@ -166,7 +189,7 @@ export async function logUserActionToServer(actionData: UserActionData) {
   const payload = {
     studentID: studentInfo.id,
     macAddress,
-    ...actionData,
+    ...actionData
   };
 
   if (!store.hasConfig()) {
@@ -177,7 +200,10 @@ export async function logUserActionToServer(actionData: UserActionData) {
   const host = config.remoteHost;
 
   try {
-    const response = await axios.post(`${host}/api/user-action-logger`, payload);
+    // --- [修改點 7] 加入 timeout ---
+    const response = await axios.post(`${host}/api/user-action-logger`, payload, {
+      timeout: API_TIMEOUT
+    });
     return response.data;
   } catch (error) {
     handleApiError('Failed to log user action', error);
@@ -189,7 +215,8 @@ export class ApiSystem {
   private static _isAlive: boolean = true;
   private static _interval: NodeJS.Timeout | null = null;
   private static recheckIntervalMs: number = 10000;
-  private static serverTimeoutMs: number = 4000;
+  // --- [修改點 8] 讓這裡的 timeout 也使用全域變數，保持一致 ---
+  private static serverTimeoutMs: number = API_TIMEOUT;
   private static userActionLogQueue: any[] = [];
   private static _isSyncing: boolean = false;
   private static _pendingTestResult: boolean = false;
@@ -214,10 +241,6 @@ export class ApiSystem {
     }, this.recheckIntervalMs);
   }
 
-  /**
-   * External entry for other services to trigger a re-check when they believe server recovered.
-   * Will flush queues only if server is confirmed alive and not currently syncing.
-   */
   public static async recheckServerStatus() {
     if (this._isSyncing) {
       actionLogger.silly('Recheck skipped: currently syncing queued actions.');
@@ -233,13 +256,13 @@ export class ApiSystem {
     const config = store.getConfig();
     const host = config.remoteHost;
     try {
+      // 這裡已經有使用 this.serverTimeoutMs (現在等於 API_TIMEOUT)
       const response = await axios.get(`${host}/api/status`, { timeout: this.serverTimeoutMs });
       if (response) {
         const wasAlive = this._isAlive;
         this._isAlive = true;
         store.updateServerAvailability(true);
 
-        // Only flush when explicitly requested AND not already syncing
         const hasPending =
           this.userActionLogQueue.length > 0 ||
           this._pendingTestResult ||
@@ -249,7 +272,9 @@ export class ApiSystem {
         } else if (opts.triggerFlush && !hasPending) {
           actionLogger.silly('Recheck: server alive, no pending queue to flush.');
         } else if (!opts.triggerFlush && !wasAlive && this._isAlive) {
-          actionLogger.silly('Health check detected recovery; waiting for explicit recheck to flush.');
+          actionLogger.silly(
+            'Health check detected recovery; waiting for explicit recheck to flush.'
+          );
         }
       }
     } catch (_err) {
@@ -263,13 +288,12 @@ export class ApiSystem {
   }
 
   public static addLogToQueue(actionData: unknown) {
-    // queue must also carry macAddress
     const macAddress = getMacAddress();
     const studentID = getStudentId();
     this.userActionLogQueue.push({
       studentID,
       macAddress,
-      ...(actionData && typeof actionData === 'object' ? actionData : {}),
+      ...(actionData && typeof actionData === 'object' ? actionData : {})
     });
   }
 
@@ -284,13 +308,16 @@ export class ApiSystem {
       const payload = {
         studentID,
         macAddress,
-        ...(actionData && typeof actionData === 'object' ? actionData : {}),
+        ...(actionData && typeof actionData === 'object' ? actionData : {})
       };
       const config = store.getConfig();
       const host = config.remoteHost;
 
       try {
-        await axios.post(`${host}/api/user-action-logger`, payload);
+        // --- [修改點 9] 這裡也需要加入 timeout ---
+        await axios.post(`${host}/api/user-action-logger`, payload, {
+          timeout: API_TIMEOUT
+        });
       } catch (error) {
         this.userActionLogQueue.unshift(actionData);
         handleApiError('Failed to resolve queued log', error);
@@ -299,6 +326,7 @@ export class ApiSystem {
     }
   }
 
+  // ... (其餘部分保持不變)
   private static async flushPendingTestResult() {
     if (!this._pendingTestResult) return;
     try {
@@ -321,7 +349,6 @@ export class ApiSystem {
 
   public static async processQueuedActions() {
     if (this._isSyncing) {
-      // Guard to avoid concurrent flush attempts
       return;
     }
     if (!this._isAlive) {
@@ -331,12 +358,10 @@ export class ApiSystem {
 
     this._isSyncing = true;
     try {
-      // Order: user actions -> test result -> program file
       await this.resolveQueuedLog();
       await this.flushPendingTestResult();
       await this.flushPendingProgramFile();
 
-      // Local program sync after program upload and when higher score flagged
       if (store.getIsResultHigherThanPrevious()) {
         await LocalProgramStore.syncToBackend();
         store.updateResultHigherThanPrevious(false);
@@ -368,7 +393,6 @@ export class ApiSystem {
 const ApiSystemInstance = ApiSystem;
 export default ApiSystemInstance;
 
-// Helper export for external callers
 export async function recheckServerStatus() {
   return ApiSystem.recheckServerStatus();
 }

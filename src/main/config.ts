@@ -25,11 +25,17 @@ export class ConfigSystem {
     ipcMain.handle('config:get-from-server', async (_event, host: string) => {
       try {
         let response = await fetchConfig(host);
+        console.log('Fetched config from server:', response);
         if (response) {
           store.updateServerAvailability(true);
           store.updateConfig(response);
+        } else {
+          store.updateServerAvailability(false);
+          return {
+            success: false,
+            message: 'No response from server'
+          };
         }
-        actionLogger.info('Configuration fetched from server');
 
         ApiSystem.setup();
         ApiSystem.processQueuedActions();
@@ -37,6 +43,7 @@ export class ConfigSystem {
         return { success: true };
       } catch (error) {
         actionLogger.error('Failed to fetch config from server');
+        console.error(error);
         return {
           success: false,
           message: 'Failed to fetch config from server'
@@ -66,10 +73,10 @@ export class ConfigSystem {
   }
   private static async getServerConfigFromLocal() {
     let configLocaltion = '';
-    if (isDev) {
-      configLocaltion = path.join(process.cwd(), 'config.json');
+    if (app.isPackaged) {
+      configLocaltion = path.join(process.resourcesPath, 'pre-settings.json');
     } else {
-      configLocaltion = path.join(app.getPath('userData'), 'config.json');
+      configLocaltion = path.join(app.getAppPath(), 'resources', 'pre-settings.json');
     }
 
     if (fs.existsSync(configLocaltion)) {

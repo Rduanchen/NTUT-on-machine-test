@@ -1,26 +1,26 @@
-import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
-import { app } from 'electron';
 import fs from 'fs';
+import { app } from 'electron';
 import { store } from '../store/store';
+import { PythonJudger, JudgeResult } from './judgeSDK';
 
 // --- 1. 介面定義 (Interfaces) ---
 
-/** 單個測試案例的結構 */
 interface TestCase {
   id: string;
   input: string;
   output: string;
 }
 
-/** 執行單個測試案例後返回的結果 */
 interface TestResult {
   id: string;
+  statusCode: string;
   correct: boolean;
   userOutput: string;
+  execution_time: string;
+  error?: string;
 }
 
-/** 測試群組的結構，包含公開與隱藏測試案例 */
 interface TestGroup {
   title: string;
   id: number;
@@ -28,7 +28,6 @@ interface TestGroup {
   hiddenTestCases?: TestCase[];
 }
 
-/** 單個測試群組的執行結果 */
 interface GroupResult {
   title: string;
   id: number;
@@ -37,49 +36,29 @@ interface GroupResult {
   correctCount: number;
 }
 
-/** 整個測試批次執行的最終結果 */
 interface RunTestsResult {
   groupResults: GroupResult[];
   testCaseAmount: number;
   correctCount: number;
 }
 
-/** 內部執行腳本後的原始輸出結果 */
-interface ExecutionResult {
-  actualOutput: string;
-  errorOutput: string;
-  // exitCode: null 表示被信號終止 (如超時)
-  exitCode: number | null;
-}
+// --- 2. Python 路徑處理 ---
 
-/**
- * 取得「python 資料夾」根目錄。
- * - dev: <appPath>/src/main/judge/python
- * - packaged: <resourcesPath>/python   (對應 electron-builder extraResources.to: python)
- */
 const getBundledPythonDir = (): string => {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'python');
   }
-  return path.join(app.getAppPath(), 'src', 'main', 'judge', 'python');
+  return path.join(app.getAppPath(), 'resources', 'python');
 };
 
-/**
- * 取得 python 執行檔路徑（優先使用內建 interpreter；找不到才 fallback 到系統 python3）
- */
 const getPythonPath = (): string => {
   const pythonDir = getBundledPythonDir();
-
-  // 依平台推定內建 python 的位置（請依你的 python 資料夾實際結構調整）
   const bundledCandidates =
     process.platform === 'win32'
       ? [path.join(pythonDir, 'python.exe')]
       : [
-        // 常見：<pythonDir>/bin/python3
         path.join(pythonDir, 'bin', 'python3'),
-        // 有些包是 python3 在根目錄
         path.join(pythonDir, 'python3'),
-        // 也可能是 python 在 bin
         path.join(pythonDir, 'bin', 'python')
       ];
 
@@ -87,81 +66,101 @@ const getPythonPath = (): string => {
     if (fs.existsSync(p)) return p;
   }
 
-  // fallback（可選）：若你希望「一定要用內建」那就直接 throw
   if (process.platform === 'win32') {
-    // windows 沒內建基本上就一定失敗，拋出讓外層顯示更清楚訊息
     throw new Error(`找不到內建 Python: ${bundledCandidates.join(', ')}`);
   }
-
-  // mac/linux fallback 到系統 python3
   return 'python3';
 };
 
-let PYTHON_PATH: string;
-try {
-  PYTHON_PATH = getPythonPath();
-} catch (e) {
-  // 讓後續錯誤訊息能顯示出來
-  PYTHON_PATH = '__missing_python__';
-}
+// --- 3. 全域狀態 ---
 
-// const config = store.getConfig();
-const DEFAULT_MAX_EXECUTION_TIME = 25000; // 預設 25 秒
-let MAX_EXECUTION_TIME: number = DEFAULT_MAX_EXECUTION_TIME;   // 預設 25 秒
+const DEFAULT_MAX_EXECUTION_TIME = 25000;
+let MAX_EXECUTION_TIME: number = DEFAULT_MAX_EXECUTION_TIME;
 
-/** 當前正在執行的 Python 程序 */
-let currentPythonProcess: ChildProcess | null = null;
+/** 當前的 AbortController，用於停止評測 */
+let currentAbortController: AbortController | null = null;
 
-/** 超時計時器 */
-let timeoutTimer: NodeJS.Timeout | null = null;
-
-// --- 3. 核心執行函式 ---
-
-/**
- * 運行 Python 腳本並對多個測試群組進行測試。
- * @param scriptPath 待測試的 Python 腳本路徑。
- * @param groupedTestCases 嵌套的測試群組陣列。
- * @returns 包含所有測試群組結果的 Promise。
+/** * 新增：全域停止標記
+ * 用來通知迴圈不要再執行下一個測試案例
  */
+let isStopRequested = false;
+
+const createJudger = (): PythonJudger => {
+  let pythonPath = 'python3';
+  try {
+    pythonPath = getPythonPath();
+  } catch (e) {
+    pythonPath = '__missing_python__';
+  }
+
+  const judgeScriptPath = path.join(getBundledPythonDir(), 'main.py');
+  console.log('Using Python Path:', pythonPath);
+  console.log('Using Judge Script:', judgeScriptPath);
+
+  return new PythonJudger({
+    pythonPath,
+    judgeScriptPath
+  });
+};
+
+// --- 4. 核心執行函式 ---
+
 export async function runPythonTestsAPI(
   scriptPath: string,
   groupedTestCases: TestGroup[]
 ): Promise<RunTestsResult> {
-  // 每次執行前重新解析一次，避免 packaged/dev 狀態或路徑變動造成問題
-  try {
-    PYTHON_PATH = getPythonPath();
-  } catch (e) {
-    PYTHON_PATH = '__missing_python__';
-  }
+  console.log(`Test Groups: ...`);
+
+  // 重置停止狀態
+  isStopRequested = false;
 
   const groupResults: GroupResult[] = [];
-  let testCaseAmount: number = 0;
-  let correctCount: number = 0;
+  let testCaseAmount = 0;
+  let correctCount = 0;
 
+  MAX_EXECUTION_TIME = store.getConfig().maxExecutionTime || DEFAULT_MAX_EXECUTION_TIME;
+  const timeLimitSeconds = MAX_EXECUTION_TIME / 1000;
+  // const timeLimitSeconds = 5; // 暫時固定為 5 秒測試
+
+  const judger = createJudger();
+
+  // [修改 1] 外層迴圈檢查停止標記
   for (const group of groupedTestCases) {
+    if (isStopRequested) break;
+
     const testCasesResults: TestResult[] = [];
-    let groupTestCaseAmount: number = 0;
-    let groupCorrectCount: number = 0;
+    let groupTestCaseAmount = 0;
+    let groupCorrectCount = 0;
 
-    const processTestCases = async (tests: TestCase[] | undefined) => {
-      if (Array.isArray(tests)) {
-        for (const test of tests) {
-          const testResult: TestResult = await runSingleCase(scriptPath, test);
-          testCasesResults.push(testResult);
+    const processTestCases = async (tests?: TestCase[]) => {
+      if (!Array.isArray(tests)) return;
 
-          if (testResult.correct) {
-            groupCorrectCount++;
-            correctCount++;
-          }
-          testCaseAmount++;
-          groupTestCaseAmount++;
+      for (const test of tests) {
+        // [修改 2] 內層迴圈檢查停止標記：如果使用者按了停止，直接跳出迴圈
+        if (isStopRequested) break;
+
+        const result = await runSingleCase(judger, scriptPath, test, timeLimitSeconds);
+        testCasesResults.push(result);
+
+        // 如果該案例是因為「手動停止」而結束的，我們也應該在這裡 break
+        if (result.statusCode === 'STOP') {
+          break;
         }
+
+        if (result.correct) {
+          groupCorrectCount++;
+          correctCount++;
+        }
+        groupTestCaseAmount++;
+        testCaseAmount++;
       }
     };
 
     await processTestCases(group.openTestCases);
     await processTestCases(group.hiddenTestCases);
 
+    // 如果沒有執行任何測試（因為剛開始就被停止），可能不想 push 空結果，
+    // 但為了介面顯示一致，保留 push，但結果會是空的
     groupResults.push({
       title: group.title,
       id: group.id,
@@ -178,137 +177,140 @@ export async function runPythonTestsAPI(
   };
 }
 
-async function runSingleCase(scriptPath: string, test: TestCase): Promise<TestResult> {
+async function runSingleCase(
+  judger: PythonJudger,
+  scriptPath: string,
+  test: TestCase,
+  timeLimitSeconds: number
+): Promise<TestResult> {
+  // 檢查是否已經被要求停止
+  if (isStopRequested) {
+    return {
+      id: test.id,
+      statusCode: 'STOP',
+      correct: false,
+      userOutput: '',
+      execution_time: '',
+      error: 'Tests stopped by user.'
+    };
+  }
+
+  let sourceCode = '';
   try {
-    if (PYTHON_PATH === '__missing_python__') {
-      throw Object.assign(new Error('Missing bundled python'), { code: 'ENOENT' });
-    }
+    sourceCode = fs.readFileSync(scriptPath, 'utf-8');
+  } catch (err: any) {
+    return {
+      id: test.id,
+      statusCode: 'ER',
+      correct: false,
+      userOutput: '',
+      execution_time: '',
+      error: `無法讀取待測試檔案：${err.message}`
+    };
+  }
 
-    MAX_EXECUTION_TIME = store.getConfig().maxExecutionTime || DEFAULT_MAX_EXECUTION_TIME;
-    const { actualOutput, errorOutput, exitCode }: ExecutionResult =
-      await executeSingleTestInternal(PYTHON_PATH, scriptPath, test, MAX_EXECUTION_TIME);
+  currentAbortController = new AbortController();
+  const { signal } = currentAbortController;
 
-    let isCorrect: boolean = false;
-    let userOutputTrimmed: string = actualOutput.trim();
+  let timeoutTimer: NodeJS.Timeout | null = null;
 
-    if (exitCode === 0) {
-      if (userOutputTrimmed === test.output.trim()) {
-        isCorrect = true;
-      }
-    }
+  try {
+    // 逾時計時
+    timeoutTimer = setTimeout(() => {
+      // 這是逾時觸發的 abort，不是使用者按停止
+      currentAbortController?.abort();
+    }, timeLimitSeconds * 1000);
 
-    if (errorOutput) {
-      userOutputTrimmed += `\n[運行錯誤] ${errorOutput.trim()}`;
-    }
+    const payload = {
+      source_code: sourceCode,
+      input: test.input,
+      expected_output: test.output,
+      time_limit: timeLimitSeconds,
+      signal
+    };
 
-    if (exitCode === null) {
-      console.warn(`測試 ${test.id} 被外部終止或超時。`);
-    }
+    // 執行
+    const judgeResult: JudgeResult = await judger.run({
+      source_code: sourceCode,
+      input: test.input,
+      expected_output: test.output,
+      time_limit: timeLimitSeconds,
+      signal
+    });
+
+    const statusCode = judgeResult.status || 'ER';
+    const correct = statusCode.includes('AC');
+    const userOutput = judgeResult.user_output ?? '';
+    const execution_time = judgeResult.execution_time ?? '';
+    const error = statusCode === 'AC' ? undefined : judgeResult.error_message;
 
     return {
       id: test.id,
-      correct: isCorrect,
-      userOutput: userOutputTrimmed
+      statusCode,
+      correct,
+      userOutput,
+      execution_time,
+      error
     };
   } catch (error: any) {
-    console.error(`啟動或執行腳本錯誤 (Test ${test.id}):`, error);
+    // [修改 3] 捕捉錯誤時，區分是「手動停止」還是「系統/Python錯誤」
 
-    const errorMessage =
-      error.code === 'ENOENT'
-        ? `執行失敗：找不到 Python 直譯器 (${PYTHON_PATH})。打包後請確認 extraResources 已包含 python，且 mac/linux 需有可執行權限(chmod +x)。`
-        : `執行失敗：${error.message}`;
+    // 情況 A: 使用者按了停止
+    if (isStopRequested) {
+      return {
+        id: test.id,
+        statusCode: 'STOP',
+        correct: false,
+        userOutput: '',
+        execution_time: '',
+        error: 'Execution stopped by user.'
+      };
+    }
+
+    // 情況 B: AbortError 但 isStopRequested 為 false -> 代表是 setTimeout 觸發的 TLE
+    if (error.name === 'AbortError' || error.code === 'ABORT_ERR') {
+      return {
+        id: test.id,
+        statusCode: 'TLE',
+        correct: false,
+        userOutput: '',
+        execution_time: `${timeLimitSeconds * 1000}ms`,
+        error: 'Time Limit Exceeded (System Timeout)'
+      };
+    }
+
+    // 情況 C: 其他錯誤 (Python 找不到, 權限不足等)
+    const message =
+      error?.code === 'ENOENT'
+        ? `執行失敗：找不到 Python 直譯器或 Script。`
+        : `執行失敗：${error?.message || '未知錯誤'}`;
 
     return {
       id: test.id,
+      statusCode: 'ER',
       correct: false,
-      userOutput: errorMessage
+      userOutput: '',
+      execution_time: '',
+      error: message
     };
+  } finally {
+    if (timeoutTimer) {
+      clearTimeout(timeoutTimer);
+    }
+    currentAbortController = null;
   }
 }
 
-function executeSingleTestInternal(
-  pythonPath: string,
-  scriptPath: string,
-  test: TestCase,
-  timeoutMs: number
-): Promise<ExecutionResult> {
-  return new Promise((resolve, reject) => {
-    let actualOutput: string = '';
-    let errorOutput: string = '';
+/**
+ * 停止目前的評測程序。
+ */
+export function stopProgram(): boolean {
+  // [修改 4] 設定停止標記
+  isStopRequested = true;
 
-    try {
-      const proc: ChildProcess = spawn(pythonPath, [scriptPath], {
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
-      currentPythonProcess = proc;
-
-      timeoutTimer = setTimeout(() => {
-        if (proc) {
-          stopProgram(proc);
-          resolve({
-            actualOutput: actualOutput + '\n[執行超時，已強制停止]',
-            errorOutput: '超時錯誤',
-            exitCode: null
-          });
-        }
-      }, timeoutMs);
-
-      proc.stdin!.write(test.input);
-      proc.stdin!.end();
-
-      proc.stdout!.on('data', (data) => {
-        actualOutput += data.toString();
-      });
-
-      proc.stderr!.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-
-      proc.on('close', (code: number | null) => {
-        if (timeoutTimer) {
-          clearTimeout(timeoutTimer);
-          timeoutTimer = null;
-        }
-        currentPythonProcess = null;
-        resolve({
-          actualOutput,
-          errorOutput,
-          exitCode: code
-        });
-      });
-
-      proc.on('error', (err: Error) => {
-        if (timeoutTimer) clearTimeout(timeoutTimer);
-        currentPythonProcess = null;
-        reject(err);
-      });
-    } catch (e) {
-      reject(e);
-    }
-  });
-}
-
-export function stopProgram(proc: ChildProcess | null = currentPythonProcess): boolean {
-  if (proc && !proc.killed) {
-    console.warn('⚠️ 正在強制停止程序...');
-
-    if (timeoutTimer) {
-      clearTimeout(timeoutTimer);
-      timeoutTimer = null;
-    }
-
-    proc.kill('SIGTERM');
-
-    setTimeout(() => {
-      if (proc && !proc.killed) {
-        proc.kill('SIGKILL');
-        console.warn('程序已使用 SIGKILL 強制終止。');
-      }
-      if (currentPythonProcess === proc) {
-        currentPythonProcess = null;
-      }
-    }, 500);
-
+  if (currentAbortController) {
+    currentAbortController.abort(); // 這會觸發 runSingleCase 的 catch block
+    currentAbortController = null;
     return true;
   }
   return false;
