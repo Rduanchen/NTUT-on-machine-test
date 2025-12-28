@@ -37,7 +37,7 @@
                 v-bind="activatorProps"
                 color="primary"
                 variant="elevated"
-                prepend-icon="mdi-folder-zip-outline"
+                prepend-icon="mdi-check-outline"
                 height="40"
               >
                 {{ t('examSystem.puzzles.finisheTheExam.label') }}
@@ -64,7 +64,7 @@
                     color="primary"
                     class="mt-2"
                     variant="elevated"
-                    prepend-icon="mdi-folder-zip-outline"
+                    prepend-icon="mdi-upload-circle-outline"
                     @click="syncScoreToBackend"
                     height="40"
                   >
@@ -74,7 +74,7 @@
                     color="primary"
                     class="mt-2"
                     variant="elevated"
-                    prepend-icon="mdi-folder-zip-outline"
+                    prepend-icon="mdi-file-arrow-up-down"
                     @click="syncCodeToBackend"
                     height="40"
                   >

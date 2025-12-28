@@ -73,7 +73,7 @@
         "finisheTheExamIntro": "Please follow the following steps to complete your exam:",
         "updateResult": "upload the result",
         "updateFile": "upload the code ",
-        "end": "After finish all steps, please notify TA to check your submission."
+        "end": "After finish all steps, please notify TA to check your submission. Please do not turn off this window unless TA confirms your submission is received."
       },
       "summary": "{count} problems in total",
       "headers": {
