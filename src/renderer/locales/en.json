@@ -6,6 +6,7 @@
       "connected": "Connected",
       "disconnected": "Disconnected"
     },
+    "secretLabel": "Click three times rapidly",
     "currentLanguage": "Language",
     "switchToLight": "Switch to Light Theme",
     "switchToDark": "Switch to Dark Theme",

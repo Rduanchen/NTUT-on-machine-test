@@ -31,8 +31,14 @@
         <div class="d-flex align-center no-drag">
           <v-text class="mr-3 font-weight-medium">
             This system is developed by VerechoTJI | 
-            <span :class="['neon-text', isDark ? 'neon-text--dark' : 'neon-text--light']">
+            <span 
+              :class="['neon-text', isDark ? 'neon-text--dark' : 'neon-text--light']"
+              @click="handleSecretClick"
+            >
               阿端
+              <v-tooltip activator="parent" location="bottom" open-delay="50">
+                <span class="text-caption">{{ t('examSystem.secretLabel') }}</span>
+              </v-tooltip>
             </span>
           </v-text>
         </div>
@@ -112,6 +118,53 @@
         </router-view>
       </v-container>
     </v-main>
+    <v-dialog v-model="showEasterEgg" width="auto" transition="dialog-bottom-transition">
+  <v-card class="pa-8 text-center rounded-xl" elevation="24" min-width="320" style="overflow: visible;">
+    
+    <div 
+      class="text-h3 font-weight-black mb-6"
+      :class="['mega-neon-text', isDark ? 'mega-neon-text--dark' : 'mega-neon-text--light']"
+    >
+      You catch me !!
+    </div>
+
+    <div class="text-h5 font-weight-bold mb-1">
+      阿端
+    </div>
+    
+    <div class="text-subtitle-1 text-medium-emphasis mb-6 font-weight-medium">
+      NTUT 資工一(CS1) <br>
+      <span class="text-primary">Full Stack Developer</span>
+    </div>
+    
+    <div class="mb-6">
+      <v-btn
+        prepend-icon="mdi-github"
+        variant="tonal"
+        size="large"
+        :color="isDark ? 'white' : 'grey-darken-3'"
+        href="https://github.com/Rduanchen"
+        target="_blank"
+        class="text-none px-6"
+        rounded="pill"
+      >
+        github.com/Rduanchen
+      </v-btn>
+    </div>
+
+    <v-divider class="mb-4"></v-divider>
+
+    <v-btn 
+      color="primary" 
+      variant="flat" 
+      block 
+      size="large" 
+      @click="showEasterEgg = false"
+    >
+      Close
+    </v-btn>
+  </v-card>
+</v-dialog>
   </v-app>
 </template>
 
@@ -189,6 +242,30 @@ watch(
     }
   }
 );
+
+
+const showEasterEgg = ref(false);
+const clickCount = ref(0);
+const clickTimer = ref(null);
+
+// 處理秘密點擊邏輯
+const handleSecretClick = () => {
+  clickCount.value++;
+  
+  // 如果已經啟動計時器，先清除它（重置時間窗口）
+  if (clickTimer.value) clearTimeout(clickTimer.value);
+
+  // 如果達到 3 次點擊
+  if (clickCount.value === 3) {
+    showEasterEgg.value = true;
+    clickCount.value = 0; // 重置計數
+  } else {
+    // 設定一個短暫的時間 (500ms)，如果沒繼續點擊就會重置計數
+    clickTimer.value = setTimeout(() => {
+      clickCount.value = 0;
+    }, 500);
+  }
+};
 </script>
 
 <style scoped>
@@ -297,6 +374,68 @@ watch(
   }
   75% {
     text-shadow: 0 0 1px #00d4ff, 0 0 3px #00d4ff;
+  }
+}
+
+
+/* --- Mega Neon: 呼吸放大版 --- */
+.mega-neon-text {
+  font-family: 'Arial', sans-serif;
+  display: inline-block;
+  /* 初始狀態 */
+  transform: rotate(-3deg) scale(1);
+  /* 確保動畫結束後不會跑版，雖然這邊是 infinite */
+  transform-origin: center center;
+}
+
+/* 深色模式：強烈光暈 + 呼吸放大 */
+.mega-neon-text--dark {
+  color: #fff;
+  /* ease-in-out 讓呼吸感更自然 */
+  animation: mega-pulse-dark 1.5s ease-in-out infinite alternate;
+}
+
+/* 淺色模式：深色字體 + 呼吸放大 */
+.mega-neon-text--light {
+  color: #2c3e50;
+  animation: mega-pulse-light 1.5s ease-in-out infinite alternate;
+}
+
+/* --- 動畫關鍵影格 (加入 scale) --- */
+
+@keyframes mega-pulse-dark {
+  0% {
+    /* 縮小狀態 */
+    transform: rotate(-3deg) scale(1);
+    text-shadow: 
+      0 0 10px #ff005e,
+      0 0 20px #ff005e,
+      0 0 40px #ff005e;
+  }
+  100% {
+    /* 放大狀態：配合顏色變化，像心臟跳動一樣 */
+    transform: rotate(-3deg) scale(1.15); 
+    text-shadow: 
+      0 0 10px #00d4ff,
+      0 0 20px #00d4ff,
+      0 0 40px #00d4ff,
+      0 0 80px #00d4ff; /* 光暈炸開 */
+  }
+}
+
+@keyframes mega-pulse-light {
+  0% {
+    transform: rotate(-3deg) scale(1);
+    text-shadow: 
+      0 0 5px rgba(255, 0, 94, 0.5),
+      0 0 15px rgba(255, 0, 94, 0.5);
+  }
+  100% {
+    transform: rotate(-3deg) scale(1.15);
+    text-shadow: 
+      0 0 5px rgba(0, 212, 255, 0.8),
+      0 0 20px rgba(0, 212, 255, 0.6),
+      0 0 40px rgba(0, 212, 255, 0.4);
   }
 }
 </style>

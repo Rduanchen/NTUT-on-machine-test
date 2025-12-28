@@ -6,6 +6,7 @@
       "connected": "已連線",
       "disconnected": "未連線"
     },
+    "secretLabel": "連續點擊三下",
     "currentLanguage": "目前語言",
     "switchToLight": "切換為亮色主題",
     "switchToDark": "切換為暗色主題",
