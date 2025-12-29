@@ -53,10 +53,12 @@ appImage:
 npmRebuild: false
 
 # ✅ 改用 extraResources，把 python 整包帶進 resources 旁邊（最適合放直譯器）
-# extraResources:
-#   - from: ./src/main/judge/python
-#     to: python
-#   - from: ./src/main/judge/python/main.py
-#     to: python/main.py
+extraResources:
+  - from: "resources/python"
+    to: "python"
+    filter:
+      - "**/*"
+  - from: "./resources/pre-settings.json"
+    to: "pre-settings.json"
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
