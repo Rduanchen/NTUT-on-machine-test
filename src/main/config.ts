@@ -6,7 +6,7 @@ import { app } from 'electron';
 import path from 'path';
 import { actionLogger } from './system/logger';
 
-let isDev = !app.isPackaged;
+// let isDev = !app.isPackaged;
 let isConfigLoaded = false;
 let localConfigInfo = '';
 

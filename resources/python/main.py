@@ -8,6 +8,8 @@ import tempfile
 import traceback
 import platform
 
+IS_WINDOWS = platform.system() == "Windows"
+
 # Status Codes
 STATUS_AC = "Accepted (AC)"
 STATUS_WA = "Wrong Answer (WA)"
@@ -72,22 +74,19 @@ def main():
         )
         return
 
-    # Signal handler: on cancel, kill child (and its group) and cleanup
     def terminate_child_and_exit():
         nonlocal process, tf_path
         try:
             if process is not None:
                 if process.poll() is None:
                     try:
-                        # Kill entire group on POSIX if we started a new session
-                        if platform.system() != "Windows":
+                        if not IS_WINDOWS:
                             try:
                                 os.killpg(os.getpgid(process.pid), signal.SIGKILL)
                             except Exception:
                                 process.kill()
                         else:
                             process.kill()
-                        # Ensure it's reaped
                         try:
                             process.communicate(timeout=0.1)
                         except Exception:
@@ -95,22 +94,21 @@ def main():
                     except Exception:
                         pass
         finally:
-            # Best-effort temp file cleanup
             if tf_path and os.path.exists(tf_path):
                 try:
                     os.remove(tf_path)
                 except Exception:
                     pass
-        # Exit promptly; stdout may be empty since Node 端會回 TC
         os._exit(0)
 
     def signal_handler(sig, frame):
         terminate_child_and_exit()
 
-    signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
+    if not IS_WINDOWS:
+        signal.signal(signal.SIGTERM, signal_handler)
 
-    # 1. Compile-time check
+    # 1.  Compile-time check
     try:
         compile(source_code, "<string>", "exec")
     except SyntaxError:
@@ -140,9 +138,38 @@ def main():
         )
         return
 
-    # Watchdog injection
+    # Watchdog injection - 修正 Windows 相容性
     judge_pid = os.getpid()
-    watchdog_code = f"""
+
+    if IS_WINDOWS:
+        # Windows 版本：使用 ctypes 檢查進程是否存在
+        watchdog_code = f"""
+import threading
+import os
+import time
+import sys
+import ctypes
+
+def _watchdog_monitor():
+    parent_pid = {judge_pid}
+    kernel32 = ctypes.windll.kernel32
+    SYNCHRONIZE = 0x00100000
+    while True:
+        # 嘗試開啟父進程的 handle
+        handle = kernel32.OpenProcess(SYNCHRONIZE, False, parent_pid)
+        if handle: 
+            kernel32.CloseHandle(handle)
+        else:
+            # 父進程不存在，退出
+            os._exit(1)
+        time.sleep(0.5)
+
+_t = threading.Thread(target=_watchdog_monitor, daemon=True)
+_t.start()
+"""
+    else:
+        # Unix 版本：使用 signal 0 檢查進程
+        watchdog_code = f"""
 import threading
 import os
 import time
@@ -150,10 +177,10 @@ import sys
 
 def _watchdog_monitor():
     parent_pid = {judge_pid}
-    while True:
+    while True: 
         try:
             os.kill(parent_pid, 0)
-        except OSError:
+        except OSError: 
             os._exit(1)
         time.sleep(0.5)
 
@@ -171,17 +198,7 @@ _t.start()
 
     try:
         # 2. Execute user code
-        # start_new_session=True puts child into its own process group (POSIX),
-        # so we can kill the whole group on cancel.
-        popen_kwargs = dict(
-            args=[sys.executable, tf_path],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        # Use start_new_session on non-Windows
-        if platform.system() != "Windows":
+        if not IS_WINDOWS:
             process = subprocess.Popen(
                 [sys.executable, tf_path],
                 stdin=subprocess.PIPE,
@@ -253,7 +270,7 @@ _t.start()
 
         except subprocess.TimeoutExpired:
             try:
-                if platform.system() != "Windows":
+                if not IS_WINDOWS:
                     try:
                         os.killpg(os.getpgid(process.pid), signal.SIGKILL)
                     except Exception:
@@ -293,7 +310,7 @@ _t.start()
     finally:
         if process and process.poll() is None:
             try:
-                if platform.system() != "Windows":
+                if not IS_WINDOWS:
                     try:
                         os.killpg(os.getpgid(process.pid), signal.SIGKILL)
                     except Exception:

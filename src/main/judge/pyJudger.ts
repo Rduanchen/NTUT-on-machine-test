@@ -57,10 +57,10 @@ const getPythonPath = (): string => {
     process.platform === 'win32'
       ? [path.join(pythonDir, 'python.exe')]
       : [
-        path.join(pythonDir, 'bin', 'python3'),
-        path.join(pythonDir, 'python3'),
-        path.join(pythonDir, 'bin', 'python')
-      ];
+          path.join(pythonDir, 'bin', 'python3'),
+          path.join(pythonDir, 'python3'),
+          path.join(pythonDir, 'bin', 'python')
+        ];
 
   for (const p of bundledCandidates) {
     if (fs.existsSync(p)) return p;
@@ -221,13 +221,13 @@ async function runSingleCase(
       currentAbortController?.abort();
     }, timeLimitSeconds * 1000);
 
-    const payload = {
-      source_code: sourceCode,
-      input: test.input,
-      expected_output: test.output,
-      time_limit: timeLimitSeconds,
-      signal
-    };
+    // const payload = {
+    //   source_code: sourceCode,
+    //   input: test.input,
+    //   expected_output: test.output,
+    //   time_limit: timeLimitSeconds,
+    //   signal
+    // };
 
     // 執行
     const judgeResult: JudgeResult = await judger.run({

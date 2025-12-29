@@ -30,8 +30,8 @@
 
         <div class="d-flex align-center no-drag">
           <v-text class="mr-3 font-weight-medium">
-            This system is developed by VerechoTJI | 
-            <span 
+            This system is developed by VerechoTJI |
+            <span
               :class="['neon-text', isDark ? 'neon-text--dark' : 'neon-text--light']"
               @click="handleSecretClick"
             >
@@ -119,52 +119,48 @@
       </v-container>
     </v-main>
     <v-dialog v-model="showEasterEgg" width="auto" transition="dialog-bottom-transition">
-  <v-card class="pa-8 text-center rounded-xl" elevation="24" min-width="320" style="overflow: visible;">
-    
-    <div 
-      class="text-h3 font-weight-black mb-6"
-      :class="['mega-neon-text', isDark ? 'mega-neon-text--dark' : 'mega-neon-text--light']"
-    >
-      You catch me !!
-    </div>
-
-    <div class="text-h5 font-weight-bold mb-1">
-      阿端
-    </div>
-    
-    <div class="text-subtitle-1 text-medium-emphasis mb-6 font-weight-medium">
-      NTUT 資工一(CS1) <br>
-      <span class="text-primary">Full Stack Developer</span>
-    </div>
-    
-    <div class="mb-6">
-      <v-btn
-        prepend-icon="mdi-github"
-        variant="tonal"
-        size="large"
-        :color="isDark ? 'white' : 'grey-darken-3'"
-        href="https://github.com/Rduanchen"
-        target="_blank"
-        class="text-none px-6"
-        rounded="pill"
+      <v-card
+        class="pa-8 text-center rounded-xl"
+        elevation="24"
+        min-width="320"
+        style="overflow: visible"
       >
-        github.com/Rduanchen
-      </v-btn>
-    </div>
+        <div
+          class="text-h3 font-weight-black mb-6"
+          :class="['mega-neon-text', isDark ? 'mega-neon-text--dark' : 'mega-neon-text--light']"
+        >
+          You catch me !!
+        </div>
 
-    <v-divider class="mb-4"></v-divider>
+        <div class="text-h5 font-weight-bold mb-1">阿端(Justin)</div>
 
-    <v-btn 
-      color="primary" 
-      variant="flat" 
-      block 
-      size="large" 
-      @click="showEasterEgg = false"
-    >
-      Close
-    </v-btn>
-  </v-card>
-</v-dialog>
+        <div class="text-subtitle-1 text-medium-emphasis mb-6 font-weight-medium">
+          NTUT 資工一(CS1) <br />
+          <span class="text-primary">Full Stack Developer</span>
+        </div>
+
+        <div class="mb-6">
+          <v-btn
+            prepend-icon="mdi-github"
+            variant="tonal"
+            size="large"
+            :color="isDark ? 'white' : 'grey-darken-3'"
+            href="https://github.com/Rduanchen"
+            target="_blank"
+            class="text-none px-6"
+            rounded="pill"
+          >
+            github.com/Rduanchen
+          </v-btn>
+        </div>
+
+        <v-divider class="mb-4"></v-divider>
+
+        <v-btn color="primary" variant="flat" block size="large" @click="showEasterEgg = false">
+          Close
+        </v-btn>
+      </v-card>
+    </v-dialog>
   </v-app>
 </template>
 
@@ -243,7 +239,6 @@ watch(
   }
 );
 
-
 const showEasterEgg = ref(false);
 const clickCount = ref(0);
 const clickTimer = ref(null);
@@ -251,7 +246,7 @@ const clickTimer = ref(null);
 // 處理秘密點擊邏輯
 const handleSecretClick = () => {
   clickCount.value++;
-  
+
   // 如果已經啟動計時器，先清除它（重置時間窗口）
   if (clickTimer.value) clearTimeout(clickTimer.value);
 
@@ -333,50 +328,66 @@ const handleSecretClick = () => {
 .neon-text:hover {
   transform: scale(1.1); /* 放大倍率也縮小一點 */
   animation: none;
-  
-  /* 四色疊加，但範圍控制在 10px 以內 */
-  text-shadow: 
-    0 0 2px #ff005e,   /* 內層粉 */
-    0 0 4px #ffe600,   /* 中層黃 */
-    0 0 6px #39ff14,   /* 外層綠 */
-    0 0 8px #00d4ff;   /* 最外層青 */
-}
 
+  /* 四色疊加，但範圍控制在 10px 以內 */
+  text-shadow:
+    0 0 2px #ff005e,
+    /* 內層粉 */ 0 0 4px #ffe600,
+    /* 中層黃 */ 0 0 6px #39ff14,
+    /* 外層綠 */ 0 0 8px #00d4ff; /* 最外層青 */
+}
 
 /* --- 4色輪播動畫 (低調版) --- */
 
 /* 深色模式：光暈僅擴散 6~8px */
 @keyframes glow-cycle-dark {
-  0%, 100% {
-    text-shadow: 0 0 2px #ff005e, 0 0 6px #ff005e;
+  0%,
+  100% {
+    text-shadow:
+      0 0 2px #ff005e,
+      0 0 6px #ff005e;
   }
   25% {
-    text-shadow: 0 0 2px #ffe600, 0 0 6px #ffe600;
+    text-shadow:
+      0 0 2px #ffe600,
+      0 0 6px #ffe600;
   }
   50% {
-    text-shadow: 0 0 2px #39ff14, 0 0 6px #39ff14;
+    text-shadow:
+      0 0 2px #39ff14,
+      0 0 6px #39ff14;
   }
   75% {
-    text-shadow: 0 0 2px #00d4ff, 0 0 6px #00d4ff;
+    text-shadow:
+      0 0 2px #00d4ff,
+      0 0 6px #00d4ff;
   }
 }
 
 /* 淺色模式：光暈僅擴散 3~4px，像是在紙上暈開的水彩 */
 @keyframes glow-cycle-light {
-  0%, 100% {
-    text-shadow: 0 0 1px #ff005e, 0 0 3px #ff005e;
+  0%,
+  100% {
+    text-shadow:
+      0 0 1px #ff005e,
+      0 0 3px #ff005e;
   }
   25% {
-    text-shadow: 0 0 1px #dbc60b, 0 0 3px #dbc60b; /* 黃色在白底太亮，稍微調深一點 */
+    text-shadow:
+      0 0 1px #dbc60b,
+      0 0 3px #dbc60b; /* 黃色在白底太亮，稍微調深一點 */
   }
   50% {
-    text-shadow: 0 0 1px #39ff14, 0 0 3px #39ff14;
+    text-shadow:
+      0 0 1px #39ff14,
+      0 0 3px #39ff14;
   }
   75% {
-    text-shadow: 0 0 1px #00d4ff, 0 0 3px #00d4ff;
+    text-shadow:
+      0 0 1px #00d4ff,
+      0 0 3px #00d4ff;
   }
 }
-
 
 /* --- Mega Neon: 呼吸放大版 --- */
 .mega-neon-text {
@@ -407,15 +418,15 @@ const handleSecretClick = () => {
   0% {
     /* 縮小狀態 */
     transform: rotate(-3deg) scale(1);
-    text-shadow: 
+    text-shadow:
       0 0 10px #ff005e,
       0 0 20px #ff005e,
       0 0 40px #ff005e;
   }
   100% {
     /* 放大狀態：配合顏色變化，像心臟跳動一樣 */
-    transform: rotate(-3deg) scale(1.15); 
-    text-shadow: 
+    transform: rotate(-3deg) scale(1.15);
+    text-shadow:
       0 0 10px #00d4ff,
       0 0 20px #00d4ff,
       0 0 40px #00d4ff,
@@ -426,13 +437,13 @@ const handleSecretClick = () => {
 @keyframes mega-pulse-light {
   0% {
     transform: rotate(-3deg) scale(1);
-    text-shadow: 
+    text-shadow:
       0 0 5px rgba(255, 0, 94, 0.5),
       0 0 15px rgba(255, 0, 94, 0.5);
   }
   100% {
     transform: rotate(-3deg) scale(1.15);
-    text-shadow: 
+    text-shadow:
       0 0 5px rgba(0, 212, 255, 0.8),
       0 0 20px rgba(0, 212, 255, 0.6),
       0 0 40px rgba(0, 212, 255, 0.4);
