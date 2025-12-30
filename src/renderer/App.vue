@@ -29,7 +29,7 @@
         </div>
 
         <div class="d-flex align-center no-drag">
-          <v-text class="mr-3 font-weight-medium">
+          <v-text class="mr-3 font-weight-medium" style="font-size: 1.2em;">
             This system is developed by VerechoTJI |
             <span
               :class="['neon-text', isDark ? 'neon-text--dark' : 'neon-text--light']"
@@ -269,6 +269,7 @@ const handleSecretClick = () => {
 }
 .no-drag {
   -webkit-app-region: no-drag;
+  user-select: none;
 }
 
 .app-main {
@@ -304,7 +305,7 @@ const handleSecretClick = () => {
 .neon-text {
   font-family: 'Arial', sans-serif;
   font-weight: 700; /*稍微減細一點點，從 900 改 700，視覺上比較清爽 */
-  font-size: 1.1em;
+  font-size: 1.2em;
   display: inline-block;
   transition: transform 0.2s ease;
   cursor: pointer;
