@@ -50,9 +50,10 @@ def main():
     input_data = ""
 
     try:
-        raw_input = sys.stdin.read()
-        if not raw_input:
+        raw_input_bytes = sys.stdin.buffer.read()
+        if not raw_input_bytes:
             return
+        raw_input = raw_input_bytes.decode("utf-8")
         data = json.loads(raw_input)
 
         source_code = data.get("source_code", "")
@@ -197,24 +198,21 @@ _t.start()
     start_time = time.time()
 
     try:
+        popen_kwargs = {
+            "stdin": subprocess.PIPE,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "text": True,
+            "encoding": "utf-8",  # 強制使用 utf-8 與子進程溝通
+            "errors": "replace",  # 如果子進程輸出亂碼，用 ? 取代，不要讓 Judge 當機
+        }
         # 2. Execute user code
         if not IS_WINDOWS:
             process = subprocess.Popen(
-                [sys.executable, tf_path],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                start_new_session=True,
+                [sys.executable, tf_path], start_new_session=True, **popen_kwargs
             )
         else:
-            process = subprocess.Popen(
-                [sys.executable, tf_path],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
+            process = subprocess.Popen([sys.executable, tf_path], **popen_kwargs)
 
         try:
             stdout_data, stderr_data = process.communicate(

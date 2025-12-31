@@ -24,6 +24,7 @@ nsis:
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  runAfterFinish: false
 
 mac:
   entitlementsInherit: build/entitlements.mac.plist
@@ -54,11 +55,11 @@ npmRebuild: false
 
 # ✅ 改用 extraResources，把 python 整包帶進 resources 旁邊（最適合放直譯器）
 extraResources:
-  - from: "resources/python"
-    to: "python"
+  - from: 'resources/python'
+    to: 'python'
     filter:
-      - "**/*"
-  - from: "./resources/pre-settings.json"
-    to: "pre-settings.json"
+      - '**/*'
+  - from: './resources/pre-settings.json'
+    to: 'pre-settings.json'
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
