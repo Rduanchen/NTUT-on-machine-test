@@ -47,7 +47,7 @@ export async function fetchConfig(host: string) {
       timeout: API_TIMEOUT
     });
     actionLogger.info('Fetched config from server.');
-    actionLogger.silly(response.data);
+    // actionLogger.silly(response.data);
     store.updateServerAvailability(true);
     return response.data as Config;
   } catch (error) {

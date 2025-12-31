@@ -25,7 +25,6 @@ export class ConfigSystem {
     ipcMain.handle('config:get-from-server', async (_event, host: string) => {
       try {
         let response = await fetchConfig(host);
-        console.log('Fetched config from server:', response);
         if (response) {
           store.updateServerAvailability(true);
           store.updateConfig(response);

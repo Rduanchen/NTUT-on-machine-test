@@ -13,8 +13,6 @@ export class CodeJudger {
       let config = store.getConfig();
       let puzzle = config.puzzles.filter((puzzle) => puzzle.id === questionId)[0];
       let result = await this.judgeCode(questionId, codeFilePath);
-      console.log('Judging finished, processing results...');
-      console.dir(result, { depth: null });
       result = this.maskTheTestResults(result, puzzle.testCases);
       LocalProgramStore.addFile(codeFilePath, `${questionId}`);
       const isHigher = this.ifScoreHigherThanPrevious(questionId, result);
