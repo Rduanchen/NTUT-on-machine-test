@@ -22,10 +22,8 @@
     "build:mac": "npm run build && electron-builder --mac",
     "build:linux": "npm run build && electron-builder --linux",
     "test": "vitest",
+    "test:watch": "vitest --watch",
     "rebuild": "electron-rebuild -f -w sqlite3",
-    "copy-python:win": "xcopy /E /I /Y .\\src\\main\\judge\\python .\\out\\main\\python\\",
-    "copy-python:unix": "cp -r ./src/main/judge/python ./out/main/python",
-    "copy-python": "npm run copy-python:win || npm run copy-python:unix",
     "clean": "rimraf out"
   },
   "dependencies": {
@@ -41,7 +39,8 @@
     "lodash": "^4.17.21",
     "vue-i18n": "^11.1.11",
     "vue-router": "^4.5.1",
-    "vuetify": "^3.7.0-beta.1"
+    "vuetify": "^3.7.0-beta.1",
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config": "^1.0.2",
@@ -49,7 +48,7 @@
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@mdi/font": "^7.4.47",
     "@rushstack/eslint-patch": "^1.10.3",
-    "@types/node": "^20.14.8",
+    "@types/node": "^20.19.30",
     "@vitejs/plugin-vue": "^6.0.1",
     "@vue/eslint-config-prettier": "^9.0.0",
     "@vue/eslint-config-typescript": "^13.0.0",
@@ -67,7 +66,7 @@
     "tsx": "^4.19.2",
     "typescript": "^5.5.2",
     "vite": "^7.1.1",
-    "vitest": "^3.0.7",
+    "vitest": "^3.2.4",
     "vue": "^3.4.30",
     "vue-tsc": "^2.0.22"
   }
