@@ -2,12 +2,13 @@
   "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
   "include": [
     "electron.vite.config.*",
+    "src/common/**/*",
     "src/main/**/*",
     "src/preload/**/*",
     "src/translate-clawer",
     "src/dictionarys/modals/clawer-base.ts",
     "src/dictionarys/index.ts"
-  ],
+, "src/common/ipcStandarFormat.ts"  ],
   "compilerOptions": {
     "composite": true,
     "target": "esnext",
