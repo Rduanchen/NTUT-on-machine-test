@@ -74,7 +74,7 @@
         </v-sheet>
       </div>
 
-      <v-divider vertical inset class="mx-2 my-auto opactity-50"></v-divider>
+      <v-divider vertical inset class="mx-2 my-auto opacity-50"></v-divider>
 
       <!-- Actions -->
       <div class="d-flex align-center">
