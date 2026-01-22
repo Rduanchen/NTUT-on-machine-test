@@ -179,7 +179,10 @@ const uploadConfigFile = async (file: File) => {
   if (re.success) {
     router.push('/Welcome');
   } else {
-    alert(t('examSystem.config.upload.failed'));
+    alert(
+      t('examSystem.config.upload.failed') + `: \n ${re.error?.code || ''}
+      ${re.error?.message || ''}`
+    );
   }
 };
 
@@ -208,11 +211,11 @@ const verifyServerStatus = async () => {
 const getConfigFileFromServer = async () => {
   if (!window.api?.config) return;
   const re = await window.api.config.getFromServer(serverHost.value);
-  console.log(re);
   if (re.success) {
     router.push('/Welcome');
   } else {
-    alert(t('examSystem.config.server.fetchConfigFailed'));
+    alert(`${t('examSystem.config.server.fetchConfigFailed')}: \n ${re.error?.code || ''} \n${re.error?.message || ''}`
+    );
   }
 };
 

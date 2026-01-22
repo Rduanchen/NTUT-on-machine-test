@@ -2,7 +2,8 @@
 // import { ConfigStore } from './local-store/runTimeStore';
 import { CodeJudger } from './judge/index';
 import { LocalProgramStore } from './localProgram';
-import { ConfigSystem } from './config';
+// import { ConfigSystem } from './config';
+import { ConfigSystem } from './ipc/config';
 import { ApiSystem } from './api';
 import { StoreIpcManager } from './store/ipcHandlers';
 
