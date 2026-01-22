@@ -14,7 +14,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { StatusInfo } from '../constants/puzzle';
+import type { StatusInfo } from '../../constants/puzzle';
 
 const props = defineProps<{ rate?: StatusInfo; result?: any }>();
 defineEmits(['open']);

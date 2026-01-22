@@ -35,7 +35,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import ResultTrigger from './ResultTrigger.vue';
-import type { Puzzle, StatusInfo } from '../constants/puzzle';
+import type { Puzzle, StatusInfo } from '../../constants/puzzle';
 
 defineProps<{
   item: Puzzle;
