@@ -29,7 +29,7 @@
         </div>
 
         <div class="d-flex align-center no-drag">
-          <v-text class="mr-3 font-weight-medium" style="font-size: 1.2em;">
+          <v-text class="mr-3 font-weight-medium" style="font-size: 1.2em">
             This system is developed by VerechoTJI |
             <span
               :class="['neon-text', isDark ? 'neon-text--dark' : 'neon-text--light']"
@@ -204,22 +204,19 @@ const pollTimer = ref(null);
 
 const updateServerAvailability = async () => {
   if (!window.api?.store) return;
-  const situation = await window.api.store.getServerAvailability();
-  serverStatus.value = situation ? 'connected' : 'disconnected';
+  const status = await window.api.store.getConnectionStatus();
+  serverStatus.value = status === 'connected' ? 'connected' : 'disconnected';
 };
 
 onMounted(async () => {
   if (window.api?.store) {
-    // 即時更新一次
     await updateServerAvailability();
 
-    // 註冊由主程序通知時的更新（若有）
-    window.api.store.updateServerAvailability(async () => {
-      await updateServerAvailability();
+    window.api.store.onConnectionStatusChanged(async (status) => {
+      serverStatus.value = status === 'connected' ? 'connected' : 'disconnected';
     });
 
-    // 每 5 秒輪詢一次伺服器狀態
-    pollTimer.value = setInterval(updateServerAvailability, 3000);
+    pollTimer.value = setInterval(updateServerAvailability, 5000);
   }
 });
 
@@ -233,8 +230,11 @@ onBeforeUnmount(() => {
 watch(
   () => route.path,
   async (newPath) => {
-    if (newPath === '/TestPage' && window.api?.store) {
-      studentInfo.value = await window.api.store.readStudentInformation();
+    if ((newPath === '/exam' || newPath === '/login') && window.api?.auth) {
+      const verified = await window.api.auth.isVerified();
+      if (verified) {
+        studentInfo.value = await window.api.auth.getStudentInfo();
+      }
     }
   }
 );

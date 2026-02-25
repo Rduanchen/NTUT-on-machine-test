@@ -2,14 +2,16 @@ import { app, shell, BrowserWindow, dialog } from 'electron';
 import { join } from 'path';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import icon from '../../resources/icon.png?asset';
-import setupAllIPC from './ipcHandler';
-import { onAppQuit } from './ipcHandler';
-import log from 'electron-log';
-import { setMainWindow } from './system/windowsManager';
-import { loggerSetup, clearLogOnStartup, actionLogger } from './system/logger';
+import { registerAllIpc } from './ipc/index.ipc';
+import { setMainWindow } from './system/windowManager';
+import { logger, setupLogger, clearLogOnStartup } from './services/logger.service';
+import { configService } from './services/config.service';
+import { connectionService } from './services/connection.service';
+import { localProgramStore } from './services/localProgram.service';
+import { ramStore } from './services/ramStore.service';
 
 clearLogOnStartup();
-loggerSetup();
+setupLogger();
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -31,26 +33,20 @@ function createWindow(): void {
   });
 
   mainWindow.on('close', (e) => {
-    const shouldWarn = true;
-    if (shouldWarn) {
-      actionLogger.warn('User attempted to close the main window during an active test.');
-      if (shouldWarn) {
-        // 1. 阻止視窗立即關閉
-        e.preventDefault();
+    logger.warn('User attempted to close the main window during an active test.');
+    e.preventDefault();
 
-        // 2. 顯示同步原生對話框
-        const choice = dialog.showMessageBoxSync(mainWindow, {
-          type: 'warning',
-          buttons: ['取消[cancel]', '關閉[close]'], // 按鈕選項
-          defaultId: 0,
-          title: '您尚未完成考試，請勿關閉這個程式！[Do not close the application]',
-          message: '這個動作會影響到你的考試成績 [This action will affect your test results]',
-          detail: '如果您擅自關閉，系統會通知監考人員 [If you close it unauthorized, the system will notify the proctor]'
-        });
-        if (choice === 1) {
-          mainWindow.destroy();
-        }
-      }
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'warning',
+      buttons: ['取消[cancel]', '關閉[close]'],
+      defaultId: 0,
+      title: '您尚未完成考試，請勿關閉這個程式！[Do not close the application]',
+      message: '這個動作會影響到你的考試成績 [This action will affect your test results]',
+      detail:
+        '如果您擅自關閉，系統會通知監考人員 [If you close it unauthorized, the system will notify the proctor]'
+    });
+    if (choice === 1) {
+      mainWindow.destroy();
     }
   });
 
@@ -76,11 +72,11 @@ function createWindow(): void {
   });
 
   mainWindow.webContents.on('did-fail-load', (_, errorCode, errorDescription, validatedURL) => {
-    log.error(`Failed to load: ${validatedURL}, Error: ${errorCode}, ${errorDescription}`);
+    logger.error(`Failed to load: ${validatedURL}, Error: ${errorCode}, ${errorDescription}`);
   });
 
   mainWindow.webContents.on('render-process-gone', (_, details) => {
-    log.error(`Renderer process gone: ${details.reason}`);
+    logger.error(`Renderer process gone: ${details.reason}`);
   });
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
@@ -91,10 +87,16 @@ function createWindow(): void {
   setMainWindow(mainWindow);
 }
 
-app.whenReady().then(() => {
-  actionLogger.info('Application Started');
-  setupAllIPC();
-  electronApp.setAppUserModelId('com.electron');
+app.whenReady().then(async () => {
+  logger.info('Application Started');
+
+  // Register all IPC handlers
+  registerAllIpc();
+
+  // Try to load config from pre_settings.json
+  await configService.initFromPreSettings();
+
+  electronApp.setAppUserModelId('com.ntut-exam');
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window);
   });
@@ -105,12 +107,11 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  actionLogger.info('Application On Quit');
-  onAppQuit();
+  logger.info('Application Quit');
+  connectionService.stop();
+  localProgramStore.deleteTempDir();
+  ramStore.clear();
   if (process.platform !== 'darwin') {
     app.quit();
   }
-  // else {
-  //   app.quit();
-  // }
 });

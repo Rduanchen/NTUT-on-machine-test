@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-export const examPreSettingsSchema = z.object({
-    testTitle: z.string(),
-    description: z.string(),
-    remoteHost: z.url().optional(),
+export const preSettingsSchema = z.object({
+  testTitle: z.string().optional(),
+  description: z.string().optional(),
+  remoteHost: z.string().url().optional()
 });
 
-export type ExamPreSettings = z.infer<typeof examPreSettingsSchema>;
+export type PreSettingsSchema = z.infer<typeof preSettingsSchema>;

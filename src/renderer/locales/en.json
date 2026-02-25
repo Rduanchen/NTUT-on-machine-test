@@ -1,4 +1,18 @@
 {
+  "login": {
+    "title": "Student Login",
+    "subtitle": "Enter your student ID to access the exam",
+    "studentIdLabel": "Student ID",
+    "studentIdPlaceholder": "e.g., 113590001",
+    "loginButton": "Login",
+    "rules": {
+      "required": "Student ID is required",
+      "minLength": "Student ID must be at least 2 characters"
+    },
+    "errors": {
+      "generic": "Login failed. Please check your student ID and try again."
+    }
+  },
   "examSystem": {
     "title": "NTUT Exam System",
     "serverStatusLabel": "Server Status",
@@ -69,7 +83,7 @@
     "puzzles": {
       "forceStop": "Force Stop All Tests",
       "exportZip": "Export Answers as ZIP",
-      "finisheTheExam": { 
+      "finisheTheExam": {
         "label": "Finish the Exam",
         "finisheTheExamIntro": "Please follow the following steps to complete your exam:",
         "updateResult": "upload the result",

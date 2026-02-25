@@ -20,8 +20,8 @@ const props = defineProps<{ rate?: StatusInfo; result?: any }>();
 defineEmits(['open']);
 
 const numericRate = computed(() => {
-  if (!props.result || !props.result.testCaseAmount) return 0;
-  return Math.round((props.result.correctCount / props.result.testCaseAmount) * 100);
+  if (!props.result || !props.result.totalCases) return 0;
+  return Math.round((props.result.correctCount / props.result.totalCases) * 100);
 });
 </script>
 

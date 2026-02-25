@@ -8,81 +8,83 @@
         </span>
         <v-spacer />
         <div class="d-flex align-center">
-           <span class="text-caption text-medium-emphasis mr-2">Passed:</span>
-           <span class="text-h6 font-weight-bold text-primary">
-             {{ result?.correctCount ?? 0 }}
-           </span>
-           <span class="text-body-2 text-medium-emphasis mx-1">/</span>
-           <span class="text-body-2 text-medium-emphasis">
-             {{ result?.testCaseAmount ?? 0 }}
-           </span>
+          <span class="text-caption text-medium-emphasis mr-2">Passed:</span>
+          <span class="text-h6 font-weight-bold text-primary">
+            {{ result?.correctCount ?? 0 }}
+          </span>
+          <span class="text-body-2 text-medium-emphasis mx-1">/</span>
+          <span class="text-body-2 text-medium-emphasis">
+            {{ result?.totalCases ?? 0 }}
+          </span>
         </div>
       </v-card-text>
     </v-card>
 
     <template v-if="hasResult">
-      <div v-for="group in safeGroupResults" :key="group.id" class="mb-6">
+      <div v-for="group in groupedSubtasks" :key="group.id" class="mb-6">
         <div class="d-flex align-center mb-2">
           <v-chip size="small" color="secondary" variant="flat" class="mr-2 font-weight-bold">
-             Group {{ group.id }}
+            Subtask {{ group.id }}
           </v-chip>
-          <span class="text-subtitle-2 font-weight-bold">{{ group.title }}</span>
           <v-spacer />
           <v-progress-linear
-             :model-value="group.testCaseAmount > 0 ? (group.correctCount / group.testCaseAmount) * 100 : 0"
-             :color="getGroupProgressColor(group.correctCount, group.testCaseAmount)"
-             height="6"
-             rounded
-             style="width: 100px"
+            :model-value="group.totalCases > 0 ? (group.correctCount / group.totalCases) * 100 : 0"
+            :color="getGroupProgressColor(group.correctCount, group.totalCases)"
+            height="6"
+            rounded
+            style="width: 100px"
           ></v-progress-linear>
-          <span class="ml-2 text-caption text-medium-emphasis" style="width: 40px; text-align: right;">
-            {{ group.correctCount }}/{{ group.testCaseAmount }}
+          <span
+            class="ml-2 text-caption text-medium-emphasis"
+            style="width: 40px; text-align: right"
+          >
+            {{ group.correctCount }}/{{ group.totalCases }}
           </span>
         </div>
 
         <v-card variant="outlined" class="overflow-hidden rounded-lg border-opacity-50">
-           <v-table density="compact" class="result-table">
-             <thead>
-               <tr>
-                 <th class="text-left bg-surface-light" style="width: 60px">#</th>
-                 <th class="text-left bg-surface-light" style="width: 140px">Status</th>
-                 <th class="text-left bg-surface-light" style="width: 100px">Time</th>
-                 <th class="text-left bg-surface-light">Output</th>
-               </tr>
-             </thead>
-             <tbody>
-               <tr v-for="item in group.testCasesResults" :key="item.id">
-                 <td class="text-caption text-medium-emphasis font-mono">{{ item.id }}</td>
-                 
-                 <td>
-                   <v-chip
-                     :color="getStatusConfig(item.statusCode).color"
-                     size="small"
-                     variant="flat"
-                     class="font-weight-bold px-2"
-                     label
-                   >
-                     {{ getStatusConfig(item.statusCode).text }}
-                   </v-chip>
-                 </td>
+          <v-table density="compact" class="result-table">
+            <thead>
+              <tr>
+                <th class="text-left bg-surface-light" style="width: 60px">#</th>
+                <th class="text-left bg-surface-light" style="width: 140px">Status</th>
+                <th class="text-left bg-surface-light" style="width: 100px">Time</th>
+                <th class="text-left bg-surface-light">Output</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in group.testCasesResults" :key="item.id">
+                <td class="text-caption text-medium-emphasis font-mono">{{ item.id }}</td>
 
-                 <td>
-                   <span class="text-caption font-mono text-medium-emphasis">
-                     {{ item.execution_time || '-' }}
-                   </span>
-                 </td>
+                <td>
+                  <v-chip
+                    :color="getStatusConfig(item.statusCode).color"
+                    size="small"
+                    variant="flat"
+                    class="font-weight-bold px-2"
+                    label
+                  >
+                    {{ getStatusConfig(item.statusCode).text }}
+                  </v-chip>
+                </td>
 
-                 <td class="py-2">
-                   <div 
+                <td>
+                  <span class="text-caption font-mono text-medium-emphasis">
+                    {{ item.execution_time || '-' }}
+                  </span>
+                </td>
+
+                <td class="py-2">
+                  <div
                     class="code-block rounded pa-2 text-caption font-mono"
-                    :class="{'text-medium-emphasis': !item.userOutput}"
-                   >
-                     {{ item.userOutput || t('examSystem.judge.hiddenOutput') }}
-                   </div>
-                 </td>
-               </tr>
-             </tbody>
-           </v-table>
+                    :class="{ 'text-medium-emphasis': !item.userOutput }"
+                  >
+                    {{ item.userOutput || t('examSystem.judge.hiddenOutput') }}
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </v-table>
         </v-card>
       </div>
     </template>
@@ -92,83 +94,64 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import type { JudgeRunResult, JudgeStatusCode, JudgeTestCaseResult } from '../../../common/types';
 
 const { t } = useI18n();
 
-// --- Types Definition (Updated based on new JSON) ---
-interface TestCaseResult {
-  id: string | number;
-  statusCode: string;     // e.g., "Accepted (AC)", "Wrong Answer (WA)"
-  correct: boolean;
-  userOutput?: string;
-  execution_time?: string; // e.g., "17.01ms"
+interface DisplayTestCaseResult extends JudgeTestCaseResult {
+  id: string;
 }
 
-interface GroupResult {
-  id: string | number;
-  title: string;
+interface DisplaySubtask {
+  id: string;
+  totalCases: number;
   correctCount: number;
-  testCaseAmount: number;
-  testCasesResults: TestCaseResult[];
-}
-
-interface JudgeResult {
-  correctCount: number;
-  testCaseAmount: number;
-  groupResults: GroupResult[];
+  testCasesResults: DisplayTestCaseResult[];
 }
 
 // --- Props ---
 const props = defineProps<{
-  result: Partial<JudgeResult> | null | undefined;
+  result: JudgeRunResult | null | undefined;
 }>();
 
 // --- Computed ---
 const hasResult = computed(() => {
   const r = props.result;
-  return !!(r && Array.isArray(r.groupResults) && r.groupResults.length > 0);
+  return !!(r && Array.isArray(r.subtasks) && r.subtasks.length > 0);
 });
 
-const safeGroupResults = computed<GroupResult[]>(() => {
-  if (!props.result || !Array.isArray(props.result.groupResults)) return [];
-  return props.result.groupResults as GroupResult[];
+const groupedSubtasks = computed<DisplaySubtask[]>(() => {
+  if (!props.result || !Array.isArray(props.result.subtasks)) return [];
+  return props.result.subtasks.map((subtaskResults, subtaskIdx) => {
+    const testCasesResults = subtaskResults.map((result, caseIdx) => ({
+      ...result,
+      id: `${subtaskIdx + 1}-${caseIdx + 1}`
+    }));
+
+    const correctCount = subtaskResults.filter((item) => item.statusCode === 'AC').length;
+
+    return {
+      id: String(subtaskIdx + 1),
+      totalCases: subtaskResults.length,
+      correctCount,
+      testCasesResults
+    };
+  });
 });
 
-// --- Helpers for Status Display ---
+function getStatusConfig(status: JudgeStatusCode) {
+  const statusMap: Record<JudgeStatusCode, { color: string; text: string }> = {
+    AC: { color: 'success', text: 'AC' },
+    WA: { color: 'error', text: 'WA' },
+    TLE: { color: 'warning', text: 'TLE' },
+    MLE: { color: 'warning', text: 'MLE' },
+    RE: { color: 'deep-orange', text: 'RE' },
+    CE: { color: 'blue-grey', text: 'CE' },
+    SE: { color: 'grey-darken-1', text: 'SE' },
+    ABORTED: { color: 'grey', text: 'ABORTED' }
+  };
 
-const STATUS_AC = "Accepted (AC)";
-const STATUS_WA = "Wrong Answer (WA)";
-const STATUS_TLE = "Time Limit Exceeded (TLE)";
-const STATUS_RE = "Runtime Error (RE)";
-const STATUS_CE = "Compile Error (CE)";
-
-/**
- * Returns color and display text based on status code string.
- * Parses strings like "Accepted (AC)" to return simplified "AC" if desired,
- * or handles specific colors for different error types.
- */
-function getStatusConfig(status: string) {
-  // Normalize string just in case
-  const s = status || '';
-
-  if (s === STATUS_AC || s.includes('(AC)')) {
-    return { color: 'success', text: 'AC' };
-  }
-  if (s === STATUS_WA || s.includes('(WA)')) {
-    return { color: 'error', text: 'WA' };
-  }
-  if (s === STATUS_TLE || s.includes('(TLE)')) {
-    return { color: 'warning', text: 'TLE' }; // Warning implies orange/amber
-  }
-  if (s === STATUS_RE || s.includes('(RE)')) {
-    return { color: 'deep-orange', text: 'RE' };
-  }
-  if (s === STATUS_CE || s.includes('(CE)')) {
-    return { color: 'blue-grey', text: 'CE' };
-  }
-  
-  // Fallback for unknown statuses
-  return { color: 'grey', text: s };
+  return statusMap[status] || { color: 'grey', text: status };
 }
 
 function getGroupProgressColor(correct: number, total: number): string {

@@ -2,7 +2,7 @@
   <v-dialog v-model="dialogModel" scrollable max-width="900">
     <v-card v-if="item" rounded="lg" class="d-flex flex-column" style="max-height: 85vh">
       <v-card-title class="d-flex align-center py-3 px-4 border-b bg-surface">
-        <span class="text-h6 font-weight-bold">{{ item.name }}</span>
+        <span class="text-h6 font-weight-bold">{{ item.title }}</span>
         <v-spacer />
         <v-btn icon variant="text" @click="close"><v-icon>mdi-close</v-icon></v-btn>
       </v-card-title>
@@ -24,20 +24,20 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import ResultTableCard from './TestCaseResult.vue';
 
+import type { Puzzle } from '../../constants/puzzle';
+
 const props = defineProps<{
   modelValue: boolean;
-  item: any | null;
+  item: Puzzle | null;
   testResult: Record<string, any>;
 }>();
 const emit = defineEmits(['update:modelValue']);
 
 const { t } = useI18n();
-const resultForItem = computed(() =>
-  props.item ? props.testResult[String(props.item.id)] : null
-);
+const resultForItem = computed(() => (props.item ? props.testResult[String(props.item.id)] : null));
 const dialogModel = computed({
   get: () => props.modelValue,
-  set: (value: boolean) => emit('update:modelValue', value),
+  set: (value: boolean) => emit('update:modelValue', value)
 });
 
 const close = () => emit('update:modelValue', false);

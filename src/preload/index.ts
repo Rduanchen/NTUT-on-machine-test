@@ -1,57 +1,54 @@
 import { ipcRenderer, contextBridge } from 'electron';
-// import { Config } from '../electron/lib/runTimeStore.ts';
 
+/**
+ * Preload API - Exposed to renderer via contextBridge
+ *
+ * Provides structured access to main process services via IPC.
+ * Groups: config, auth, store, judger
+ */
 const api = {
-  // --- Config ---
+  /** Config management: load from file or server */
   config: {
     setJson: (jsonFilePath: string) => ipcRenderer.invoke('config:set-json', jsonFilePath),
     getFromServer: (host: string) => ipcRenderer.invoke('config:get-from-server', host),
     getServerStatus: (hostname: string) => ipcRenderer.invoke('config:server-status', hostname),
-    getIsConfigSetupComplete: () => ipcRenderer.invoke('config:setup-complete'),
-    getLocalConfigStatus: () => ipcRenderer.invoke('config:local-config-status'),
+    isSetupComplete: () => ipcRenderer.invoke('config:setup-complete')
   },
 
-  // --- Store ---
+  /** Authentication: student login and verification */
+  auth: {
+    login: (studentID: string) => ipcRenderer.invoke('auth:login', studentID),
+    isVerified: () => ipcRenderer.invoke('auth:is-verified'),
+    getStudentInfo: () => ipcRenderer.invoke('auth:get-student-info')
+  },
+
+  /** Store: read exam state (test results, puzzles, exam info) */
   store: {
-    readTestResult: () => ipcRenderer.invoke('store:read-test-result'),
-    updateStudentInformation: (newInfo: { studentID: string }) =>
-      ipcRenderer.invoke('store:update-student-information', newInfo),
-    readStudentInformation: () => ipcRenderer.invoke('store:read-student-information'),
+    getConnectionStatus: () => ipcRenderer.invoke('store:get-connection-status'),
+    getTestResults: () => ipcRenderer.invoke('store:get-test-results'),
     getPuzzleInfo: () => ipcRenderer.invoke('store:get-puzzle-info'),
-    getTestInfo: () => ipcRenderer.invoke('config:get-test-info'),
-    isStudentInfoVerified: () => ipcRenderer.invoke('store:is-student-info-verified'),
-    updateServerAvailability: (callback: (status: boolean) => void) => {
-      ipcRenderer.on('store:availability-updated', (_event, status) => {
+    getExamInfo: () => ipcRenderer.invoke('store:get-exam-info'),
+
+    /** Subscribe to connection status changes from main process */
+    onConnectionStatusChanged: (callback: (status: string) => void) => {
+      ipcRenderer.on('connection:status-changed', (_event, status) => {
         callback(status);
       });
-    },
-    getServerAvailability: () => ipcRenderer.invoke('store:get-server-availability'),
+    }
   },
 
-  // --- Judger ---
+  /** Judger: run evaluations, stop, sync results */
   judger: {
-    /**
-     * @param questionId The ID of the question to judge.
-     * @param codeFile A File-like object that must have a `path` property (string) pointing to the code file.
-     */
-    judge: (questionId: string, codeFilePath: string) =>
-      ipcRenderer.invoke('judger:judge', questionId, codeFilePath),
+    judge: (puzzleId: string, codeFilePath: string) =>
+      ipcRenderer.invoke('judger:judge', puzzleId, codeFilePath),
     forceStop: () => ipcRenderer.invoke('judger:force-stop'),
-    onJudgeComplete: (callback) => {
-      ipcRenderer.on('judger:judge-complete', (_event, data) => {
-        callback(data);
-      });
-    },
-    syncScoreToBackend: () => ipcRenderer.invoke('judger:sync-score-to-backend')
-  },
-
-  // --- LocalProgram ---
-  localProgram: {
-    getZipFile: () => ipcRenderer.invoke('localProgram:getZipFile'),
-    syncToBackend: () => ipcRenderer.invoke('localProgram:syncToBackend'),
+    syncResults: () => ipcRenderer.invoke('judger:sync-results'),
+    getZip: () => ipcRenderer.invoke('judger:get-zip'),
+    syncCode: () => ipcRenderer.invoke('judger:sync-code')
   }
 };
 
+/** Expose API to renderer */
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('api', api);
@@ -59,6 +56,6 @@ if (process.contextIsolated) {
     console.error('Failed to expose api to main world:', e);
   }
 } else {
-  // @ts-ignore (define in dts)
+  // @ts-ignore
   window.api = api;
 }

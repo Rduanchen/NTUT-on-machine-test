@@ -1,73 +1,52 @@
-interface NewsItem {
-  coverUrl: string | null;
-  title: string;
-  description: string;
-  newsLink: string;
+import type {
+  IpcResponse,
+  PuzzleInfo,
+  StudentInformation,
+  JudgeRunResult,
+  ConnectionStatus
+} from '../common/types';
+
+interface ConfigAPI {
+  setJson: (jsonFilePath: string) => Promise<IpcResponse<void>>;
+  getFromServer: (host: string) => Promise<IpcResponse<void>>;
+  getServerStatus: (hostname: string) => Promise<IpcResponse<void>>;
+  isSetupComplete: () => Promise<boolean>;
 }
 
-interface ApiResponse<T = any> {
-  success: boolean;
-  data?: T;
-  error?: string;
+interface AuthAPI {
+  login: (studentID: string) => Promise<IpcResponse<void>>;
+  isVerified: () => Promise<boolean>;
+  getStudentInfo: () => Promise<StudentInformation>;
 }
 
-interface NewsAPI {
-  getSources: () => Promise<string[]>;
-  selectSource: (sourceIndex: number) => Promise<ApiResponse>;
-  getHeadlines: () => Promise<ApiResponse<NewsItem[]>>;
-  openExternalUrl: (url: string) => Promise<void>;
-  getNewsContentBySource: (
-    sourceIndex: number,
-    newsUrl: string
-  ) => Promise<ApiResponse<NewsContent>>;
-  getCustomArticleContent: (customArticle: string) => Promise<ApiResponse<NewsContent>>;
+interface StoreAPI {
+  getConnectionStatus: () => Promise<ConnectionStatus>;
+  getTestResults: () => Promise<Record<string, JudgeRunResult>>;
+  getPuzzleInfo: () => Promise<PuzzleInfo[]>;
+  getExamInfo: () => Promise<{ testTitle: string; description: string } | null>;
+  onConnectionStatusChanged: (callback: (status: string) => void) => void;
 }
 
-interface SettingsAPI {
-  getApiKey: () => Promise<string>;
-  setApiKey: (apiKey: string) => Promise<ApiResponse>;
-  getQuestionSettings: () => Promise<any>;
-  setQuestionSettings: (settings: any) => Promise<ApiResponse>;
-  getUserPreferences: () => Promise<any>;
-  setUserPreferences: (preferences: any) => Promise<ApiResponse>;
-}
-
-// interface QuestionsAPI {
-//   getNewsContent: (newsUrl: string) => Promise<ApiResponse>;
-//   generate: (options: any) => Promise<ApiResponse>;
-//   testConnection: () => Promise<ApiResponse>;
-// }
-
-interface TestAPI {
-  test: () => Promise<any>;
+interface JudgerAPI {
+  judge: (puzzleId: string, codeFilePath: string) => Promise<IpcResponse<JudgeRunResult>>;
+  forceStop: () => Promise<{ success: boolean }>;
+  syncResults: () => Promise<IpcResponse<void>>;
+  getZip: () => Promise<Buffer | null>;
+  syncCode: () => Promise<IpcResponse<void>>;
 }
 
 interface API {
-  settings: SettingsAPI;
-  questions: QuestionsAPI;
-  news: NewsAPI;
-  test: TestAPI;
+  config: ConfigAPI;
+  auth: AuthAPI;
+  store: StoreAPI;
+  judger: JudgerAPI;
 }
 
 declare global {
   interface Window {
-    electron: any;
     api: API;
+    electron: unknown;
   }
 }
-interface ModelOption {
-  id: string;
-  name: string;
-  displayName: string;
-  category: 'GPT-5' | 'GPT-4.1';
-}
 
-interface QuestionsAPI {
-  getNewsContent: (newsUrl: string) => Promise<ApiResponse>;
-  generate: (options: any) => Promise<ApiResponse>;
-  testConnection: () => Promise<ApiResponse>;
-  getAvailableModels: () => Promise<ApiResponse<ModelOption[]>>;
-  getModelsByCategory: (category: 'GPT-5' | 'GPT-4.1') => Promise<ApiResponse<ModelOption[]>>;
-  validateModel: (modelId: string) => Promise<ApiResponse<{ supported: boolean }>>;
-}
 export {};

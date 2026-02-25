@@ -2,7 +2,7 @@
   <tr class="transition-colors puzzle-row" @click="$emit('open-result')">
     <td class="font-weight-bold text-medium-emphasis">#{{ item.id }}</td>
     <td class="py-3">
-      <span class="text-body-1 font-weight-medium text-high-emphasis">{{ item.name }}</span>
+      <span class="text-body-1 font-weight-medium text-high-emphasis">{{ item.title }}</span>
     </td>
     <td>
       <v-chip size="x-small" label class="font-weight-bold text-uppercase">

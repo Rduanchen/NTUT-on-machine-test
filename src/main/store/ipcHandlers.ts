@@ -17,8 +17,12 @@ export class StoreIpcManager {
     // 取得題目資訊 (只回傳前端需要的欄位)
     ipcMain.handle('store:get-puzzle-info', () => {
       const config = store.getConfig();
-      return config.puzzles.map((puzzle) => {
-        return { id: puzzle.id, name: puzzle.name, language: puzzle.language };
+      return config.puzzles.map((puzzle, index) => {
+        return {
+          id: String(index),
+          name: (puzzle as any).name ?? puzzle.title,
+          language: puzzle.language
+        };
       });
     });
 
