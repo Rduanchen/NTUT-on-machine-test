@@ -105,6 +105,13 @@
             {{ isDark ? t('examSystem.switchToLight') : t('examSystem.switchToDark') }}
           </v-tooltip>
         </v-btn>
+
+        <v-btn icon variant="text" size="small" @click="showNotifications = true">
+          <v-icon>mdi-bell-badge-outline</v-icon>
+          <v-tooltip activator="parent" location="bottom">
+            {{ t('examSystem.serverStatusLabel') }} socket feed
+          </v-tooltip>
+        </v-btn>
       </div>
     </v-app-bar>
 
@@ -161,6 +168,7 @@
         </v-btn>
       </v-card>
     </v-dialog>
+        <NotificationCenter v-model="showNotifications" />
   </v-app>
 </template>
 
@@ -169,10 +177,12 @@ import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useTheme } from 'vuetify';
+import NotificationCenter from './components/NotificationCenter.vue';
 
 const route = useRoute();
 const studentInfo = ref(null);
 const serverStatus = ref('disconnected');
+const showNotifications = ref(false);
 
 // i18n
 const { t, locale } = useI18n();

@@ -55,6 +55,4 @@ You are a professional software engineer for electron-vite project
 ## Skills:
 
 1. ./skills/api-spec : You can use this skill to get the API specification for the ntut-exam backend. This will help you understand how to interact with the backend and what data to send and receive.
-2. ./skills/pyjudger-clinet: this skill would tell you how to use pyjudger client to run the pyjudger
-3. ./skills/pyjudger: this skill would tell you how to use pyjudger, which is the python judger for judging student's code. It is used in the main process to run the judger and get the result.
-4. ./skills/security: this skill would tell you how to make token and communicate with ntut-exam backend securely.
+2. ./skills/security: this skill would tell you how to make token and communicate with ntut-exam backend securely.

@@ -34,6 +34,13 @@ const api = {
       ipcRenderer.on('connection:status-changed', (_event, status) => {
         callback(status);
       });
+    },
+
+    /** Subscribe to test results pushed from main process (e.g. after config_update rejudge) */
+    onTestResultsUpdated: (callback: (results: Record<string, unknown>) => void) => {
+      ipcRenderer.on('store:test-results-updated', (_event, results) => {
+        callback(results);
+      });
     }
   },
 
@@ -45,6 +52,20 @@ const api = {
     syncResults: () => ipcRenderer.invoke('judger:sync-results'),
     getZip: () => ipcRenderer.invoke('judger:get-zip'),
     syncCode: () => ipcRenderer.invoke('judger:sync-code')
+  },
+
+  /** Notifications: socket feed + message center */
+  notifications: {
+    getAll: () => ipcRenderer.invoke('notifications:get-all'),
+    getVersions: () => ipcRenderer.invoke('notifications:get-versions'),
+    getSocketStatus: () => ipcRenderer.invoke('notifications:get-socket-status'),
+    refresh: () => ipcRenderer.invoke('notifications:refresh'),
+    onUpdated: (callback: (messages: unknown[]) => void) => {
+      ipcRenderer.on('notifications:updated', (_event, payload) => callback(payload));
+    },
+    onSocketStatusChanged: (callback: (status: string) => void) => {
+      ipcRenderer.on('notifications:socket-status', (_event, status) => callback(status));
+    }
   }
 };
 

@@ -46,7 +46,11 @@ class LocalProgramStoreService {
    */
   public addFile(puzzleId: string, extension: string, sourcePath: string): string {
     const destPath = path.join(this.tempDir, `${puzzleId}.${extension}`);
-    fs.copyFileSync(sourcePath, destPath);
+    const resolvedSource = path.resolve(sourcePath);
+    const resolvedDest = path.resolve(destPath);
+    if (resolvedSource !== resolvedDest) {
+      fs.copyFileSync(resolvedSource, resolvedDest);
+    }
     logger.info(`[LocalProgram] File added: ${sourcePath} → ${destPath}`);
     return destPath;
   }
@@ -87,6 +91,27 @@ class LocalProgramStoreService {
     } catch {
       return [];
     }
+  }
+
+  /** Get the stored file path for a given puzzle id if it exists */
+  public getFilePathForPuzzle(puzzleId: string): string | null {
+    const entry = this.listFiles().find((fileName) => fileName.startsWith(`${puzzleId}.`));
+    if (!entry) return null;
+    return path.join(this.tempDir, entry);
+  }
+
+  /** Get all stored program entries (puzzle id + absolute file path) */
+  public getStoredProgramEntries(): Array<{ puzzleId: string; filePath: string }> {
+    return this.listFiles()
+      .map((fileName) => {
+        const [puzzleId] = fileName.split('.');
+        if (typeof puzzleId === 'undefined' || puzzleId === '') return null;
+        return {
+          puzzleId,
+          filePath: path.join(this.tempDir, fileName)
+        };
+      })
+      .filter((entry): entry is { puzzleId: string; filePath: string } => Boolean(entry));
   }
 }
 

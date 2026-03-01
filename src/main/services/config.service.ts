@@ -5,6 +5,7 @@ import { ramStore } from './ramStore.service';
 import { logger } from './logger.service';
 import { fetchExamConfig } from './api.service';
 import { connectionService } from './connection.service';
+import { messageSyncService } from './message-sync.service';
 import { examConfigSchema } from '../schemas/examConfig.schema';
 import { preSettingsSchema } from '../schemas/presettings.schema';
 import type { ExamConfig, IpcResponse } from '../../common/types';
@@ -72,6 +73,7 @@ class ConfigService {
         if (result.success) {
           logger.info('[Config] Config loaded from server via pre_settings.');
           connectionService.start();
+          messageSyncService.start(remoteHost);
           return;
         }
         logger.warn('[Config] Failed to fetch config from server. Waiting for manual setup.');
@@ -125,6 +127,7 @@ class ConfigService {
 
     if (result.success) {
       connectionService.start();
+      messageSyncService.start(host);
     }
     return result;
   }

@@ -20,7 +20,7 @@ export class StoreIpcManager {
       return config.puzzles.map((puzzle, index) => {
         return {
           id: String(index),
-          name: (puzzle as any).name ?? puzzle.title,
+          name: (puzzle as any).title ?? puzzle.name,
           language: puzzle.language
         };
       });

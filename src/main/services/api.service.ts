@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import { ramStore } from './ramStore.service';
 import { cryptoService } from './crypto.service';
 import { logger } from './logger.service';
@@ -7,7 +7,8 @@ import type {
   LogActionPayload,
   IpcResponse,
   JudgeRunResult,
-  UploadResultPayload
+  UploadResultPayload,
+  ServerMessage
 } from '../../common/types';
 import FormData from 'form-data';
 
@@ -68,7 +69,7 @@ function getBaseUrl(): string {
 /** POST /auth/check-id - Check if student ID exists */
 export async function checkStudentId(
   studentID: string
-): Promise<IpcResponse<{ isValid: boolean }>> {
+): Promise<IpcResponse<{ isValid: boolean; name?: string }>> {
   try {
     const response = await publicClient.post(`${getBaseUrl()}/auth/check-id`, { studentID });
     return { success: true, data: response.data };
@@ -123,8 +124,22 @@ export async function fetchExamConfig(host?: string): Promise<IpcResponse<ExamCo
 /** POST /exam/config-secure - Get secure exam config (needs auth) */
 export async function fetchSecureExamConfig(): Promise<IpcResponse<ExamConfig>> {
   try {
-    const response = await authClient.post(`${getBaseUrl()}/exam/config-secure`);
-    return { success: true, data: response.data };
+    const response = await authClient.post(`${getBaseUrl()}/exam/config-secure`, {
+      studentID: ramStore.studentInfo.id || 'unknown'
+    });
+    const encryptedConfig = response.data?.encryptedConfig ?? response.data?.data?.encryptedConfig;
+    if (!encryptedConfig) {
+      throw new Error('Missing encryptedConfig payload');
+    }
+
+    const cryptoState = ramStore.cryptoState;
+    if (!cryptoState) {
+      throw new Error('Crypto credentials not initialized');
+    }
+
+    const decrypted = cryptoService.decryptAes(encryptedConfig, cryptoState.aesKeyHex);
+    const parsed = JSON.parse(decrypted) as ExamConfig;
+    return { success: true, data: parsed };
   } catch (error) {
     return makeErrorResponse('fetchSecureExamConfig', error);
   }
@@ -223,32 +238,42 @@ export async function logAction(payload: LogActionPayload): Promise<IpcResponse<
 // ─── Message APIs ───────────────────────────────────────────────────
 
 /** GET /message/all - Get messages after a specific ID */
-export async function getMessages(afterId?: string): Promise<IpcResponse<unknown[]>> {
+export async function getMessages(afterId?: string): Promise<IpcResponse<ServerMessage[]>> {
   try {
     const params: Record<string, string> = {};
     if (afterId) params.afterId = afterId;
     const response = await publicClient.get(`${getBaseUrl()}/message/all`, { params });
-    return { success: true, data: response.data };
+    const payload = response.data?.data ?? response.data;
+    const normalized = Array.isArray(payload) ? payload : [];
+    return { success: true, data: normalized as ServerMessage[] };
   } catch (error) {
     return makeErrorResponse('getMessages', error);
   }
 }
 
 /** GET /message/config-version - Get config version */
-export async function getConfigVersion(): Promise<IpcResponse<unknown>> {
+export async function getConfigVersion(): Promise<IpcResponse<number>> {
   try {
     const response = await publicClient.get(`${getBaseUrl()}/message/config-version`);
-    return { success: true, data: response.data };
+    const version = response.data?.data?.version ?? response.data?.version;
+    if (typeof version !== 'number') {
+      throw new Error('Invalid config version payload');
+    }
+    return { success: true, data: version };
   } catch (error) {
     return makeErrorResponse('getConfigVersion', error);
   }
 }
 
 /** GET /message/message-version - Get message version */
-export async function getMessageVersion(): Promise<IpcResponse<unknown>> {
+export async function getMessageVersion(): Promise<IpcResponse<number>> {
   try {
     const response = await publicClient.get(`${getBaseUrl()}/message/message-version`);
-    return { success: true, data: response.data };
+    const version = response.data?.data?.version ?? response.data?.version;
+    if (typeof version !== 'number') {
+      throw new Error('Invalid message version payload');
+    }
+    return { success: true, data: version };
   } catch (error) {
     return makeErrorResponse('getMessageVersion', error);
   }

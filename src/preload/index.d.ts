@@ -3,7 +3,9 @@ import type {
   PuzzleInfo,
   StudentInformation,
   JudgeRunResult,
-  ConnectionStatus
+  ConnectionStatus,
+  ServerMessage,
+  SocketConnectionStatus
 } from '../common/types';
 
 interface ConfigAPI {
@@ -25,6 +27,7 @@ interface StoreAPI {
   getPuzzleInfo: () => Promise<PuzzleInfo[]>;
   getExamInfo: () => Promise<{ testTitle: string; description: string } | null>;
   onConnectionStatusChanged: (callback: (status: string) => void) => void;
+  onTestResultsUpdated: (callback: (results: Record<string, JudgeRunResult>) => void) => void;
 }
 
 interface JudgerAPI {
@@ -35,11 +38,21 @@ interface JudgerAPI {
   syncCode: () => Promise<IpcResponse<void>>;
 }
 
+interface NotificationAPI {
+  getAll: () => Promise<ServerMessage[]>;
+  getVersions: () => Promise<{ configVersion: number; messageVersion: number }>;
+  getSocketStatus: () => Promise<SocketConnectionStatus>;
+  refresh: () => Promise<IpcResponse<void>>;
+  onUpdated: (callback: (messages: ServerMessage[]) => void) => void;
+  onSocketStatusChanged: (callback: (status: SocketConnectionStatus) => void) => void;
+}
+
 interface API {
   config: ConfigAPI;
   auth: AuthAPI;
   store: StoreAPI;
   judger: JudgerAPI;
+  notifications: NotificationAPI;
 }
 
 declare global {

@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import { ramStore } from '../services/ramStore.service';
-import type { PuzzleInfo } from '../../common/types';
+import { getMainWindow } from '../system/windowManager';
+import type { PuzzleInfo, JudgeRunResult } from '../../common/types';
 
 /**
  * Store IPC Handlers
@@ -12,6 +13,13 @@ import type { PuzzleInfo } from '../../common/types';
  * - store:get-exam-info           → Get exam title & description
  */
 export function registerStoreIpc(): void {
+  // Push test results to renderer whenever they change (e.g. after rejudge on config update)
+  ramStore.on('testResults', (results: Record<string, JudgeRunResult>) => {
+    const win = getMainWindow();
+    if (!win || win.isDestroyed()) return;
+    win.webContents?.send('store:test-results-updated', results);
+  });
+
   ipcMain.handle('store:get-connection-status', () => {
     return ramStore.connectionStatus;
   });

@@ -43,6 +43,17 @@ export interface ExamConfig {
   puzzles: Puzzle[];
 }
 
+// ─── Notification & Messaging Types ───────────────────────────────
+
+export interface ServerMessage {
+  id: number;
+  type: string;
+  message: string;
+  createdAt: string;
+}
+
+export type SocketConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
+
 // ─── Pre-Settings Types ─────────────────────────────────────────────
 
 export interface PreSettings {
@@ -90,6 +101,10 @@ export interface RamStoreState {
   isTestResultDirty: boolean;
   connectionStatus: ConnectionStatus;
   backendUrl: string;
+  notifications: ServerMessage[];
+  messageVersion: number;
+  configVersion: number;
+  socketStatus: SocketConnectionStatus;
 }
 
 export type ConnectionStatus = 'connected' | 'disconnected';

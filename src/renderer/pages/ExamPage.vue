@@ -162,5 +162,10 @@ onMounted(async () => {
   if (!window.api?.store) return;
   puzzleInfo.value = await window.api.store.getPuzzleInfo();
   await refreshResults();
+
+  // Listen for test results pushed from main process after config_update rejudge
+  window.api.store.onTestResultsUpdated?.((results) => {
+    testResult.value = results as Record<string, JudgeRunResult>;
+  });
 });
 </script>

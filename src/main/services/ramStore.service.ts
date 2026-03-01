@@ -4,7 +4,9 @@ import type {
   CryptoState,
   ConnectionStatus,
   JudgeRunResult,
-  RamStoreState
+  RamStoreState,
+  ServerMessage,
+  SocketConnectionStatus
 } from '../../common/types';
 import os from 'os';
 
@@ -27,7 +29,11 @@ class RamStoreService {
     testResults: {},
     isTestResultDirty: false,
     connectionStatus: 'disconnected',
-    backendUrl: ''
+    backendUrl: '',
+    notifications: [],
+    messageVersion: 0,
+    configVersion: 0,
+    socketStatus: 'disconnected'
   };
 
   /** Event listeners for state changes */
@@ -54,8 +60,9 @@ class RamStoreService {
   }
 
   public delete<K extends keyof RamStoreState>(key: K): void {
-    (this.state as Record<string, unknown>)[key] = null;
-    this.emit(key, null);
+    const mutableState = this.state as unknown as Record<string, unknown>;
+    mutableState[String(key)] = null;
+    this.emit(String(key), null);
   }
 
   public clear(): void {
@@ -68,7 +75,11 @@ class RamStoreService {
       testResults: {},
       isTestResultDirty: false,
       connectionStatus: 'disconnected',
-      backendUrl: ''
+      backendUrl: '',
+      notifications: [],
+      messageVersion: 0,
+      configVersion: 0,
+      socketStatus: 'disconnected'
     };
   }
 
@@ -132,6 +143,40 @@ class RamStoreService {
 
   set backendUrl(url: string) {
     this.set('backendUrl', url);
+  }
+
+  // ─── Notifications & Versions ──────────────────────────────────
+
+  get notifications(): ServerMessage[] {
+    return this.state.notifications;
+  }
+
+  set notifications(messages: ServerMessage[]) {
+    this.set('notifications', messages);
+  }
+
+  get messageVersion(): number {
+    return this.state.messageVersion;
+  }
+
+  set messageVersion(version: number) {
+    this.set('messageVersion', version);
+  }
+
+  get configVersion(): number {
+    return this.state.configVersion;
+  }
+
+  set configVersion(version: number) {
+    this.set('configVersion', version);
+  }
+
+  get socketStatus(): SocketConnectionStatus {
+    return this.state.socketStatus;
+  }
+
+  set socketStatus(status: SocketConnectionStatus) {
+    this.set('socketStatus', status);
   }
 
   // ─── Test Results ─────────────────────────────────────────────

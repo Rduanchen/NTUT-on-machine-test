@@ -13,7 +13,7 @@ import {
   uploadProgramFile,
   fetchExamConfig
 } from './api.service';
-import type { LogActionPayload, QueuedRequest } from '../../common/types';
+import type { LogActionPayload } from '../../common/types';
 import { getMainWindow } from '../system/windowManager';
 
 /**

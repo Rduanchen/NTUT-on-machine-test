@@ -66,10 +66,9 @@ class NodeJudgerService {
     const puzzle = config.puzzles[puzzleIndex];
     if (!puzzle) throw new Error(`Puzzle not found at index: ${puzzleId}`);
 
-    const codeString = fs.readFileSync(codeFilePath, 'utf-8');
-
     const extension = getExtensionForLanguage(puzzle.language);
-    localProgramStore.addFile(String(puzzleIndex), extension, codeFilePath);
+    const storedPath = localProgramStore.addFile(String(puzzleIndex), extension, codeFilePath);
+    const codeString = fs.readFileSync(storedPath, 'utf-8');
 
     const judgerSettings = config.judgerSettings;
     const timeLimit = puzzle.timeLimit || judgerSettings.timeLimit;
