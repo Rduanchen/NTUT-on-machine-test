@@ -80,6 +80,26 @@
       "close": "關閉",
       "cancel": "取消"
     },
+    "notificationCenter": {
+      "title": "即時通知",
+      "subtitle": "與後端訊息及設定保持同步",
+      "messageVersion": "訊息版本",
+      "configVersion": "設定版本",
+      "autoSync": "每 60 秒自動同步一次。最後同步：{time}",
+      "refreshFeed": "重新整理",
+      "noNotifications": "目前沒有通知",
+      "noNotificationsSubtext": "保持連線以接收即時通知。",
+      "socketStatus": {
+        "connected": "已連線",
+        "reconnecting": "重新連線中",
+        "connecting": "連線中",
+        "disconnected": "已斷線"
+      },
+      "snackbar": {
+        "newMessage": "新通知：{message}"
+      },
+      "noMessage": "無訊息內容"
+    },
     "puzzles": {
       "forceStop": "強制停止所有評測",
       "exportZip": "匯出作答壓縮檔",

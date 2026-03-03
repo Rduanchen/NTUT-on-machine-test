@@ -80,6 +80,26 @@
       "close": "Close",
       "cancel": "Cancel"
     },
+    "notificationCenter": {
+      "title": "Realtime Alerts",
+      "subtitle": "Stay synced with backend messages & config",
+      "messageVersion": "Message Version",
+      "configVersion": "Config Version",
+      "autoSync": "Auto sync runs every 60 seconds. Latest sync: {time}",
+      "refreshFeed": "Refresh feed",
+      "noNotifications": "No notifications yet",
+      "noNotificationsSubtext": "Stay online to receive live socket messages.",
+      "socketStatus": {
+        "connected": "socket online",
+        "reconnecting": "socket retrying",
+        "connecting": "socket dialing",
+        "disconnected": "socket offline"
+      },
+      "snackbar": {
+        "newMessage": "New alert: {message}"
+      },
+      "noMessage": "No message provided"
+    },
     "puzzles": {
       "forceStop": "Force Stop All Tests",
       "exportZip": "Export Answers as ZIP",

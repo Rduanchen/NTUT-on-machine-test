@@ -72,7 +72,7 @@ const examInfo = ref<{ testTitle: string; description: string } | null>(null);
 
 const studentIdRules = [
   (v: string) => !!v || t('login.rules.required'),
-  (v: string) => v.length >= 2 || t('login.rules.minLength')
+  (v: string) => v.length >= 0 || t('login.rules.minLength')
 ];
 
 onMounted(async () => {

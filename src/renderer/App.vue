@@ -169,6 +169,27 @@
       </v-card>
     </v-dialog>
         <NotificationCenter v-model="showNotifications" />
+
+    <!-- Bottom-right toast snackbar for incoming notifications -->
+    <v-snackbar
+      v-model="snackbarVisible"
+      location="bottom end"
+      :timeout="4500"
+      :color="snackbarColor"
+      rounded="lg"
+      elevation="6"
+      max-width="360"
+    >
+      <div class="d-flex align-center" style="gap: 8px">
+        <v-icon>{{ snackbarIcon }}</v-icon>
+        <span class="text-body-2 font-weight-medium">{{ snackbarText }}</span>
+      </div>
+      <template #actions>
+        <v-btn variant="text" size="small" @click="snackbarVisible = false">
+          {{ t('examSystem.common.close') }}
+        </v-btn>
+      </template>
+    </v-snackbar>
   </v-app>
 </template>
 
@@ -183,6 +204,12 @@ const route = useRoute();
 const studentInfo = ref(null);
 const serverStatus = ref('disconnected');
 const showNotifications = ref(false);
+
+// Snackbar for new incoming notifications
+const snackbarVisible = ref(false);
+const snackbarText = ref('');
+const snackbarColor = ref('primary');
+const snackbarIcon = ref('mdi-bell-ring-outline');
 
 // i18n
 const { t, locale } = useI18n();
@@ -228,6 +255,20 @@ onMounted(async () => {
 
     pollTimer.value = setInterval(updateServerAvailability, 5000);
   }
+
+  // Listen for new notifications and show a toast snackbar
+  window.api?.notifications?.onUpdated((items) => {
+    const list = Array.isArray(items) ? items : [];
+    if (list.length === 0) return;
+    const latest = list[list.length - 1];
+    const isConfig = latest.type === 'config_update';
+    snackbarColor.value = isConfig ? 'deep-orange-darken-1' : 'primary';
+    snackbarIcon.value = isConfig ? 'mdi-cog-sync-outline' : 'mdi-bell-ring-outline';
+    snackbarText.value = t('examSystem.notificationCenter.snackbar.newMessage', {
+      message: latest.message || t('examSystem.notificationCenter.noMessage')
+    });
+    snackbarVisible.value = true;
+  });
 });
 
 onBeforeUnmount(() => {

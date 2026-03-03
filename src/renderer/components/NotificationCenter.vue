@@ -8,13 +8,21 @@
     class="notification-center"
   >
     <v-card flat class="h-100 d-flex flex-column">
-      <v-sheet class="px-4 py-3 notification-center__header" color="primary" dark>
+      <!-- Header -->
+      <v-sheet
+        class="px-4 py-3"
+        :class="isDark ? 'notification-center__header--dark' : 'notification-center__header--light'"
+      >
         <div class="d-flex align-center justify-space-between">
           <div>
-            <div class="text-subtitle-1 font-weight-bold">Realtime Alerts</div>
-            <div class="text-caption opacity-80">Stay synced with backend messages & config</div>
+            <div class="text-subtitle-1 font-weight-bold text-white">
+              {{ t('examSystem.notificationCenter.title') }}
+            </div>
+            <div class="text-caption text-white opacity-80">
+              {{ t('examSystem.notificationCenter.subtitle') }}
+            </div>
           </div>
-          <v-btn icon variant="text" @click="close">
+          <v-btn icon variant="text" color="white" @click="close">
             <v-icon>mdi-close</v-icon>
           </v-btn>
         </div>
@@ -44,14 +52,18 @@
               variant="tonal"
               @click="refresh"
             >
-              Refresh feed
+              {{ t('examSystem.notificationCenter.refreshFeed') }}
             </v-btn>
           </div>
 
-          <v-sheet class="px-3 py-2 rounded-xl bg-grey-lighten-4 elevation-1 version-card" border>
+          <v-sheet
+            class="px-3 py-2 rounded-xl elevation-1 version-card"
+            :class="isDark ? 'version-card--dark' : 'version-card--light'"
+            border
+          >
             <div class="d-flex justify-space-between text-caption text-medium-emphasis">
-              <span>Message Version</span>
-              <span>Config Version</span>
+              <span>{{ t('examSystem.notificationCenter.messageVersion') }}</span>
+              <span>{{ t('examSystem.notificationCenter.configVersion') }}</span>
             </div>
             <div class="d-flex justify-space-between mt-1 text-h6 font-weight-bold">
               <span>{{ versions.messageVersion }}</span>
@@ -60,7 +72,7 @@
           </v-sheet>
 
           <div class="text-caption text-medium-emphasis">
-            Auto sync runs every 60 seconds. Latest sync: {{ formattedLastUpdate }}
+            {{ t('examSystem.notificationCenter.autoSync', { time: formattedLastUpdate }) }}
           </div>
         </div>
       </v-card-text>
@@ -81,10 +93,10 @@
               </template>
               <v-card class="mb-3" variant="outlined">
                 <v-card-title class="text-subtitle-2 font-weight-bold d-flex align-center">
-                  <v-chip :color="getMessageColor(item.type)" size="x-small" class="mr-2" dark>
+                  <v-chip :color="getMessageColor(item.type)" size="x-small" class="mr-2">
                     {{ formatType(item.type) }}
                   </v-chip>
-                  {{ item.message || 'No message provided' }}
+                  {{ item.message || t('examSystem.notificationCenter.noMessage') }}
                 </v-card-title>
                 <v-card-subtitle class="text-caption font-mono">
                   {{ formatTimestamp(item.createdAt) }}
@@ -95,8 +107,12 @@
         </template>
         <div v-else class="text-center text-body-2 text-medium-emphasis py-12">
           <v-icon size="48" color="grey">mdi-bell-off-outline</v-icon>
-          <div class="mt-3 font-weight-medium">No notifications yet</div>
-          <div class="text-caption">Stay online to receive live socket messages.</div>
+          <div class="mt-3 font-weight-medium">
+            {{ t('examSystem.notificationCenter.noNotifications') }}
+          </div>
+          <div class="text-caption">
+            {{ t('examSystem.notificationCenter.noNotificationsSubtext') }}
+          </div>
         </div>
       </v-card-text>
     </v-card>
@@ -105,10 +121,16 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useTheme } from 'vuetify';
 import type { ServerMessage, SocketConnectionStatus } from '../../common/types';
 
 const props = defineProps<{ modelValue: boolean }>();
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>();
+
+const { t } = useI18n();
+const theme = useTheme();
+const isDark = computed(() => theme.global.current.value.dark);
 
 const isOpen = ref(props.modelValue);
 const notifications = ref<ServerMessage[]>([]);
@@ -157,16 +179,10 @@ const socketStatusIcon = computed(() => {
 });
 
 const socketStatusLabel = computed(() => {
-  switch (socketStatus.value) {
-    case 'connected':
-      return 'socket online';
-    case 'reconnecting':
-      return 'socket retrying';
-    case 'connecting':
-      return 'socket dialing';
-    default:
-      return 'socket offline';
-  }
+  const key = socketStatus.value as string;
+  const validKeys = ['connected', 'reconnecting', 'connecting', 'disconnected'];
+  const safeKey = validKeys.includes(key) ? key : 'disconnected';
+  return t(`examSystem.notificationCenter.socketStatus.${safeKey}`);
 });
 
 const formattedLastUpdate = computed(() => lastUpdated.value);
@@ -232,12 +248,22 @@ onMounted(async () => {
   border-bottom-left-radius: 24px;
 }
 
-.notification-center__header {
+.notification-center__header--light {
   background: linear-gradient(120deg, #1a237e, #3949ab);
 }
 
-.version-card {
+.notification-center__header--dark {
+  background: linear-gradient(120deg, #0d1333, #1a237e);
+}
+
+.version-card--light {
   background-image: linear-gradient(135deg, rgba(63, 81, 181, 0.08), rgba(0, 188, 212, 0.08));
+  background-color: #f5f5f5;
+}
+
+.version-card--dark {
+  background-image: linear-gradient(135deg, rgba(63, 81, 181, 0.18), rgba(0, 188, 212, 0.18));
+  background-color: #1e1e2e;
 }
 
 .font-mono {
