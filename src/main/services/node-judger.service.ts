@@ -102,7 +102,6 @@ class NodeJudgerService {
     let rawResult: JudgeResult;
     try {
       rawResult = await currentHandle.promise;
-      console.log(`Raw judge result: ${JSON.stringify(rawResult)}`);
     } finally {
       currentHandle = null;
     }
