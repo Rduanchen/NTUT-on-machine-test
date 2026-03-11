@@ -107,7 +107,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-  logger.info('Application Quit');
+  logger.info('Application On Quit');
   connectionService.stop();
   localProgramStore.deleteTempDir();
   ramStore.clear();

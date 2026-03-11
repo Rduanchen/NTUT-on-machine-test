@@ -15,13 +15,14 @@ class JudgeManagerService {
     logger.info(`[Judger] Judge request: puzzle=${puzzleId}, file=${codeFilePath}`);
 
     try {
-      const result = await nodeJudgerService.judge(puzzleId, codeFilePath);
+      const { public: result, hidden: hiddenResult } = await nodeJudgerService.judge(puzzleId, codeFilePath);
 
       const previousResult = ramStore.testResults[puzzleId];
       const isHigherOrEqual =
         !previousResult || result.correctCount >= (previousResult.correctCount || 0);
 
       ramStore.setTestResult(puzzleId, result);
+      ramStore.setHiddenTestResult(puzzleId, hiddenResult);
 
       this.syncResultsInBackground(isHigherOrEqual).catch((error) => {
         logger.error('[Judger] Background sync failed:', error);
@@ -49,8 +50,9 @@ class JudgeManagerService {
 
     for (const { puzzleId, filePath } of entries) {
       try {
-        const result = await nodeJudgerService.judge(puzzleId, filePath);
+        const { public: result, hidden: hiddenResult } = await nodeJudgerService.judge(puzzleId, filePath);
         ramStore.setTestResult(puzzleId, result);
+        ramStore.setHiddenTestResult(puzzleId, hiddenResult);
       } catch (error) {
         logger.error(`[Judger] Failed to rejudge puzzle ${puzzleId} from ${filePath}:`, error);
       }
@@ -61,7 +63,7 @@ class JudgeManagerService {
 
   public async syncResultsInBackground(uploadCode: boolean): Promise<void> {
     try {
-      const results = ramStore.testResults;
+      const results = ramStore.hiddenTestResults;
       const response = await uploadTestResult(results);
       if (response.success) {
         ramStore.markTestResultSynced();

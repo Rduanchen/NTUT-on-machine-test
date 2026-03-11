@@ -2,6 +2,7 @@ import axios, { AxiosInstance } from 'axios';
 import { ramStore } from './ramStore.service';
 import { cryptoService } from './crypto.service';
 import { logger } from './logger.service';
+import os from 'os';
 import type {
   ExamConfig,
   LogActionPayload,
@@ -26,6 +27,23 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
  */
 
 // ─── Axios Instances ────────────────────────────────────────────────
+
+function getMacAddresses() {
+  const interfaces = os.networkInterfaces();
+
+  for (const name in interfaces) {
+    const nets = interfaces[name];
+    if (!nets) continue;
+
+    for (const net of nets) {
+      if (!net.internal && net.mac !== '00:00:00:00:00:00') {
+        return net.mac;
+      }
+    }
+  }
+
+  return 'unknown';
+}
 
 function createPublicClient(): AxiosInstance {
   return axios.create({
@@ -227,6 +245,7 @@ export async function logAction(payload: LogActionPayload): Promise<IpcResponse<
     // Fill in studentID from store
     const studentInfo = ramStore.studentInfo;
     payload.studentID = studentInfo.id || 'unknown';
+    payload.macAddress = getMacAddresses();
 
     const response = await publicClient.post(`${getBaseUrl()}/log/action`, payload);
     return { success: true, data: response.data };
