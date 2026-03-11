@@ -47,7 +47,7 @@ let currentHandle: JudgeHandle | null = null;
 
 class NodeJudgerService {
   private static instance: NodeJudgerService;
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): NodeJudgerService {
     if (!NodeJudgerService.instance) {
@@ -56,7 +56,7 @@ class NodeJudgerService {
     return NodeJudgerService.instance;
   }
 
-  public async judge(puzzleId: string, codeFilePath: string): Promise<JudgeRunResult> {
+  public async judge(puzzleId: string, codeFilePath: string): Promise<{ public: JudgeRunResult; hidden: JudgeRunResult }> {
     const config = ramStore.examConfig;
     if (!config) throw new Error('ExamConfig not loaded');
 
@@ -106,7 +106,10 @@ class NodeJudgerService {
       currentHandle = null;
     }
 
-    return this.processResult(rawResult, puzzle);
+    return {
+      public: this.processResult(rawResult, puzzle),
+      hidden: this.proccessUnHiddenResult(rawResult, puzzle)
+    };
   }
 
   public stop(): boolean {
@@ -116,6 +119,39 @@ class NodeJudgerService {
     currentHandle.stop();
     currentHandle = null;
     return true;
+  }
+
+  private proccessUnHiddenResult(rawResult: JudgeResult, puzzle: Puzzle): JudgeRunResult {
+    let totalCases = 0;
+    let correctCount = 0;
+
+    const processedSubtasks: JudgeTestCaseResult[][] = rawResult.subtasks.map(
+      (subtaskResults, subtaskIdx) => {
+        const subtaskDef = puzzle.subtasks[subtaskIdx];
+        const visibleCount = subtaskDef?.visible?.length || 0;
+
+        return subtaskResults.map((result, caseIdx) => {
+          totalCases++;
+          if (result.statusCode === 'AC') correctCount++;
+
+          const isVisible = caseIdx < visibleCount;
+
+          return {
+            statusCode: result.statusCode,
+            input: result.input,
+            expectingOutput: result.expectingOutput,
+            userOutput: result.userOutput,
+            time: result.time
+          };
+        });
+      }
+    );
+
+    return {
+      subtasks: processedSubtasks,
+      totalCases,
+      correctCount
+    };
   }
 
   private processResult(rawResult: JudgeResult, puzzle: Puzzle): JudgeRunResult {

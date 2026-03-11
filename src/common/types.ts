@@ -98,6 +98,7 @@ export interface RamStoreState {
   isStudentVerified: boolean;
   cryptoState: CryptoState | null;
   testResults: Record<string, JudgeRunResult>;
+  hiddenTestResults: Record<string, JudgeRunResult>;
   isTestResultDirty: boolean;
   connectionStatus: ConnectionStatus;
   backendUrl: string;
@@ -136,6 +137,7 @@ export interface LogActionPayload {
   timestamp?: string;
   message?: string;
   details?: unknown;
+  macAddress?: string;
 }
 
 export interface UploadSubtaskResultPayload {

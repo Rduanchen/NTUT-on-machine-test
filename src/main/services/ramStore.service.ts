@@ -27,6 +27,7 @@ class RamStoreService {
     isStudentVerified: false,
     cryptoState: null,
     testResults: {},
+    hiddenTestResults: {},
     isTestResultDirty: false,
     connectionStatus: 'disconnected',
     backendUrl: '',
@@ -39,7 +40,7 @@ class RamStoreService {
   /** Event listeners for state changes */
   private listeners: Map<string, Array<(value: unknown) => void>> = new Map();
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): RamStoreService {
     if (!RamStoreService.instance) {
@@ -73,6 +74,7 @@ class RamStoreService {
       isStudentVerified: false,
       cryptoState: null,
       testResults: {},
+      hiddenTestResults: {},
       isTestResultDirty: false,
       connectionStatus: 'disconnected',
       backendUrl: '',
@@ -189,6 +191,14 @@ class RamStoreService {
     this.state.testResults[puzzleId] = result;
     this.state.isTestResultDirty = true;
     this.emit('testResults', this.state.testResults);
+  }
+
+  get hiddenTestResults(): Record<string, JudgeRunResult> {
+    return this.state.hiddenTestResults;
+  }
+
+  public setHiddenTestResult(puzzleId: string, result: JudgeRunResult): void {
+    this.state.hiddenTestResults[puzzleId] = result;
   }
 
   get isTestResultDirty(): boolean {

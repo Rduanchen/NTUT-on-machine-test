@@ -30,8 +30,9 @@ const serverTransport = ((msg: LogMessage) => {
     studentID: '', // Will be filled by API service
     level: msg.level,
     timestamp: msg.date.toISOString(),
-    message: msg.data.map((d) => (typeof d === 'string' ? d : JSON.stringify(d))).join(' '),
-    details: msg.data.length > 1 ? msg.data.slice(1) : undefined
+    message: msg.data.join(' '),
+    // details: msg.data.length > 1 ? msg.data.slice(1) : undefined
+    details: msg.data.join(' ')
   };
 
   if (sendLogFunction) {
