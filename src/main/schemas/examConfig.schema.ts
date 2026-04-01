@@ -18,7 +18,19 @@ const puzzleSchema = z.object({
   language: z.enum(supportedLanguages),
   timeLimit: z.number().optional(),
   memoryLimit: z.number().optional(),
-  subtasks: z.array(subtaskSchema)
+  subtasks: z.array(subtaskSchema),
+  specialRules: z
+    .array(
+      z.object({
+        id: z.string(),
+        type: z.enum(["regex", "includes", "composite"]),
+        constraint: z.enum(["MUST_HAVE", "MUST_NOT_HAVE"]),
+        message: z.string(),
+        severity: z.enum(["info", "warn"]).optional(),
+        params: z.unknown(),
+      }),
+    )
+    .optional(),
 });
 
 const accessUserSchema = z.object({
@@ -36,6 +48,18 @@ export const examConfigSchema = z.object({
   description: z.string(),
   judgerSettings: judgerSettingsSchema,
   accessableUsers: z.array(accessUserSchema),
+  globalSpecialRules: z
+    .array(
+      z.object({
+        id: z.string(),
+        type: z.enum(["regex", "includes", "composite"]),
+        constraint: z.enum(["MUST_HAVE", "MUST_NOT_HAVE"]),
+        message: z.string(),
+        severity: z.enum(["info", "warn"]).optional(),
+        params: z.unknown(),
+      }),
+    )
+    .optional(),
   puzzles: z.array(puzzleSchema)
 });
 

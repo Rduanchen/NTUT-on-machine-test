@@ -23,6 +23,18 @@ export interface Puzzle {
   timeLimit?: number;
   memoryLimit?: number;
   subtasks: Subtask[];
+  specialRules?: SpecialRule[];
+}
+
+export type RuleConstraint = 'MUST_HAVE' | 'MUST_NOT_HAVE';
+
+export interface SpecialRule {
+  id: string;
+  type: 'regex' | 'includes' | 'composite';
+  constraint: RuleConstraint;
+  message: string;
+  severity?: 'info' | 'warn';
+  params: unknown;
 }
 
 export interface AccessableUser {
@@ -40,6 +52,7 @@ export interface ExamConfig {
   description: string;
   judgerSettings: JudgerSettings;
   accessableUsers: AccessableUser[];
+  globalSpecialRules?: SpecialRule[];
   puzzles: Puzzle[];
 }
 
