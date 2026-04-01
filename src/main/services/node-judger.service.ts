@@ -47,7 +47,7 @@ let currentHandle: JudgeHandle | null = null;
 
 class NodeJudgerService {
   private static instance: NodeJudgerService;
-  private constructor() { }
+  private constructor() {}
 
   public static getInstance(): NodeJudgerService {
     if (!NodeJudgerService.instance) {
@@ -56,7 +56,10 @@ class NodeJudgerService {
     return NodeJudgerService.instance;
   }
 
-  public async judge(puzzleId: string, codeFilePath: string): Promise<{ public: JudgeRunResult; hidden: JudgeRunResult }> {
+  public async judge(
+    puzzleId: string,
+    codeFilePath: string
+  ): Promise<{ public: JudgeRunResult; hidden: JudgeRunResult }> {
     const config = ramStore.examConfig;
     if (!config) throw new Error('ExamConfig not loaded');
 
@@ -135,6 +138,7 @@ class NodeJudgerService {
           if (result.statusCode === 'AC') correctCount++;
 
           const isVisible = caseIdx < visibleCount;
+          console.log(isVisible, 'isVisible');
 
           return {
             statusCode: result.statusCode,
