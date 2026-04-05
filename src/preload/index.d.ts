@@ -5,7 +5,9 @@ import type {
   JudgeRunResult,
   ConnectionStatus,
   ServerMessage,
-  SocketConnectionStatus
+  SocketConnectionStatus,
+  SpecialRuleResultRecord,
+  SpecialRule
 } from '../common/types';
 
 interface ConfigAPI {
@@ -24,10 +26,13 @@ interface AuthAPI {
 interface StoreAPI {
   getConnectionStatus: () => Promise<ConnectionStatus>;
   getTestResults: () => Promise<Record<string, JudgeRunResult>>;
+  getSpecialRuleResults: () => Promise<Record<string, SpecialRuleResultRecord[]>>;
+  getEffectiveSpecialRules: () => Promise<Record<string, SpecialRule[]>>;
   getPuzzleInfo: () => Promise<PuzzleInfo[]>;
   getExamInfo: () => Promise<{ testTitle: string; description: string } | null>;
   onConnectionStatusChanged: (callback: (status: string) => void) => void;
   onTestResultsUpdated: (callback: (results: Record<string, JudgeRunResult>) => void) => void;
+  onSpecialRuleResultsUpdated: (callback: (results: Record<string, SpecialRuleResultRecord[]>) => void) => void;
 }
 
 interface JudgerAPI {
@@ -62,4 +67,4 @@ declare global {
   }
 }
 
-export {};
+export { };

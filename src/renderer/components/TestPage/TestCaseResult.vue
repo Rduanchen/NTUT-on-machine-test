@@ -20,6 +20,62 @@
       </v-card-text>
     </v-card>
 
+    <v-card
+      v-if="hasAnyRules"
+      variant="outlined"
+      class="mb-4 rounded-lg border-opacity-50"
+    >
+      <v-card-text class="py-3">
+        <div class="d-flex align-center mb-2">
+          <v-icon class="mr-2" color="primary">mdi-shield-check-outline</v-icon>
+          <span class="text-subtitle-2 font-weight-bold">
+            Special Rules
+          </span>
+          <v-spacer />
+          <v-chip
+            size="x-small"
+            variant="tonal"
+            :color="rulesSummaryChip.color"
+            class="font-weight-bold"
+            label
+          >
+            {{ rulesSummaryChip.text }}
+          </v-chip>
+        </div>
+
+        <v-table density="compact" class="result-table">
+          <thead>
+            <tr>
+              <th class="text-left bg-surface-light" style="width: 110px">Status</th>
+              <th class="text-left bg-surface-light">Rule</th>
+              <th class="text-left bg-surface-light" style="width: 260px">Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in ruleRows" :key="row.ruleId">
+              <td>
+                <v-chip
+                  :color="row.status.color"
+                  size="x-small"
+                  variant="flat"
+                  class="font-weight-bold px-2"
+                  label
+                >
+                  {{ row.status.text }}
+                </v-chip>
+              </td>
+              <td class="text-body-2">
+                {{ row.message }}
+              </td>
+              <td class="text-caption text-medium-emphasis">
+                {{ row.reason || '-' }}
+              </td>
+            </tr>
+          </tbody>
+        </v-table>
+      </v-card-text>
+    </v-card>
+
     <template v-if="hasResult">
       <div v-for="group in groupedSubtasks" :key="group.id" class="mb-6">
         <div class="d-flex align-center mb-2">
@@ -70,7 +126,7 @@
 
                 <td>
                   <span class="text-caption font-mono text-medium-emphasis">
-                    {{ item.execution_time || '-' }}
+                    {{ item.time || '-' }}
                   </span>
                 </td>
 
@@ -94,7 +150,13 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { JudgeRunResult, JudgeStatusCode, JudgeTestCaseResult } from '../../../common/types';
+import type {
+  JudgeRunResult,
+  JudgeStatusCode,
+  JudgeTestCaseResult,
+  SpecialRule,
+  SpecialRuleResultRecord,
+} from '../../../common/types';
 
 const { t } = useI18n();
 
@@ -112,6 +174,8 @@ interface DisplaySubtask {
 // --- Props ---
 const props = defineProps<{
   result: JudgeRunResult | null | undefined;
+  effectiveSpecialRules?: SpecialRule[];
+  specialRuleResults?: SpecialRuleResultRecord[];
 }>();
 
 // --- Computed ---
@@ -137,6 +201,56 @@ const groupedSubtasks = computed<DisplaySubtask[]>(() => {
       testCasesResults
     };
   });
+});
+
+const hasAnyRules = computed(() => (props.effectiveSpecialRules?.length ?? 0) > 0);
+
+const ruleRows = computed<
+  Array<{
+    ruleId: string;
+    message: string;
+    reason?: string;
+    status: { text: string; color: string };
+  }>
+>(() => {
+  const effective = props.effectiveSpecialRules ?? [];
+  const results = props.specialRuleResults ?? [];
+  const resultMap = new Map(results.map((r) => [r.ruleId, r]));
+
+  return effective.map((rule) => {
+    const r = resultMap.get(rule.id);
+    if (!r) {
+      return {
+        ruleId: rule.id,
+        message: rule.message,
+        reason: 'Not evaluated',
+        status: { text: 'N/A', color: 'grey' },
+      };
+    }
+
+    return {
+      ruleId: rule.id,
+      message: r.message ?? rule.message,
+      reason: r.reason,
+      status: r.passed
+        ? { text: 'PASS', color: 'success' }
+        : { text: 'FAIL', color: 'error' },
+    };
+  });
+});
+
+const rulesSummaryChip = computed(() => {
+  const total = props.effectiveSpecialRules?.length ?? 0;
+  if (total === 0) return { text: 'Rules N/A', color: 'grey' };
+
+  const results = props.specialRuleResults ?? [];
+  if (results.length === 0) return { text: `Rules 0/${total}`, color: 'grey' };
+
+  const passed = results.filter((r) => r.passed).length;
+  return {
+    text: `Rules ${passed}/${total}`,
+    color: passed === total ? 'success' : 'error',
+  };
 });
 
 function getStatusConfig(status: JudgeStatusCode) {

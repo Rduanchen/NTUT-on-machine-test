@@ -37,6 +37,14 @@ export interface SpecialRule {
   params: unknown;
 }
 
+export interface SpecialRuleResultRecord {
+  ruleId: string;
+  passed: boolean;
+  message: string;
+  reason?: string;
+  checkedAt: string; // ISO
+}
+
 export interface AccessableUser {
   id: string;
   name: string;
@@ -112,6 +120,8 @@ export interface RamStoreState {
   cryptoState: CryptoState | null;
   testResults: Record<string, JudgeRunResult>;
   hiddenTestResults: Record<string, JudgeRunResult>;
+  /** Per puzzleId latest evaluation results for special rules */
+  specialRuleResults: Record<string, SpecialRuleResultRecord[]>;
   isTestResultDirty: boolean;
   connectionStatus: ConnectionStatus;
   backendUrl: string;

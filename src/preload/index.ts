@@ -26,6 +26,8 @@ const api = {
   store: {
     getConnectionStatus: () => ipcRenderer.invoke('store:get-connection-status'),
     getTestResults: () => ipcRenderer.invoke('store:get-test-results'),
+    getSpecialRuleResults: () => ipcRenderer.invoke('store:get-special-rule-results'),
+  getEffectiveSpecialRules: () => ipcRenderer.invoke('store:get-effective-special-rules'),
     getPuzzleInfo: () => ipcRenderer.invoke('store:get-puzzle-info'),
     getExamInfo: () => ipcRenderer.invoke('store:get-exam-info'),
 
@@ -41,7 +43,14 @@ const api = {
       ipcRenderer.on('store:test-results-updated', (_event, results) => {
         callback(results);
       });
-    }
+    },
+
+    /** Subscribe to special-rule results pushed from main process (after each judge/submit) */
+    onSpecialRuleResultsUpdated: (callback: (results: Record<string, unknown>) => void) => {
+      ipcRenderer.on('store:special-rule-results-updated', (_event, results) => {
+        callback(results);
+      });
+    },
   },
 
   /** Judger: run evaluations, stop, sync results */
