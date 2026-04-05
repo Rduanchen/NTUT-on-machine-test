@@ -11,7 +11,7 @@ describe('examConfigSchema - special rules compatibility', () => {
                 timeLimit: 1,
                 memoryLimit: 128
             },
-            accessableUsers: [
+            accessibleUsers: [
                 {
                     id: 'TA1',
                     name: 'TA'
@@ -45,7 +45,7 @@ describe('examConfigSchema - special rules compatibility', () => {
                 timeLimit: 1,
                 memoryLimit: 128
             },
-            accessableUsers: [
+            accessibleUsers: [
                 {
                     id: 'TA1',
                     name: 'TA'

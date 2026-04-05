@@ -59,7 +59,7 @@ export interface ExamConfig {
   testTitle: string;
   description: string;
   judgerSettings: JudgerSettings;
-  accessableUsers: AccessableUser[];
+  accessibleUsers: AccessableUser[];
   globalSpecialRules?: SpecialRule[];
   puzzles: Puzzle[];
 }

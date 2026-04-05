@@ -9,7 +9,7 @@ describe('special-rules.service', () => {
             testTitle: 't',
             description: 'd',
             judgerSettings: { timeLimit: 1, memoryLimit: 1 },
-            accessableUsers: [],
+            accessibleUsers: [],
             globalSpecialRules: [
                 {
                     id: 'g1',
