@@ -75,8 +75,10 @@ const rulesChip = computed<null | { text: string; color: string }>(() => {
     return { text: `Rules 0/${effectiveRuleCount}`, color: 'grey' };
   }
 
-  const passed = results.filter((r) => r.passed).length;
-  const allPassed = passed === effectiveRuleCount;
+  const effectiveIds = new Set((props.effectiveSpecialRules ?? []).map((r) => r.id));
+  const effectiveResults = results.filter((r) => effectiveIds.has(r.ruleId));
+  const passed = effectiveResults.filter((r) => r.passed).length;
+  const allPassed = effectiveResults.length === effectiveRuleCount && passed === effectiveRuleCount;
   return {
     text: `Rules ${passed}/${effectiveRuleCount}`,
     color: allPassed ? 'success' : 'error',

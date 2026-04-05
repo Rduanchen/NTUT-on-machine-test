@@ -11,7 +11,7 @@ declare global {
       store?: {
         getTestResults: () => Promise<Record<string, JudgeRunResult>>;
         getSpecialRuleResults: () => Promise<Record<string, SpecialRuleResultRecord[]>>;
-  getEffectiveSpecialRules: () => Promise<Record<string, SpecialRule[]>>;
+        getEffectiveSpecialRules: () => Promise<Record<string, SpecialRule[]>>;
         getPuzzleInfo: () => Promise<PuzzleInfo[]>;
         getExamInfo: () => Promise<any>;
         onTestResultsUpdated?: (callback: (results: Record<string, JudgeRunResult>) => void) => void;

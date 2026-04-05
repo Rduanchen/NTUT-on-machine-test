@@ -27,7 +27,7 @@ const api = {
     getConnectionStatus: () => ipcRenderer.invoke('store:get-connection-status'),
     getTestResults: () => ipcRenderer.invoke('store:get-test-results'),
     getSpecialRuleResults: () => ipcRenderer.invoke('store:get-special-rule-results'),
-  getEffectiveSpecialRules: () => ipcRenderer.invoke('store:get-effective-special-rules'),
+    getEffectiveSpecialRules: () => ipcRenderer.invoke('store:get-effective-special-rules'),
     getPuzzleInfo: () => ipcRenderer.invoke('store:get-puzzle-info'),
     getExamInfo: () => ipcRenderer.invoke('store:get-exam-info'),
 
