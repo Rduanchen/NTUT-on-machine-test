@@ -8,6 +8,30 @@ import { connectionService } from './connection.service';
 import { logger } from './logger.service';
 
 class JudgeManagerService {
+  private countPassedSubtasks(result: JudgeRunResult | undefined | null): number {
+    if (!result?.subtasks) return 0;
+    let passed = 0;
+    for (const subtaskCases of result.subtasks) {
+      if (!Array.isArray(subtaskCases) || subtaskCases.length === 0) continue;
+      // A subtask is considered passed only if *all* its testcases are AC.
+      if (subtaskCases.every((c: any) => c?.statusCode === 'AC')) {
+        passed += 1;
+      }
+    }
+    return passed;
+  }
+
+  private countPassedSubtasksInAllPuzzles(
+    resultsByPuzzle: Record<string, JudgeRunResult> | undefined | null,
+  ): number {
+    if (!resultsByPuzzle) return 0;
+    let total = 0;
+    for (const r of Object.values(resultsByPuzzle)) {
+      total += this.countPassedSubtasks(r);
+    }
+    return total;
+  }
+
   public async runJudge(
     puzzleId: string,
     codeFilePath: string
@@ -18,8 +42,13 @@ class JudgeManagerService {
       const { public: result, hidden: hiddenResult } = await nodeJudgerService.judge(puzzleId, codeFilePath);
 
       const previousResult = ramStore.testResults[puzzleId];
-      const isHigherOrEqual =
-        !previousResult || result.correctCount >= (previousResult.correctCount || 0);
+      const previousPassedSubtasks = this.countPassedSubtasks(previousResult);
+      const currentPassedSubtasks = this.countPassedSubtasks(result);
+
+      // Upload gating is based on *groups/subtasks*, not raw case count.
+      // Only upload code when the *current* (public) passed-subtask count is
+      // >= the *last* (public) passed-subtask count.
+      const isHigherOrEqual = currentPassedSubtasks >= previousPassedSubtasks;
 
       ramStore.setTestResult(puzzleId, result);
       ramStore.setHiddenTestResult(puzzleId, hiddenResult);
@@ -64,12 +93,29 @@ class JudgeManagerService {
   public async syncResultsInBackground(uploadCode: boolean): Promise<void> {
     try {
       const results = ramStore.hiddenTestResults;
-      const response = await uploadTestResult(results);
-      if (response.success) {
-        ramStore.markTestResultSynced();
-        connectionService.clearPendingTestResult();
-      } else {
-        connectionService.markPendingTestResult();
+
+      // Prevent lower-score overwrite on backend:
+      // only upload test results if the *current* score (passed subtasks) is >=
+      // the last synced score.
+      // NOTE: We don't persist a separate "last synced" snapshot today. The best
+      // available baseline is the last known public score stored in ramStore.testResults.
+      // This still prevents obvious regressions (e.g. after a rejudge/config update),
+      // and the backend has its own guard as the final authority.
+      const currentPassedSubtasks = this.countPassedSubtasksInAllPuzzles(
+        ramStore.hiddenTestResults,
+      );
+      const lastKnownPassedSubtasks = this.countPassedSubtasksInAllPuzzles(
+        ramStore.testResults,
+      );
+
+      if (currentPassedSubtasks >= lastKnownPassedSubtasks) {
+        const response = await uploadTestResult(results);
+        if (response.success) {
+          ramStore.markTestResultSynced();
+          connectionService.clearPendingTestResult();
+        } else {
+          connectionService.markPendingTestResult();
+        }
       }
 
       if (uploadCode && localProgramStore.hasFiles()) {
