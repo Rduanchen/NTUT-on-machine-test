@@ -54,12 +54,12 @@ describe('examConfigSchema - special rules compatibility', () => {
             globalSpecialRules: [
                 {
                     id: 'r-global-1',
-                    type: 'includes',
+                    type: 'use',
                     constraint: 'MUST_HAVE',
                     message: 'Must use print()',
                     params: {
-                        needle: 'print('
-                    }
+                        target: 'print('
+                    },
                 }
             ],
             puzzles: [

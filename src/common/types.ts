@@ -30,7 +30,7 @@ export type RuleConstraint = 'MUST_HAVE' | 'MUST_NOT_HAVE';
 
 export interface SpecialRule {
   id: string;
-  type: 'regex' | 'includes' | 'composite';
+  type: 'regex' | 'use' | 'composite';
   constraint: RuleConstraint;
   message: string;
   severity?: 'info' | 'warn';

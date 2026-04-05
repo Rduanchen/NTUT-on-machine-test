@@ -13,10 +13,10 @@ describe('special-rules.service', () => {
             globalSpecialRules: [
                 {
                     id: 'g1',
-                    type: 'includes',
+                    type: 'use',
                     constraint: 'MUST_HAVE',
                     message: 'must include main',
-                    params: { needle: 'main' },
+                    params: { target: 'main' },
                 },
             ],
             puzzles: [
@@ -27,10 +27,10 @@ describe('special-rules.service', () => {
                     specialRules: [
                         {
                             id: 'p1',
-                            type: 'includes',
+                            type: 'use',
                             constraint: 'MUST_NOT_HAVE',
                             message: 'must not include scanf',
-                            params: { needle: 'scanf' },
+                            params: { target: 'scanf' },
                         },
                     ],
                 },
@@ -45,17 +45,17 @@ describe('special-rules.service', () => {
         const rules = [
             {
                 id: 'r1',
-                type: 'includes' as const,
+                type: 'use' as const,
                 constraint: 'MUST_HAVE' as const,
                 message: 'must include main',
-                params: { needle: 'main' },
+                params: { target: 'main' },
             },
             {
                 id: 'r2',
-                type: 'includes' as const,
+                type: 'use' as const,
                 constraint: 'MUST_NOT_HAVE' as const,
                 message: 'must not include scanf',
-                params: { needle: 'scanf' },
+                params: { target: 'scanf' },
             },
         ];
 
