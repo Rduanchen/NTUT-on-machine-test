@@ -92,11 +92,20 @@ const puzzlePassRates = computed<Record<string, StatusInfo>>(() => {
   for (const puzzle of puzzleInfo.value) {
     const id = String(puzzle.id);
     const result = testResult.value[id];
-    if (!result || typeof result.correctCount !== 'number' || !result.totalCases) {
+  // Pass rate is calculated by *subtask* (group), not raw testcase count.
+  // A subtask is considered passed only if *all* its testcases are AC.
+  if (!result || !Array.isArray(result.subtasks) || result.subtasks.length === 0) {
       rates[id] = { text: 'N/A', color: 'grey-lighten-1' };
       continue;
     }
-    const rate = Math.round((result.correctCount / result.totalCases) * 100);
+
+  const totalSubtasks = result.subtasks.length;
+  const passedSubtasks = result.subtasks.reduce((acc: number, subtaskCases: any) => {
+    if (!Array.isArray(subtaskCases) || subtaskCases.length === 0) return acc;
+    return subtaskCases.every((c: any) => c?.statusCode === 'AC') ? acc + 1 : acc;
+  }, 0);
+
+  const rate = Math.round((passedSubtasks / totalSubtasks) * 100);
     let color = 'error';
     if (rate === 100) color = 'success';
     else if (rate > 0) color = 'warning';
