@@ -7,7 +7,7 @@
       </v-chip>
     </div>
 
-    <div class="d-flex align-center gap-2">
+    <div class="d-flex align-center ga-3">
       <v-btn
         color="error"
         variant="tonal"
@@ -28,7 +28,7 @@
         {{ t('examSystem.puzzles.exportZip') }}
       </v-btn>
 
-      <v-dialog max-width="400">
+      <v-dialog max-width="700">
         <template #activator="{ props }">
           <v-btn
             v-bind="props"
@@ -42,7 +42,7 @@
         </template>
 
         <template #default="{ isActive }">
-          <v-card>
+          <v-card class="pa-4" elevation="2" rounded="lg">
             <v-card-title class="font-weight-bold">
               {{ t('examSystem.puzzles.finisheTheExam.label') }}
             </v-card-title>

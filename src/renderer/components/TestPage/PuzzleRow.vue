@@ -17,7 +17,7 @@
     </td>
     <td>
       <div class="d-flex align-center ga-2">
-        <ResultTrigger :rate="passRate" :result="result" />
+        <ResultTrigger @click="$emit('open-result')" :rate="passRate" :result="result" />
 
         <v-chip
           v-if="rulesChip"
