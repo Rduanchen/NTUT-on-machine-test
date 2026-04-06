@@ -24,6 +24,18 @@ const puzzleSchema = z.object({
     timeLimit: z.number().optional(),   // 只有某些題目有，故設為 optional
     memoryLimit: z.number().optional(), // 同上
     subtasks: z.array(subtaskSchema),
+    specialRules: z
+        .array(
+            z.object({
+                id: z.string(),
+                type: z.enum(["regex", "use", "composite"]),
+                constraint: z.enum(["MUST_HAVE", "MUST_NOT_HAVE"]),
+                message: z.string(),
+                severity: z.enum(["info", "warn"]).optional(),
+                params: z.unknown(),
+            }),
+        )
+        .optional(),
 });
 
 // 可以存取考試的使用者
@@ -40,7 +52,19 @@ export const examConfigSchema = z.object({
         timeLimit: z.number(),
         memoryLimit: z.number(),
     }),
-    accessableUsers: z.array(accessUserSchema),
+    accessibleUsers: z.array(accessUserSchema),
+    globalSpecialRules: z
+        .array(
+            z.object({
+                id: z.string(),
+                type: z.enum(["regex", "use", "composite"]),
+                constraint: z.enum(["MUST_HAVE", "MUST_NOT_HAVE"]),
+                message: z.string(),
+                severity: z.enum(["info", "warn"]).optional(),
+                params: z.unknown(),
+            }),
+        )
+        .optional(),
     puzzles: z.array(puzzleSchema),
 });
 

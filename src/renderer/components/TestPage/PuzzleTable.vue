@@ -19,6 +19,8 @@
           :status="puzzleStatuses[String(item.id)]"
           :pass-rate="puzzlePassRates[String(item.id)]"
           :result="testResult[String(item.id)]"
+          :effective-special-rules="effectiveSpecialRules?.[String(item.id)]"
+          :special-rule-results="specialRuleResults?.[String(item.id)]"
           :loading="onSent[String(item.id)]"
           @open-result="$emit('open-result', item)"
           @upload="$emit('upload', item)"
@@ -31,7 +33,8 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import PuzzleRow from './PuzzleRow.vue';
-import type { Puzzle, StatusInfo } from '../constants/puzzle';
+import type { Puzzle, StatusInfo } from '../../constants/puzzle';
+import type { SpecialRule, SpecialRuleResultRecord } from '../../../common/types';
 
 defineProps<{
   puzzles: Puzzle[];
@@ -39,6 +42,8 @@ defineProps<{
   puzzlePassRates: Record<string, StatusInfo>;
   testResult: Record<string, any>;
   onSent: Record<string, boolean>;
+  effectiveSpecialRules?: Record<string, SpecialRule[]>;
+  specialRuleResults?: Record<string, SpecialRuleResultRecord[]>;
 }>();
 defineEmits(['open-result', 'upload']);
 const { t } = useI18n();
