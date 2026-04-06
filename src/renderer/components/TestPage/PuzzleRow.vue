@@ -16,7 +16,20 @@
       </v-chip>
     </td>
     <td>
-      <ResultTrigger :rate="passRate" :result="result" />
+      <div class="d-flex align-center ga-2">
+        <ResultTrigger :rate="passRate" :result="result" />
+
+        <v-chip
+          v-if="rulesChip"
+          size="x-small"
+          variant="tonal"
+          :color="rulesChip.color"
+          class="font-weight-bold"
+          label
+        >
+          {{ rulesChip.text }}
+        </v-chip>
+      </div>
     </td>
     <td>
       <v-btn
@@ -34,18 +47,43 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import { computed } from 'vue';
 import ResultTrigger from './ResultTrigger.vue';
 import type { Puzzle, StatusInfo } from '../../constants/puzzle';
+import type { SpecialRuleResultRecord, SpecialRule } from '../../../common/types';
 
-defineProps<{
+const props = defineProps<{
   item: Puzzle;
   status?: StatusInfo;
   passRate?: StatusInfo;
   result?: any;
   loading?: boolean;
+  effectiveSpecialRules?: SpecialRule[];
+  specialRuleResults?: SpecialRuleResultRecord[];
 }>();
 defineEmits(['open-result', 'upload']);
 const { t } = useI18n();
+
+const rulesChip = computed<null | { text: string; color: string }>(() => {
+  const effectiveRuleCount = props.effectiveSpecialRules?.length ?? 0;
+  if (effectiveRuleCount === 0) {
+    return { text: 'Rules N/A', color: 'grey' };
+  }
+
+  const results = props.specialRuleResults;
+  if (!results || results.length === 0) {
+    return { text: `Rules 0/${effectiveRuleCount}`, color: 'grey' };
+  }
+
+  const effectiveIds = new Set((props.effectiveSpecialRules ?? []).map((r) => r.id));
+  const effectiveResults = results.filter((r) => effectiveIds.has(r.ruleId));
+  const passed = effectiveResults.filter((r) => r.passed).length;
+  const allPassed = effectiveResults.length === effectiveRuleCount && passed === effectiveRuleCount;
+  return {
+    text: `Rules ${passed}/${effectiveRuleCount}`,
+    color: allPassed ? 'success' : 'error',
+  };
+});
 </script>
 
 <style scoped>

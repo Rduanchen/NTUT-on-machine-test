@@ -23,6 +23,26 @@ export interface Puzzle {
   timeLimit?: number;
   memoryLimit?: number;
   subtasks: Subtask[];
+  specialRules?: SpecialRule[];
+}
+
+export type RuleConstraint = 'MUST_HAVE' | 'MUST_NOT_HAVE';
+
+export interface SpecialRule {
+  id: string;
+  type: 'regex' | 'use' | 'composite';
+  constraint: RuleConstraint;
+  message: string;
+  severity?: 'info' | 'warn';
+  params: unknown;
+}
+
+export interface SpecialRuleResultRecord {
+  ruleId: string;
+  passed: boolean;
+  message: string;
+  reason?: string;
+  checkedAt: string; // ISO
 }
 
 export interface AccessableUser {
@@ -39,7 +59,8 @@ export interface ExamConfig {
   testTitle: string;
   description: string;
   judgerSettings: JudgerSettings;
-  accessableUsers: AccessableUser[];
+  accessibleUsers: AccessableUser[];
+  globalSpecialRules?: SpecialRule[];
   puzzles: Puzzle[];
 }
 
@@ -99,6 +120,8 @@ export interface RamStoreState {
   cryptoState: CryptoState | null;
   testResults: Record<string, JudgeRunResult>;
   hiddenTestResults: Record<string, JudgeRunResult>;
+  /** Per puzzleId latest evaluation results for special rules */
+  specialRuleResults: Record<string, SpecialRuleResultRecord[]>;
   isTestResultDirty: boolean;
   connectionStatus: ConnectionStatus;
   backendUrl: string;

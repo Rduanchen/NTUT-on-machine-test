@@ -6,7 +6,8 @@ import type {
   JudgeRunResult,
   RamStoreState,
   ServerMessage,
-  SocketConnectionStatus
+  SocketConnectionStatus,
+  SpecialRuleResultRecord
 } from '../../common/types';
 import os from 'os';
 
@@ -28,6 +29,7 @@ class RamStoreService {
     cryptoState: null,
     testResults: {},
     hiddenTestResults: {},
+    specialRuleResults: {},
     isTestResultDirty: false,
     connectionStatus: 'disconnected',
     backendUrl: '',
@@ -75,6 +77,7 @@ class RamStoreService {
       cryptoState: null,
       testResults: {},
       hiddenTestResults: {},
+      specialRuleResults: {},
       isTestResultDirty: false,
       connectionStatus: 'disconnected',
       backendUrl: '',
@@ -199,6 +202,20 @@ class RamStoreService {
 
   public setHiddenTestResult(puzzleId: string, result: JudgeRunResult): void {
     this.state.hiddenTestResults[puzzleId] = result;
+  }
+
+  // ─── Special Rule Results ─────────────────────────────────────
+
+  get specialRuleResults(): Record<string, SpecialRuleResultRecord[]> {
+    return this.state.specialRuleResults;
+  }
+
+  public setSpecialRuleResults(
+    puzzleId: string,
+    results: SpecialRuleResultRecord[],
+  ): void {
+    this.state.specialRuleResults[puzzleId] = results;
+    this.emit('specialRuleResults', this.state.specialRuleResults);
   }
 
   get isTestResultDirty(): boolean {

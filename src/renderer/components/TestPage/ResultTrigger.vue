@@ -20,8 +20,17 @@ const props = defineProps<{ rate?: StatusInfo; result?: any }>();
 defineEmits(['open']);
 
 const numericRate = computed(() => {
-  if (!props.result || !props.result.totalCases) return 0;
-  return Math.round((props.result.correctCount / props.result.totalCases) * 100);
+  // Pass rate is subtask-based: a subtask passes only if all its cases are AC.
+  const subtasks = props.result?.subtasks;
+  if (!Array.isArray(subtasks) || subtasks.length === 0) return 0;
+
+  const totalSubtasks = subtasks.length;
+  const passedSubtasks = subtasks.reduce((acc: number, subtaskCases: any) => {
+    if (!Array.isArray(subtaskCases) || subtaskCases.length === 0) return acc;
+    return subtaskCases.every((c: any) => c?.statusCode === 'AC') ? acc + 1 : acc;
+  }, 0);
+
+  return Math.round((passedSubtasks / totalSubtasks) * 100);
 });
 </script>
 
