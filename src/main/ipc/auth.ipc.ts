@@ -67,7 +67,7 @@ export function registerAuthIpc(): void {
       }
     }
 
-    // Offline verification: check against accessableUsers in config
+    // Offline verification: check against accessibleUsers in config
     const config = ramStore.examConfig;
     if (!config) {
       return {
@@ -79,7 +79,7 @@ export function registerAuthIpc(): void {
       };
     }
 
-    const user = config.accessableUsers.find((u) => u.id === studentID);
+    const user = config.accessibleUsers.find((u) => u.id === studentID);
     if (!user) {
       return {
         success: false,

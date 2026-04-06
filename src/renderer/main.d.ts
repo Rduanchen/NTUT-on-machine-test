@@ -1,12 +1,23 @@
-import type { JudgeRunResult, PuzzleInfo } from '../common/types';
+import type {
+  JudgeRunResult,
+  PuzzleInfo,
+  SpecialRuleResultRecord,
+  SpecialRule,
+} from '../common/types';
 
 declare global {
   interface Window {
     api?: {
       store?: {
         getTestResults: () => Promise<Record<string, JudgeRunResult>>;
+        getSpecialRuleResults: () => Promise<Record<string, SpecialRuleResultRecord[]>>;
+        getEffectiveSpecialRules: () => Promise<Record<string, SpecialRule[]>>;
         getPuzzleInfo: () => Promise<PuzzleInfo[]>;
         getExamInfo: () => Promise<any>;
+        onTestResultsUpdated?: (callback: (results: Record<string, JudgeRunResult>) => void) => void;
+        onSpecialRuleResultsUpdated?: (
+          callback: (results: Record<string, SpecialRuleResultRecord[]>) => void,
+        ) => void;
       };
       judger?: {
         forceStop: () => void;
@@ -23,4 +34,4 @@ declare global {
   }
 }
 
-export {};
+export { };

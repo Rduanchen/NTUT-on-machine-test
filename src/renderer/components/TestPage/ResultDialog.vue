@@ -8,7 +8,12 @@
       </v-card-title>
       <v-card-text class="pa-0 bg-background overflow-hidden d-flex flex-column">
         <div class="pa-4 overflow-y-auto custom-scrollbar">
-          <ResultTableCard v-if="resultForItem" :result="resultForItem" />
+          <ResultTableCard
+            v-if="resultForItem"
+            :result="resultForItem"
+            :effective-special-rules="effectiveSpecialRulesForItem"
+            :special-rule-results="specialRuleResultsForItem"
+          />
           <div v-else class="text-center py-8 text-medium-emphasis">
             <v-icon size="48" class="mb-2 opacity-50">mdi-clipboard-text-outline</v-icon>
             <div>{{ t('examSystem.judge.noResult') }}</div>
@@ -25,16 +30,25 @@ import { useI18n } from 'vue-i18n';
 import ResultTableCard from './TestCaseResult.vue';
 
 import type { Puzzle } from '../../constants/puzzle';
+import type { SpecialRule, SpecialRuleResultRecord } from '../../../common/types';
 
 const props = defineProps<{
   modelValue: boolean;
   item: Puzzle | null;
   testResult: Record<string, any>;
+  effectiveSpecialRules?: Record<string, SpecialRule[]>;
+  specialRuleResults?: Record<string, SpecialRuleResultRecord[]>;
 }>();
 const emit = defineEmits(['update:modelValue']);
 
 const { t } = useI18n();
 const resultForItem = computed(() => (props.item ? props.testResult[String(props.item.id)] : null));
+const effectiveSpecialRulesForItem = computed(() =>
+  props.item ? props.effectiveSpecialRules?.[String(props.item.id)] ?? [] : [],
+);
+const specialRuleResultsForItem = computed(() =>
+  props.item ? props.specialRuleResults?.[String(props.item.id)] ?? [] : [],
+);
 const dialogModel = computed({
   get: () => props.modelValue,
   set: (value: boolean) => emit('update:modelValue', value)

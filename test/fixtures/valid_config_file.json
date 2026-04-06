@@ -5,7 +5,7 @@
     "timeLimit": 10000,
     "memoryLimit": 10240
   },
-  "accessableUsers": [
+  "accessibleUsers": [
     { "id": "0", "name": "TA" },
     { "id": "114590001", "name": "王小明" },
     { "id": "114590034", "name": "李小華" },
@@ -13,55 +13,47 @@
   ],
   "puzzles": [
     {
-        "title": "Sum Two Numbers",
-        "language": "Python",
-        "subtasks": [
-            {
-                "title": "Group1",
-                "visible": [ 
-                    { "input": "2\n3\n", "output": "5" }
-                ],
-                "hidden": [ 
-                    { "input": "1\n2\n", "output": "3" }
-                ]
-            },
-            {
-                "title": "Group2",
-                "visible": [ 
-                    { "input": "10\n20\n", "output": "30" } 
-                ],
-                "hidden": [ 
-                    { "input": "100\n200\n", "output": "300" } 
-                ]
-            }
-        ]
+      "title": "Sum Two Numbers",
+      "language": "Python",
+      "subtasks": [
+        {
+          "title": "Group1",
+          "visible": [{ "input": "2\n3\n", "output": "5" }],
+          "hidden": [{ "input": "1\n2\n", "output": "3" }]
+        },
+        {
+          "title": "Group2",
+          "visible": [{ "input": "10\n20\n", "output": "30" }],
+          "hidden": [{ "input": "100\n200\n", "output": "300" }]
+        }
+      ]
     },
     {
       "title": "Multiply Two Numbers",
       "language": "C",
       "subtasks": [
-          {
-              "title": "Group1",
-              "visible": [ 
-                  { "input": "2\n3\n", "output": "6" },
-                  { "input": "1\n4\n", "output": "4" }
-              ],
-              "hidden": [ 
-                  { "input": "4\n5\n", "output": "20" },
-                  { "input": "6\n7\n", "output": "42" }
-              ]
-          },
-          {
-              "title": "Group2",
-              "visible": [ 
-                  { "input": "10\n20\n", "output": "200" },
-                  { "input": "3\n5\n", "output": "15" }
-              ],
-              "hidden": [ 
-                  { "input": "7\n8\n", "output": "56" },
-                  { "input": "9\n9\n", "output": "81"}
-              ]
-          }
+        {
+          "title": "Group1",
+          "visible": [
+            { "input": "2\n3\n", "output": "6" },
+            { "input": "1\n4\n", "output": "4" }
+          ],
+          "hidden": [
+            { "input": "4\n5\n", "output": "20" },
+            { "input": "6\n7\n", "output": "42" }
+          ]
+        },
+        {
+          "title": "Group2",
+          "visible": [
+            { "input": "10\n20\n", "output": "200" },
+            { "input": "3\n5\n", "output": "15" }
+          ],
+          "hidden": [
+            { "input": "7\n8\n", "output": "56" },
+            { "input": "9\n9\n", "output": "81" }
+          ]
+        }
       ]
     },
     {
@@ -71,22 +63,14 @@
       "memoryLimit": 2048,
       "subtasks": [
         {
-            "title": "Group1",
-            "visible": [ 
-                { "input": "3\n1 2 3\n", "output": "3" }
-            ],
-            "hidden": [ 
-                { "input": "5\n5 4 3 2 1\n", "output": "5" }
-            ]
+          "title": "Group1",
+          "visible": [{ "input": "3\n1 2 3\n", "output": "3" }],
+          "hidden": [{ "input": "5\n5 4 3 2 1\n", "output": "5" }]
         },
         {
           "title": "Group2",
-          "visible": [ 
-              { "input": "4\n10 20 30 40\n", "output": "40" }
-          ],
-          "hidden": [ 
-              { "input": "6\n-1 -2 -3 -4 -5 -6\n", "output": "-1" }
-          ]
+          "visible": [{ "input": "4\n10 20 30 40\n", "output": "40" }],
+          "hidden": [{ "input": "6\n-1 -2 -3 -4 -5 -6\n", "output": "-1" }]
         }
       ]
     }

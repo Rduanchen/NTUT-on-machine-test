@@ -2,6 +2,10 @@ import fs from 'fs';
 import { ramStore } from './ramStore.service';
 import { localProgramStore } from './localProgram.service';
 import {
+  evaluateSpecialRules,
+  getEffectiveSpecialRules,
+} from './special-rules.service';
+import {
   Judge,
   type JudgeHandle,
   type JudgeResult,
@@ -70,6 +74,31 @@ class NodeJudgerService {
     const storedPath = localProgramStore.addFile(String(puzzleIndex), extension, codeFilePath);
     const codeString = fs.readFileSync(storedPath, 'utf-8');
 
+    // Evaluate special rules immediately (student should see PASS/FAIL right after submit)
+    try {
+      const effectiveRules = getEffectiveSpecialRules({
+        examConfig: config,
+        puzzleIndex,
+      });
+      const specialRuleResults = evaluateSpecialRules({
+        rules: effectiveRules,
+        language: puzzle.language,
+        sourceText: codeString,
+      });
+      ramStore.setSpecialRuleResults(String(puzzleIndex), specialRuleResults);
+    } catch (e: any) {
+      // Defensive: don't break judging even if rule evaluation fails.
+      ramStore.setSpecialRuleResults(String(puzzleIndex), [
+        {
+          ruleId: '__engine_error__',
+          passed: false,
+          message: 'Special rule evaluation failed',
+          reason: e?.message ?? String(e),
+          checkedAt: new Date().toISOString(),
+        },
+      ]);
+    }
+
     const judgerSettings = config.judgerSettings;
     const timeLimit = puzzle.timeLimit || judgerSettings.timeLimit;
     const memoryLimit = puzzle.memoryLimit || judgerSettings.memoryLimit;
@@ -128,13 +157,11 @@ class NodeJudgerService {
     const processedSubtasks: JudgeTestCaseResult[][] = rawResult.subtasks.map(
       (subtaskResults, subtaskIdx) => {
         const subtaskDef = puzzle.subtasks[subtaskIdx];
-        const visibleCount = subtaskDef?.visible?.length || 0;
+        void subtaskDef;
 
-        return subtaskResults.map((result, caseIdx) => {
+        return subtaskResults.map((result) => {
           totalCases++;
           if (result.statusCode === 'AC') correctCount++;
-
-          const isVisible = caseIdx < visibleCount;
 
           return {
             statusCode: result.statusCode,
