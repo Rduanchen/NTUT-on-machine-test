@@ -168,7 +168,7 @@
         </v-btn>
       </v-card>
     </v-dialog>
-        <NotificationCenter v-model="showNotifications" />
+    <NotificationCenter v-model="showNotifications" />
 
     <!-- Bottom-right toast snackbar for incoming notifications -->
     <v-snackbar
@@ -237,8 +237,6 @@ const toggleTheme = () => {
 };
 
 // server status
-const pollTimer = ref(null);
-
 const updateServerAvailability = async () => {
   if (!window.api?.store) return;
   const status = await window.api.store.getConnectionStatus();
@@ -252,8 +250,6 @@ onMounted(async () => {
     window.api.store.onConnectionStatusChanged(async (status) => {
       serverStatus.value = status === 'connected' ? 'connected' : 'disconnected';
     });
-
-    pollTimer.value = setInterval(updateServerAvailability, 5000);
   }
 
   // Listen for new notifications and show a toast snackbar
@@ -272,10 +268,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
-  if (pollTimer.value) {
-    clearInterval(pollTimer.value);
-    pollTimer.value = null;
-  }
+  // cleanup if needed
 });
 
 watch(

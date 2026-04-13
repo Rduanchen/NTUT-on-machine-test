@@ -6,34 +6,26 @@ import {
   requeueLogs,
   setLogSendFunction
 } from './logger.service';
-import {
-  healthCheck,
-  logAction,
-  uploadTestResult,
-  uploadProgramFile,
-  fetchExamConfig
-} from './api.service';
-import type { LogActionPayload } from '../../common/types';
+import { logAction, uploadTestResult, uploadProgramFile, fetchExamConfig } from './api.service';
+import type { LogActionPayload, SocketConnectionStatus } from '../../common/types';
 import { getMainWindow } from '../system/windowManager';
 
 /**
  * Connection Service - Network monitoring + request queue management
  *
  * Responsibilities:
- * 1. Periodically check connection status (every 15s)
+ * 1. Derive connection status from socket connection state
  * 2. Queue all logger requests during offline → flush on reconnect
  * 3. Track pending non-logger requests → retry all on reconnect
  * 4. Always attempt to send regardless of connection status
  * 5. Maintain isConnected state in RAM store
  */
 
-const RECHECK_INTERVAL_MS = 15000;
-
 class ConnectionService {
   private static instance: ConnectionService;
 
-  /** Interval timer for health checks */
-  private healthCheckTimer: NodeJS.Timeout | null = null;
+  /** Listener reference for cleanup */
+  private socketStatusListener: ((status: SocketConnectionStatus) => void) | null = null;
 
   /** Whether currently syncing queued actions */
   private isSyncing = false;
@@ -61,50 +53,42 @@ class ConnectionService {
       await logAction(payload);
     });
 
-    // Start periodic health check
-    this.startHealthCheck();
-
-    // Do an immediate check
-    this.checkConnection();
+    // Subscribe to socket status changes to derive connection status
+    if (!this.socketStatusListener) {
+      this.socketStatusListener = (status: SocketConnectionStatus) => {
+        this.onSocketStatusChanged(status);
+      };
+      ramStore.on('socketStatus', this.socketStatusListener);
+    }
   }
 
   /** Stop connection monitoring. Call on app quit. */
   public stop(): void {
-    if (this.healthCheckTimer) {
-      clearInterval(this.healthCheckTimer);
-      this.healthCheckTimer = null;
+    if (this.socketStatusListener) {
+      ramStore.off('socketStatus', this.socketStatusListener);
+      this.socketStatusListener = null;
     }
   }
 
-  // ─── Health Check ─────────────────────────────────────────────
+  // ─── Socket Status → Connection Status ────────────────────────
 
-  private startHealthCheck(): void {
-    if (this.healthCheckTimer) return;
-    this.healthCheckTimer = setInterval(() => {
-      this.checkConnection();
-    }, RECHECK_INTERVAL_MS);
-  }
-
-  public async checkConnection(): Promise<void> {
-    if (!ramStore.backendUrl) return;
-
+  private onSocketStatusChanged(socketStatus: SocketConnectionStatus): void {
     const wasConnected = ramStore.isConnected;
-    const isAlive = await healthCheck();
+    const isNowConnected = socketStatus === 'connected';
 
-    if (isAlive) {
+    if (isNowConnected) {
       ramStore.connectionStatus = 'connected';
       if (!wasConnected) {
-        logger.info('[Connection] Server connection restored');
-        await this.onConnectionRestored();
+        logger.info('[Connection] Server connection restored (socket connected)');
+        this.onConnectionRestored();
       }
     } else {
       ramStore.connectionStatus = 'disconnected';
       if (wasConnected) {
-        logger.warn('[Connection] Server connection lost');
+        logger.warn(`[Connection] Server connection lost (socket: ${socketStatus})`);
       }
     }
 
-    // Notify renderer of status change
     this.notifyRenderer();
   }
 
