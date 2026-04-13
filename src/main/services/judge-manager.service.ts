@@ -22,7 +22,7 @@ class JudgeManagerService {
   }
 
   private countPassedSubtasksInAllPuzzles(
-    resultsByPuzzle: Record<string, JudgeRunResult> | undefined | null,
+    resultsByPuzzle: Record<string, JudgeRunResult> | undefined | null
   ): number {
     if (!resultsByPuzzle) return 0;
     let total = 0;
@@ -36,10 +36,11 @@ class JudgeManagerService {
     puzzleId: string,
     codeFilePath: string
   ): Promise<IpcResponse<JudgeRunResult>> {
-    logger.info(`[Judger] Judge request: puzzle=${puzzleId}, file=${codeFilePath}`);
-
     try {
-      const { public: result, hidden: hiddenResult } = await nodeJudgerService.judge(puzzleId, codeFilePath);
+      const { public: result, hidden: hiddenResult } = await nodeJudgerService.judge(
+        puzzleId,
+        codeFilePath
+      );
 
       const previousResult = ramStore.testResults[puzzleId];
       const previousPassedSubtasks = this.countPassedSubtasks(previousResult);
@@ -79,7 +80,10 @@ class JudgeManagerService {
 
     for (const { puzzleId, filePath } of entries) {
       try {
-        const { public: result, hidden: hiddenResult } = await nodeJudgerService.judge(puzzleId, filePath);
+        const { public: result, hidden: hiddenResult } = await nodeJudgerService.judge(
+          puzzleId,
+          filePath
+        );
         ramStore.setTestResult(puzzleId, result);
         ramStore.setHiddenTestResult(puzzleId, hiddenResult);
       } catch (error) {
@@ -102,11 +106,9 @@ class JudgeManagerService {
       // This still prevents obvious regressions (e.g. after a rejudge/config update),
       // and the backend has its own guard as the final authority.
       const currentPassedSubtasks = this.countPassedSubtasksInAllPuzzles(
-        ramStore.hiddenTestResults,
+        ramStore.hiddenTestResults
       );
-      const lastKnownPassedSubtasks = this.countPassedSubtasksInAllPuzzles(
-        ramStore.testResults,
-      );
+      const lastKnownPassedSubtasks = this.countPassedSubtasksInAllPuzzles(ramStore.testResults);
 
       if (currentPassedSubtasks >= lastKnownPassedSubtasks) {
         const response = await uploadTestResult(results);
