@@ -46,10 +46,19 @@ function getMacAddresses() {
 }
 
 function createPublicClient(): AxiosInstance {
-  return axios.create({
+  const client = axios.create({
     timeout: API_TIMEOUT,
     headers: { 'Content-Type': 'application/json' }
   });
+
+  client.interceptors.request.use((config) => {
+    if (config.data && typeof config.data === 'object' && !Buffer.isBuffer(config.data)) {
+      config.data.macAddress = getMacAddresses();
+    }
+    return config;
+  });
+
+  return client;
 }
 
 function createAuthenticatedClient(): AxiosInstance {
@@ -66,6 +75,11 @@ function createAuthenticatedClient(): AxiosInstance {
     } catch (err) {
       logger.warn('[API] Failed to create token for authenticated request:', err);
     }
+
+    if (config.data && typeof config.data === 'object' && !Buffer.isBuffer(config.data)) {
+      config.data.macAddress = getMacAddresses();
+    }
+
     return config;
   });
 
@@ -245,7 +259,6 @@ export async function logAction(payload: LogActionPayload): Promise<IpcResponse<
     // Fill in studentID from store
     const studentInfo = ramStore.studentInfo;
     payload.studentID = studentInfo.id || 'unknown';
-    payload.macAddress = getMacAddresses();
 
     const response = await publicClient.post(`${getBaseUrl()}/log/action`, payload);
     return { success: true, data: response.data };
