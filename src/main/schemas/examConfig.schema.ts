@@ -23,7 +23,7 @@ const puzzleSchema = z.object({
     .array(
       z.object({
         id: z.string(),
-        type: z.enum(["regex", "use", "composite"]),
+        type: z.enum(["regex", "use", "composite", "nestedLoop"]),
         constraint: z.enum(["MUST_HAVE", "MUST_NOT_HAVE"]),
         message: z.string(),
         severity: z.enum(["info", "warn"]).optional(),
@@ -52,7 +52,7 @@ export const examConfigSchema = z.object({
     .array(
       z.object({
         id: z.string(),
-        type: z.enum(["regex", "use", "composite"]),
+        type: z.enum(["regex", "use", "composite", "nestedLoop"]),
         constraint: z.enum(["MUST_HAVE", "MUST_NOT_HAVE"]),
         message: z.string(),
         severity: z.enum(["info", "warn"]).optional(),
