@@ -2,13 +2,13 @@ import { io, Socket } from 'socket.io-client';
 import { getMainWindow } from '../system/windowManager';
 import { ramStore } from './ramStore.service';
 import {
-  getConfigVersion,
-  getMessageVersion,
   getMessages,
-  fetchSecureExamConfig
+  getExamStatus,
+  fetchSecureExamConfig,
+  getMacAddresses
 } from './api.service';
 import { logger } from './logger.service';
-import type { ServerMessage } from '../../common/types';
+import type { ServerMessage, ExamState } from '../../common/types';
 import { examConfigSchema } from '../schemas/examConfig.schema';
 import { judgeManager } from './judge-manager.service';
 
@@ -29,6 +29,14 @@ class MessageSyncService {
       MessageSyncService.instance = new MessageSyncService();
     }
     return MessageSyncService.instance;
+  }
+
+  public registerSocket(): void {
+    if (this.socket && this.socket.connected) {
+      const deviceUuid = getMacAddresses();
+      logger.info(`[MessageSync] Registering socket for device: ${deviceUuid}`);
+      this.socket.emit('register', { device_uuid: deviceUuid });
+    }
   }
 
   public start(host?: string): void {
@@ -75,7 +83,8 @@ class MessageSyncService {
       ramStore.socketStatus = 'connecting';
       this.notifySocketStatus();
 
-      this.socket = io(host, {
+      const namespaceUrl = `${host.replace(/\/+$/, '')}/user`;
+      this.socket = io(namespaceUrl, {
         transports: ['websocket'],
         path: '/socket.io',
         reconnection: true,
@@ -88,6 +97,7 @@ class MessageSyncService {
         ramStore.socketStatus = 'connected';
         this.notifySocketStatus();
         this.socket?.emit('subscribe', 'exam-message');
+        this.registerSocket();
       });
 
       this.socket.io.on('reconnect_attempt', () => {
@@ -147,7 +157,8 @@ class MessageSyncService {
       id: data.id,
       type: data.type,
       message: data.message ?? '',
-      createdAt: data.createdAt ?? new Date().toISOString()
+      createdAt: data.createdAt ?? new Date().toISOString(),
+      namespace: data.namespace
     };
   }
 
@@ -171,24 +182,21 @@ class MessageSyncService {
 
     this.isSyncing = true;
     try {
-      const [configVersionResp, messageVersionResp] = await Promise.all([
-        getConfigVersion(),
-        getMessageVersion()
-      ]);
-
-      const remoteConfigVersion = configVersionResp.success ? (configVersionResp.data ?? 0) : 0;
-      const remoteMessageVersion = messageVersionResp.success ? (messageVersionResp.data ?? 0) : 0;
-
-      if (remoteConfigVersion > ramStore.configVersion) {
-        await this.refreshConfigFromServer(remoteConfigVersion);
-      }
-
-      if (forceMessageFetch || remoteMessageVersion > ramStore.messageVersion) {
+      if (forceMessageFetch) {
         await this.fetchAllMessages();
       }
-
-      if (remoteMessageVersion > 0) {
-        ramStore.messageVersion = remoteMessageVersion;
+      
+      // Also fetch exam status to ensure we don't miss state changes if socket disconnects
+      const statusRes = await getExamStatus();
+      if (statusRes.success && statusRes.data?.status) {
+        const newStatus = statusRes.data.status as ExamState;
+        if (ramStore.examStatus !== newStatus) {
+          ramStore.examStatus = newStatus;
+          const win = getMainWindow();
+          if (win && !win.isDestroyed()) {
+            win.webContents?.send('exam:status-changed', newStatus);
+          }
+        }
       }
     } finally {
       this.isSyncing = false;
@@ -196,7 +204,8 @@ class MessageSyncService {
   }
 
   private async fetchAllMessages(): Promise<void> {
-    const response = await getMessages();
+    const afterId = ramStore.messageVersion > 0 ? String(ramStore.messageVersion) : undefined;
+    const response = await getMessages(afterId);
     if (!response.success || !response.data) return;
     const sorted = [...response.data].sort((a, b) => a.id - b.id);
     ramStore.notifications = sorted;
@@ -225,6 +234,16 @@ class MessageSyncService {
     ramStore.notifications = updated;
     ramStore.messageVersion = Math.max(ramStore.messageVersion, message.id);
     this.notifyNotificationsUpdated();
+
+    if (message.namespace === 'STATUS') {
+      const newState = message.message as ExamState;
+      ramStore.examStatus = newState;
+      const win = getMainWindow();
+      if (win && !win.isDestroyed()) {
+        win.webContents?.send('exam:status-changed', newState);
+      }
+      return;
+    }
 
     if (message.type === 'config_update') {
       this.refreshConfigFromServer()

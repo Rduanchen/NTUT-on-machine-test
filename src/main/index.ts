@@ -9,6 +9,7 @@ import { configService } from './services/config.service';
 import { connectionService } from './services/connection.service';
 import { localProgramStore } from './services/localProgram.service';
 import { ramStore } from './services/ramStore.service';
+import { messageSyncService } from './services/message-sync.service';
 
 clearLogOnStartup();
 setupLogger();
@@ -109,6 +110,7 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   logger.info('Application On Quit');
   connectionService.stop();
+  messageSyncService.stop();
   localProgramStore.deleteTempDir();
   ramStore.clear();
   if (process.platform !== 'darwin') {

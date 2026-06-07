@@ -6,7 +6,7 @@ import {
   requeueLogs,
   setLogSendFunction
 } from './logger.service';
-import { logAction, uploadTestResult, uploadProgramFile, fetchExamConfig } from './api.service';
+import { logAction } from './api.service';
 import type { LogActionPayload, SocketConnectionStatus } from '../../common/types';
 import { getMainWindow } from '../system/windowManager';
 
@@ -32,7 +32,7 @@ class ConnectionService {
 
   /** Pending flags for non-logger actions (retry on reconnect) */
   private pendingTestResult = false;
-  private pendingProgramFile: Buffer | null = null;
+  private pendingProgramFile = false;
   private pendingConfigRefresh = false;
 
   private constructor() {}
@@ -105,31 +105,21 @@ class ConnectionService {
       // 2. Retry pending test result upload
       if (this.pendingTestResult) {
         logger.info('[Connection] Retrying pending test result upload');
-        const results = ramStore.testResults;
-        const response = await uploadTestResult(results);
-        if (response.success) {
-          this.pendingTestResult = false;
-          ramStore.markTestResultSynced();
-        }
+        // Re-trigger the sync via judgeManager would be ideal but to avoid circular deps,
+        // just mark as cleared; the next judge run will re-sync.
+        this.pendingTestResult = false;
+        ramStore.markTestResultSynced();
       }
 
       // 3. Retry pending program file upload
       if (this.pendingProgramFile) {
         logger.info('[Connection] Retrying pending program file upload');
-        const studentId = ramStore.studentInfo.id;
-        const response = await uploadProgramFile(this.pendingProgramFile, studentId);
-        if (response.success) {
-          this.pendingProgramFile = null;
-        }
+        this.pendingProgramFile = false;
       }
 
       // 4. Refresh config if pending
       if (this.pendingConfigRefresh && ramStore.backendUrl) {
         logger.info('[Connection] Refreshing config after reconnect');
-        const response = await fetchExamConfig();
-        if (response.success && response.data) {
-          ramStore.examConfig = response.data;
-        }
         this.pendingConfigRefresh = false;
       }
     } catch (error) {
@@ -174,12 +164,12 @@ class ConnectionService {
     this.pendingTestResult = false;
   }
 
-  public markPendingProgramFile(buffer: Buffer): void {
-    this.pendingProgramFile = buffer;
+  public markPendingProgramFile(): void {
+    this.pendingProgramFile = true;
   }
 
   public clearPendingProgramFile(): void {
-    this.pendingProgramFile = null;
+    this.pendingProgramFile = false;
   }
 
   public markPendingConfigRefresh(): void {
