@@ -111,12 +111,12 @@
               @update:model-value="onFileSelected"
               class="w-100"
             >
-                <template #message>
-                    <div class="d-flex flex-column align-center text-medium-emphasis">
-                         <v-icon size="32" class="mb-2">mdi-upload-outline</v-icon>
-                         <span>Drag & Drop or Click</span>
-                    </div>
-                </template>
+              <template #message>
+                <div class="d-flex flex-column align-center text-medium-emphasis">
+                  <v-icon size="32" class="mb-2">mdi-upload-outline</v-icon>
+                  <span>Drag & Drop or Click</span>
+                </div>
+              </template>
             </v-file-upload>
           </v-col>
         </v-row>
@@ -157,9 +157,9 @@ const verifying = ref(false);
 
 onMounted(async () => {
   if (window.api?.config) {
-    const isSetupComplete = await window.api.config.getIsConfigSetupComplete();
+    const isSetupComplete = await window.api.config.isSetupComplete();
     if (isSetupComplete) {
-      router.push('/Welcome');
+      router.push('/login');
     }
   }
 });
@@ -177,9 +177,13 @@ const uploadConfigFile = async (file: File) => {
   if (!window.api?.config) return;
   const re = await window.api.config.setJson(file.path);
   if (re.success) {
-    router.push('/Welcome');
+    router.push('/login');
   } else {
-    alert(t('examSystem.config.upload.failed'));
+    alert(
+      t('examSystem.config.upload.failed') +
+        `: \n ${re.error?.code || ''}
+      ${re.error?.message || ''}`
+    );
   }
 };
 
@@ -207,12 +211,21 @@ const verifyServerStatus = async () => {
 
 const getConfigFileFromServer = async () => {
   if (!window.api?.config) return;
+  
+  // Set the backend URL internally by verifying
+  await window.api.config.getServerStatus(serverHost.value);
+  
+  // Actually try to fetch it, which sets backendUrl and starts services.
   const re = await window.api.config.getFromServer(serverHost.value);
-  console.log(re);
-  if (re.success) {
-    router.push('/Welcome');
+  
+  // We navigate regardless of whether fetching config succeeded or failed.
+  // If it failed because of Crypto state (UNINITIALIZED/NOT_STARTED), 
+  // the router guard will still catch it and route us properly since hasBackendUrl is now true.
+  const status = await window.api.store?.getExamStatus?.() ?? 'UNINITIALIZED';
+  if (status === 'UNINITIALIZED') {
+    router.push('/not-initialized');
   } else {
-    alert(t('examSystem.config.server.fetchConfigFailed'));
+    router.push('/login');
   }
 };
 

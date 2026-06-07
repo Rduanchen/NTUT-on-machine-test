@@ -1,0 +1,50 @@
+{
+  "testTitle": "北科大計算機程式設計期中考",
+  "description": "the test will be start at 18:00 and end at 20:00",
+  "judgerSettings": {
+    "timeLimit": 10000,
+    "memoryLimit": 10240
+  },
+  "accessibleUsers": [
+    { "id": "0", "name": "TA" },
+    { "id": "114590001", "name": "王小明" }
+  ],
+  "sections": [
+    {
+      "id": "s1",
+      "title": "Section 1",
+      "maxScore": 100,
+      "puzzles": [
+        {
+          "title": "Sum Two Numbers",
+          "language": "Python",
+          "subtasks": [
+            {
+              "title": "Group1",
+              "hidden": [{ "input": "1\n2\n", "output": "3" }]
+            },
+            {
+              "visible": [{ "input": "10\n20\n", "output": "30" }],
+              "hidden": [{ "input": "100\n200\n", "output": "300" }]
+            }
+          ]
+        },
+        {
+          "title": "Multiply Two Numbers",
+          "language": "C++",
+          "subtasks": [
+            {
+              "title": "Group1",
+              "visible": [
+                { "input": "2\n3\n", "output": "6" }
+              ],
+              "hidden": [
+                { "input": "4\n5\n", "output": "20" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

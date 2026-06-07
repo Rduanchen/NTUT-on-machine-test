@@ -2,7 +2,7 @@
   <v-app id="inspire">
     <v-system-bar
       window
-      height="32"
+      height="42"
       :color="isDark ? 'grey-darken-4' : 'grey-lighten-4'"
       class="px-4 drag-region"
     >
@@ -29,12 +29,18 @@
         </div>
 
         <div class="d-flex align-center no-drag">
-          <v-text class="mr-3">This system is developed by VerechoTJI | 阿端</v-text>
-          <v-spacer></v-spacer>
-          <v-icon size="16" class="mr-1 text-medium-emphasis">mdi-web</v-icon>
-          <span class="text-caption text-medium-emphasis">
-            {{ currentLocaleLabel }}
-          </span>
+          <v-text class="mr-3 font-weight-medium" style="font-size: 1.2em">
+            This system is developed by VerechoTJI |
+            <span
+              :class="['neon-text', isDark ? 'neon-text--dark' : 'neon-text--light']"
+              @click="handleSecretClick"
+            >
+              阿端
+              <v-tooltip activator="parent" location="bottom" open-delay="50">
+                <span class="text-caption">{{ t('examSystem.secretLabel') }}</span>
+              </v-tooltip>
+            </span>
+          </v-text>
         </div>
       </div>
     </v-system-bar>
@@ -68,7 +74,7 @@
         </v-sheet>
       </div>
 
-      <v-divider vertical inset class="mx-2 my-auto opactity-50"></v-divider>
+      <v-divider vertical inset class="mx-2 my-auto opacity-50"></v-divider>
 
       <!-- Actions -->
       <div class="d-flex align-center">
@@ -99,6 +105,13 @@
             {{ isDark ? t('examSystem.switchToLight') : t('examSystem.switchToDark') }}
           </v-tooltip>
         </v-btn>
+
+        <v-btn icon variant="text" size="small" @click="showNotifications = true">
+          <v-icon>mdi-bell-badge-outline</v-icon>
+          <v-tooltip activator="parent" location="bottom">
+            {{ t('examSystem.serverStatusLabel') }} socket feed
+          </v-tooltip>
+        </v-btn>
       </div>
     </v-app-bar>
 
@@ -112,6 +125,71 @@
         </router-view>
       </v-container>
     </v-main>
+    <v-dialog v-model="showEasterEgg" width="auto" transition="dialog-bottom-transition">
+      <v-card
+        class="pa-8 text-center rounded-xl"
+        elevation="24"
+        min-width="320"
+        style="overflow: visible"
+      >
+        <div
+          class="text-h3 font-weight-black mb-6"
+          :class="['mega-neon-text', isDark ? 'mega-neon-text--dark' : 'mega-neon-text--light']"
+        >
+          You catch me !!
+        </div>
+
+        <div class="text-h5 font-weight-bold mb-1">阿端(Justin)</div>
+
+        <div class="text-subtitle-1 text-medium-emphasis mb-6 font-weight-medium">
+          NTUT 資工一(CS1) <br />
+          <span class="text-primary">Full Stack Developer</span>
+        </div>
+
+        <div class="mb-6">
+          <v-btn
+            prepend-icon="mdi-github"
+            variant="tonal"
+            size="large"
+            :color="isDark ? 'white' : 'grey-darken-3'"
+            href="https://github.com/Rduanchen"
+            target="_blank"
+            class="text-none px-6"
+            rounded="pill"
+          >
+            github.com/Rduanchen
+          </v-btn>
+        </div>
+
+        <v-divider class="mb-4"></v-divider>
+
+        <v-btn color="primary" variant="flat" block size="large" @click="showEasterEgg = false">
+          Close
+        </v-btn>
+      </v-card>
+    </v-dialog>
+    <NotificationCenter v-model="showNotifications" />
+
+    <!-- Bottom-right toast snackbar for incoming notifications -->
+    <v-snackbar
+      v-model="snackbarVisible"
+      location="bottom end"
+      :timeout="4500"
+      :color="snackbarColor"
+      rounded="lg"
+      elevation="6"
+      max-width="360"
+    >
+      <div class="d-flex align-center" style="gap: 8px">
+        <v-icon>{{ snackbarIcon }}</v-icon>
+        <span class="text-body-2 font-weight-medium">{{ snackbarText }}</span>
+      </div>
+      <template #actions>
+        <v-btn variant="text" size="small" @click="snackbarVisible = false">
+          {{ t('examSystem.common.close') }}
+        </v-btn>
+      </template>
+    </v-snackbar>
   </v-app>
 </template>
 
@@ -120,10 +198,18 @@ import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useTheme } from 'vuetify';
+import NotificationCenter from './components/NotificationCenter.vue';
 
 const route = useRoute();
 const studentInfo = ref(null);
 const serverStatus = ref('disconnected');
+const showNotifications = ref(false);
+
+// Snackbar for new incoming notifications
+const snackbarVisible = ref(false);
+const snackbarText = ref('');
+const snackbarColor = ref('primary');
+const snackbarIcon = ref('mdi-bell-ring-outline');
 
 // i18n
 const { t, locale } = useI18n();
@@ -151,44 +237,74 @@ const toggleTheme = () => {
 };
 
 // server status
-const pollTimer = ref(null);
-
 const updateServerAvailability = async () => {
   if (!window.api?.store) return;
-  const situation = await window.api.store.getServerAvailability();
-  serverStatus.value = situation ? 'connected' : 'disconnected';
+  const status = await window.api.store.getConnectionStatus();
+  serverStatus.value = status === 'connected' ? 'connected' : 'disconnected';
 };
 
 onMounted(async () => {
   if (window.api?.store) {
-    // 即時更新一次
     await updateServerAvailability();
 
-    // 註冊由主程序通知時的更新（若有）
-    window.api.store.updateServerAvailability(async () => {
-      await updateServerAvailability();
+    window.api.store.onConnectionStatusChanged(async (status) => {
+      serverStatus.value = status === 'connected' ? 'connected' : 'disconnected';
     });
-
-    // 每 5 秒輪詢一次伺服器狀態
-    pollTimer.value = setInterval(updateServerAvailability, 3000);
   }
+
+  // Listen for new notifications and show a toast snackbar
+  window.api?.notifications?.onUpdated((items) => {
+    const list = Array.isArray(items) ? items : [];
+    if (list.length === 0) return;
+    const latest = list[list.length - 1];
+    const isConfig = latest.type === 'config_update';
+    snackbarColor.value = isConfig ? 'deep-orange-darken-1' : 'primary';
+    snackbarIcon.value = isConfig ? 'mdi-cog-sync-outline' : 'mdi-bell-ring-outline';
+    snackbarText.value = t('examSystem.notificationCenter.snackbar.newMessage', {
+      message: latest.message || t('examSystem.notificationCenter.noMessage')
+    });
+    snackbarVisible.value = true;
+  });
 });
 
 onBeforeUnmount(() => {
-  if (pollTimer.value) {
-    clearInterval(pollTimer.value);
-    pollTimer.value = null;
-  }
+  // cleanup if needed
 });
 
 watch(
   () => route.path,
   async (newPath) => {
-    if (newPath === '/TestPage' && window.api?.store) {
-      studentInfo.value = await window.api.store.readStudentInformation();
+    if ((newPath === '/exam' || newPath === '/login') && window.api?.auth) {
+      const verified = await window.api.auth.isVerified();
+      if (verified) {
+        studentInfo.value = await window.api.auth.getStudentInfo();
+      }
     }
   }
 );
+
+const showEasterEgg = ref(false);
+const clickCount = ref(0);
+const clickTimer = ref(null);
+
+// 處理秘密點擊邏輯
+const handleSecretClick = () => {
+  clickCount.value++;
+
+  // 如果已經啟動計時器，先清除它（重置時間窗口）
+  if (clickTimer.value) clearTimeout(clickTimer.value);
+
+  // 如果達到 3 次點擊
+  if (clickCount.value === 3) {
+    showEasterEgg.value = true;
+    clickCount.value = 0; // 重置計數
+  } else {
+    // 設定一個短暫的時間 (500ms)，如果沒繼續點擊就會重置計數
+    clickTimer.value = setTimeout(() => {
+      clickCount.value = 0;
+    }, 500);
+  }
+};
 </script>
 
 <style scoped>
@@ -197,6 +313,7 @@ watch(
 }
 .no-drag {
   -webkit-app-region: no-drag;
+  user-select: none;
 }
 
 .app-main {
@@ -227,5 +344,154 @@ watch(
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+/* --- 基礎設定 --- */
+.neon-text {
+  font-family: 'Arial', sans-serif;
+  font-weight: 700; /*稍微減細一點點，從 900 改 700，視覺上比較清爽 */
+  font-size: 1.2em;
+  display: inline-block;
+  transition: transform 0.2s ease;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+/* --- 深色模式 (Dark Mode) - 低調版 --- */
+.neon-text--dark {
+  color: #fff;
+  /* 只有淡淡的一層光暈，時間稍微拉長讓呼吸更優雅 */
+  animation: glow-cycle-dark 4s linear infinite;
+}
+
+/* --- 淺色模式 (Light Mode) - 極簡版 --- */
+.neon-text--light {
+  color: #444; /* 深灰字體 */
+  animation: glow-cycle-light 4s linear infinite;
+}
+
+/* --- Hover 特效: 精緻全彩 (Subtle Rainbow) --- */
+.neon-text:hover {
+  transform: scale(1.1); /* 放大倍率也縮小一點 */
+  animation: none;
+
+  /* 四色疊加，但範圍控制在 10px 以內 */
+  text-shadow:
+    0 0 2px #ff005e,
+    /* 內層粉 */ 0 0 4px #ffe600,
+    /* 中層黃 */ 0 0 6px #39ff14,
+    /* 外層綠 */ 0 0 8px #00d4ff; /* 最外層青 */
+}
+
+/* --- 4色輪播動畫 (低調版) --- */
+
+/* 深色模式：光暈僅擴散 6~8px */
+@keyframes glow-cycle-dark {
+  0%,
+  100% {
+    text-shadow:
+      0 0 2px #ff005e,
+      0 0 6px #ff005e;
+  }
+  25% {
+    text-shadow:
+      0 0 2px #ffe600,
+      0 0 6px #ffe600;
+  }
+  50% {
+    text-shadow:
+      0 0 2px #39ff14,
+      0 0 6px #39ff14;
+  }
+  75% {
+    text-shadow:
+      0 0 2px #00d4ff,
+      0 0 6px #00d4ff;
+  }
+}
+
+/* 淺色模式：光暈僅擴散 3~4px，像是在紙上暈開的水彩 */
+@keyframes glow-cycle-light {
+  0%,
+  100% {
+    text-shadow:
+      0 0 1px #ff005e,
+      0 0 3px #ff005e;
+  }
+  25% {
+    text-shadow:
+      0 0 1px #dbc60b,
+      0 0 3px #dbc60b; /* 黃色在白底太亮，稍微調深一點 */
+  }
+  50% {
+    text-shadow:
+      0 0 1px #39ff14,
+      0 0 3px #39ff14;
+  }
+  75% {
+    text-shadow:
+      0 0 1px #00d4ff,
+      0 0 3px #00d4ff;
+  }
+}
+
+/* --- Mega Neon: 呼吸放大版 --- */
+.mega-neon-text {
+  font-family: 'Arial', sans-serif;
+  display: inline-block;
+  /* 初始狀態 */
+  transform: rotate(-3deg) scale(1);
+  /* 確保動畫結束後不會跑版，雖然這邊是 infinite */
+  transform-origin: center center;
+}
+
+/* 深色模式：強烈光暈 + 呼吸放大 */
+.mega-neon-text--dark {
+  color: #fff;
+  /* ease-in-out 讓呼吸感更自然 */
+  animation: mega-pulse-dark 1.5s ease-in-out infinite alternate;
+}
+
+/* 淺色模式：深色字體 + 呼吸放大 */
+.mega-neon-text--light {
+  color: #2c3e50;
+  animation: mega-pulse-light 1.5s ease-in-out infinite alternate;
+}
+
+/* --- 動畫關鍵影格 (加入 scale) --- */
+
+@keyframes mega-pulse-dark {
+  0% {
+    /* 縮小狀態 */
+    transform: rotate(-3deg) scale(1);
+    text-shadow:
+      0 0 10px #ff005e,
+      0 0 20px #ff005e,
+      0 0 40px #ff005e;
+  }
+  100% {
+    /* 放大狀態：配合顏色變化，像心臟跳動一樣 */
+    transform: rotate(-3deg) scale(1.15);
+    text-shadow:
+      0 0 10px #00d4ff,
+      0 0 20px #00d4ff,
+      0 0 40px #00d4ff,
+      0 0 80px #00d4ff; /* 光暈炸開 */
+  }
+}
+
+@keyframes mega-pulse-light {
+  0% {
+    transform: rotate(-3deg) scale(1);
+    text-shadow:
+      0 0 5px rgba(255, 0, 94, 0.5),
+      0 0 15px rgba(255, 0, 94, 0.5);
+  }
+  100% {
+    transform: rotate(-3deg) scale(1.15);
+    text-shadow:
+      0 0 5px rgba(0, 212, 255, 0.8),
+      0 0 20px rgba(0, 212, 255, 0.6),
+      0 0 40px rgba(0, 212, 255, 0.4);
+  }
 }
 </style>

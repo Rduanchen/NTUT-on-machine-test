@@ -1,57 +1,96 @@
 import { ipcRenderer, contextBridge } from 'electron';
-// import { Config } from '../electron/lib/runTimeStore.ts';
 
+/**
+ * Preload API - Exposed to renderer via contextBridge
+ *
+ * Provides structured access to main process services via IPC.
+ * Groups: config, auth, store, judger
+ */
 const api = {
-  // --- Config ---
+  /** Config management: load from file or server */
   config: {
     setJson: (jsonFilePath: string) => ipcRenderer.invoke('config:set-json', jsonFilePath),
     getFromServer: (host: string) => ipcRenderer.invoke('config:get-from-server', host),
     getServerStatus: (hostname: string) => ipcRenderer.invoke('config:server-status', hostname),
-    getIsConfigSetupComplete: () => ipcRenderer.invoke('config:setup-complete'),
-    getLocalConfigStatus: () => ipcRenderer.invoke('config:local-config-status'),
+    isSetupComplete: () => ipcRenderer.invoke('config:setup-complete'),
+    hasBackendUrl: () => ipcRenderer.invoke('config:has-backend-url')
   },
 
-  // --- Store ---
+  /** Authentication: student login and verification */
+  auth: {
+    register: () => ipcRenderer.invoke('auth:register'),
+    login: (studentId?: string) => ipcRenderer.invoke('auth:login', studentId),
+    isVerified: () => ipcRenderer.invoke('auth:is-verified'),
+    getStudentInfo: () => ipcRenderer.invoke('auth:get-student-info')
+  },
+
+  /** Store: read exam state (test results, puzzles, exam info) */
   store: {
-    readTestResult: () => ipcRenderer.invoke('store:read-test-result'),
-    updateStudentInformation: (newInfo: { studentID: string }) =>
-      ipcRenderer.invoke('store:update-student-information', newInfo),
-    readStudentInformation: () => ipcRenderer.invoke('store:read-student-information'),
+    getConnectionStatus: () => ipcRenderer.invoke('store:get-connection-status'),
+    getTestResults: () => ipcRenderer.invoke('store:get-test-results'),
+    getSpecialRuleResults: () => ipcRenderer.invoke('store:get-special-rule-results'),
+    getEffectiveSpecialRules: () => ipcRenderer.invoke('store:get-effective-special-rules'),
     getPuzzleInfo: () => ipcRenderer.invoke('store:get-puzzle-info'),
-    getTestInfo: () => ipcRenderer.invoke('config:get-test-info'),
-    isStudentInfoVerified: () => ipcRenderer.invoke('store:is-student-info-verified'),
-    updateServerAvailability: (callback: (status: boolean) => void) => {
-      ipcRenderer.on('store:availability-updated', (_event, status) => {
+    getExamInfo: () => ipcRenderer.invoke('store:get-exam-info'),
+
+    /** Get current exam status (UNINITIALIZED | NOT_STARTED | IN_PROGRESS | FINISHED) */
+    getExamStatus: () => ipcRenderer.invoke('store:get-exam-status'),
+
+    /** Subscribe to connection status changes from main process */
+    onConnectionStatusChanged: (callback: (status: string) => void) => {
+      ipcRenderer.on('connection:status-changed', (_event, status) => {
         callback(status);
       });
     },
-    getServerAvailability: () => ipcRenderer.invoke('store:get-server-availability'),
-  },
 
-  // --- Judger ---
-  judger: {
-    /**
-     * @param questionId The ID of the question to judge.
-     * @param codeFile A File-like object that must have a `path` property (string) pointing to the code file.
-     */
-    judge: (questionId: string, codeFilePath: string) =>
-      ipcRenderer.invoke('judger:judge', questionId, codeFilePath),
-    forceStop: () => ipcRenderer.invoke('judger:force-stop'),
-    onJudgeComplete: (callback) => {
-      ipcRenderer.on('judger:judge-complete', (_event, data) => {
-        callback(data);
+    /** Subscribe to exam status changes pushed from main process */
+    onExamStatusChanged: (callback: (status: string) => void) => {
+      ipcRenderer.on('exam:status-changed', (_event, status) => {
+        callback(status);
       });
     },
-    syncScoreToBackend: () => ipcRenderer.invoke('judger:sync-score-to-backend')
+
+    /** Subscribe to test results pushed from main process (e.g. after config_update rejudge) */
+    onTestResultsUpdated: (callback: (results: Record<string, unknown>) => void) => {
+      ipcRenderer.on('store:test-results-updated', (_event, results) => {
+        callback(results);
+      });
+    },
+
+    /** Subscribe to special-rule results pushed from main process (after each judge/submit) */
+    onSpecialRuleResultsUpdated: (callback: (results: Record<string, unknown>) => void) => {
+      ipcRenderer.on('store:special-rule-results-updated', (_event, results) => {
+        callback(results);
+      });
+    },
   },
 
-  // --- LocalProgram ---
-  localProgram: {
-    getZipFile: () => ipcRenderer.invoke('localProgram:getZipFile'),
-    syncToBackend: () => ipcRenderer.invoke('localProgram:syncToBackend'),
+  /** Judger: run evaluations, stop, sync results */
+  judger: {
+    judge: (puzzleId: string, codeFilePath: string) =>
+      ipcRenderer.invoke('judger:judge', puzzleId, codeFilePath),
+    forceStop: () => ipcRenderer.invoke('judger:force-stop'),
+    syncResults: () => ipcRenderer.invoke('judger:sync-results'),
+    getZip: () => ipcRenderer.invoke('judger:get-zip'),
+    syncCode: () => ipcRenderer.invoke('judger:sync-code')
+  },
+
+  /** Notifications: socket feed + message center */
+  notifications: {
+    getAll: () => ipcRenderer.invoke('notifications:get-all'),
+    getVersions: () => ipcRenderer.invoke('notifications:get-versions'),
+    getSocketStatus: () => ipcRenderer.invoke('notifications:get-socket-status'),
+    refresh: () => ipcRenderer.invoke('notifications:refresh'),
+    onUpdated: (callback: (messages: unknown[]) => void) => {
+      ipcRenderer.on('notifications:updated', (_event, payload) => callback(payload));
+    },
+    onSocketStatusChanged: (callback: (status: string) => void) => {
+      ipcRenderer.on('notifications:socket-status', (_event, status) => callback(status));
+    }
   }
 };
 
+/** Expose API to renderer */
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('api', api);
@@ -59,6 +98,6 @@ if (process.contextIsolated) {
     console.error('Failed to expose api to main world:', e);
   }
 } else {
-  // @ts-ignore (define in dts)
+  // @ts-ignore
   window.api = api;
 }

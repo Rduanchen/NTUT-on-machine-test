@@ -1,4 +1,18 @@
 {
+  "login": {
+    "title": "Student Login",
+    "subtitle": "Enter your student ID to access the exam",
+    "studentIdLabel": "Student ID",
+    "studentIdPlaceholder": "e.g., 113590001",
+    "loginButton": "Login",
+    "rules": {
+      "required": "Student ID is required",
+      "minLength": "Student ID must be at least 2 characters"
+    },
+    "errors": {
+      "generic": "Login failed. Please check your student ID and try again."
+    }
+  },
   "examSystem": {
     "title": "NTUT Exam System",
     "serverStatusLabel": "Server Status",
@@ -6,6 +20,7 @@
       "connected": "Connected",
       "disconnected": "Disconnected"
     },
+    "secretLabel": "Click three times rapidly",
     "currentLanguage": "Language",
     "switchToLight": "Switch to Light Theme",
     "switchToDark": "Switch to Dark Theme",
@@ -65,15 +80,35 @@
       "close": "Close",
       "cancel": "Cancel"
     },
+    "notificationCenter": {
+      "title": "Realtime Alerts",
+      "subtitle": "Stay synced with backend messages & config",
+      "messageVersion": "Message Version",
+      "configVersion": "Config Version",
+      "autoSync": "Auto sync runs every 60 seconds. Latest sync: {time}",
+      "refreshFeed": "Refresh feed",
+      "noNotifications": "No notifications yet",
+      "noNotificationsSubtext": "Stay online to receive live socket messages.",
+      "socketStatus": {
+        "connected": "socket online",
+        "reconnecting": "socket retrying",
+        "connecting": "socket dialing",
+        "disconnected": "socket offline"
+      },
+      "snackbar": {
+        "newMessage": "New alert: {message}"
+      },
+      "noMessage": "No message provided"
+    },
     "puzzles": {
       "forceStop": "Force Stop All Tests",
       "exportZip": "Export Answers as ZIP",
-      "finisheTheExam": { 
+      "finisheTheExam": {
         "label": "Finish the Exam",
         "finisheTheExamIntro": "Please follow the following steps to complete your exam:",
         "updateResult": "upload the result",
         "updateFile": "upload the code ",
-        "end": "After finish all steps, please notify TA to check your submission."
+        "end": "After finish all steps, please notify TA to check your submission. Please do not turn off this window unless TA confirms your submission is received."
       },
       "summary": "{count} problems in total",
       "headers": {

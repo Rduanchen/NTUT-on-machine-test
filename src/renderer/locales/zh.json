@@ -1,4 +1,18 @@
 {
+  "login": {
+    "title": "學生登入",
+    "subtitle": "請輸入您的學號以進入考試",
+    "studentIdLabel": "學號",
+    "studentIdPlaceholder": "例如：113590001",
+    "loginButton": "登入",
+    "rules": {
+      "required": "學號為必填",
+      "minLength": "學號至少需要 2 個字元"
+    },
+    "errors": {
+      "generic": "登入失敗，請確認學號是否正確後再試一次。"
+    }
+  },
   "examSystem": {
     "title": "北科大考試系統",
     "serverStatusLabel": "伺服器狀態",
@@ -6,6 +20,7 @@
       "connected": "已連線",
       "disconnected": "未連線"
     },
+    "secretLabel": "連續點擊三下",
     "currentLanguage": "目前語言",
     "switchToLight": "切換為亮色主題",
     "switchToDark": "切換為暗色主題",
@@ -65,16 +80,36 @@
       "close": "關閉",
       "cancel": "取消"
     },
+    "notificationCenter": {
+      "title": "即時通知",
+      "subtitle": "與後端訊息及設定保持同步",
+      "messageVersion": "訊息版本",
+      "configVersion": "設定版本",
+      "autoSync": "每 60 秒自動同步一次。最後同步：{time}",
+      "refreshFeed": "重新整理",
+      "noNotifications": "目前沒有通知",
+      "noNotificationsSubtext": "保持連線以接收即時通知。",
+      "socketStatus": {
+        "connected": "已連線",
+        "reconnecting": "重新連線中",
+        "connecting": "連線中",
+        "disconnected": "已斷線"
+      },
+      "snackbar": {
+        "newMessage": "新通知：{message}"
+      },
+      "noMessage": "無訊息內容"
+    },
     "puzzles": {
       "forceStop": "強制停止所有評測",
       "exportZip": "匯出作答壓縮檔",
       "summary": "共 {count} 題",
-      "finisheTheExam": { 
+      "finisheTheExam": {
         "label": "完成考試",
         "finisheTheExamIntro": "請依照以下步驟完成考試：",
         "updateResult": "上傳結果",
         "updateFile": "上傳程式碼",
-        "end": "完成所有步驟後，請通知助教檢查您的成績。"
+        "end": "完成所有步驟後，請通知助教檢查您的成績。請勿關閉此視窗，直到助教確認已收到您的繳交。"
       },
       "headers": {
         "id": "編號",
