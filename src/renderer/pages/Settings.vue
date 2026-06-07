@@ -211,13 +211,21 @@ const verifyServerStatus = async () => {
 
 const getConfigFileFromServer = async () => {
   if (!window.api?.config) return;
+  
+  // Set the backend URL internally by verifying
+  await window.api.config.getServerStatus(serverHost.value);
+  
+  // Actually try to fetch it, which sets backendUrl and starts services.
   const re = await window.api.config.getFromServer(serverHost.value);
-  if (re.success) {
-    router.push('/login');
+  
+  // We navigate regardless of whether fetching config succeeded or failed.
+  // If it failed because of Crypto state (UNINITIALIZED/NOT_STARTED), 
+  // the router guard will still catch it and route us properly since hasBackendUrl is now true.
+  const status = await window.api.store?.getExamStatus?.() ?? 'UNINITIALIZED';
+  if (status === 'UNINITIALIZED') {
+    router.push('/not-initialized');
   } else {
-    alert(
-      `${t('examSystem.config.server.fetchConfigFailed')}: \n ${re.error?.code || ''} \n${re.error?.message || ''}`
-    );
+    router.push('/login');
   }
 };
 

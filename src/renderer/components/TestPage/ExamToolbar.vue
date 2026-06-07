@@ -2,8 +2,19 @@
   <div class="px-4 py-3 border-b d-flex flex-wrap align-center gap-2 bg-surface">
     <div class="d-flex align-center flex-grow-1">
       <h2 class="text-h6 font-weight-bold mr-4">{{ t('examSystem.title') }}</h2>
-      <v-chip size="small" variant="tonal" color="primary" class="font-weight-medium">
+      <v-chip size="small" variant="tonal" color="primary" class="font-weight-medium mr-2">
         {{ t('examSystem.puzzles.summary', { count: puzzleCount }) }}
+      </v-chip>
+      
+      <!-- Buffer Countdown Chip -->
+      <v-chip
+        v-if="isBuffering"
+        color="error"
+        variant="elevated"
+        class="font-weight-bold pulse-chip"
+        prepend-icon="mdi-timer-sand"
+      >
+        Exam ended. Navigating in {{ bufferTimeLeft }}s...
       </v-chip>
     </div>
 
@@ -26,6 +37,17 @@
         @click="$emit('export-zip')"
       >
         {{ t('examSystem.puzzles.exportZip') }}
+      </v-btn>
+
+      <v-btn
+        v-if="!isBuffering"
+        color="warning"
+        variant="tonal"
+        prepend-icon="mdi-exit-run"
+        height="40"
+        @click="$emit('early-end')"
+      >
+        Early End
       </v-btn>
 
       <v-dialog max-width="700">
@@ -84,7 +106,21 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-defineProps<{ puzzleCount: number }>();
-defineEmits(['force-stop', 'export-zip', 'finish-actions']);
+defineProps<{ 
+  puzzleCount: number,
+  isBuffering?: boolean,
+  bufferTimeLeft?: number
+}>();
+defineEmits(['force-stop', 'export-zip', 'finish-actions', 'early-end']);
 const { t } = useI18n();
 </script>
+
+<style scoped>
+.pulse-chip {
+  animation: pulse 1s infinite alternate;
+}
+@keyframes pulse {
+  from { transform: scale(1); opacity: 1; }
+  to { transform: scale(1.05); opacity: 0.9; }
+}
+</style>

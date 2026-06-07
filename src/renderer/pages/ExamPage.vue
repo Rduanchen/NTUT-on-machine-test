@@ -3,9 +3,12 @@
     <v-card class="h-100 d-flex flex-column" elevation="2" rounded="lg">
       <ExamToolbar
         :puzzle-count="puzzleInfo.length"
+        :buffer-time-left="bufferTimeLeft"
+        :is-buffering="isBuffering"
         @force-stop="stopTestCase"
         @export-zip="exportZip"
         @finish-actions="handleFinish"
+        @early-end="handleEarlyEnd"
       />
       <PuzzleTable
         :puzzles="puzzleInfo"
@@ -53,6 +56,14 @@ const effectiveSpecialRules = ref<Record<string, SpecialRule[]>>({});
 
 const resultDialog = ref({ isOpen: false, item: null as PuzzleInfo | null });
 const uploadDialog = ref({ isOpen: false, item: null as PuzzleInfo | null });
+
+// Buffer settings
+const FINISH_BUFFER_SECONDS = 60; // 1 minute buffer constant
+const isBuffering = ref(false);
+const bufferTimeLeft = ref(FINISH_BUFFER_SECONDS);
+let bufferTimer: ReturnType<typeof setInterval> | null = null;
+import { useRouter } from 'vue-router';
+const router = useRouter();
 
 // ─── Computed ───────────────────────────────────────────────────────
 
@@ -181,6 +192,25 @@ function openUploadDialog(item: PuzzleInfo) {
   uploadDialog.value = { isOpen: true, item };
 }
 
+async function handleEarlyEnd() {
+  if (confirm("Are you sure you want to end the exam early?")) {
+    router.push('/finished');
+  }
+}
+
+function startFinishBuffer() {
+  if (isBuffering.value) return;
+  isBuffering.value = true;
+  bufferTimeLeft.value = FINISH_BUFFER_SECONDS;
+  bufferTimer = setInterval(() => {
+    bufferTimeLeft.value--;
+    if (bufferTimeLeft.value <= 0) {
+      clearInterval(bufferTimer!);
+      router.push('/finished');
+    }
+  }, 1000);
+}
+
 // ─── Init ───────────────────────────────────────────────────────────
 
 onMounted(async () => {
@@ -195,7 +225,18 @@ onMounted(async () => {
   });
 
   window.api.store.onSpecialRuleResultsUpdated?.((results) => {
-  specialRuleResults.value = results as Record<string, SpecialRuleResultRecord[]>;
+    specialRuleResults.value = results as Record<string, SpecialRuleResultRecord[]>;
   });
+
+  window.api.store.onExamStatusChanged?.((status: string) => {
+    if (status === 'FINISHED') {
+      startFinishBuffer();
+    }
+  });
+});
+
+import { onBeforeUnmount } from 'vue';
+onBeforeUnmount(() => {
+  if (bufferTimer) clearInterval(bufferTimer);
 });
 </script>
