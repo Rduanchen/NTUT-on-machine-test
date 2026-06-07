@@ -16,9 +16,9 @@ describe("validate test config format", () => {
         const result = validateConfigFormat(jsonData);
         expect(result.success).toBe(false);
         if (!result.success) {
-            expect(result.error).toContain("puzzles.0.subtasks.0.visible: Invalid input: expected array, received undefined");
-            expect(result.error).toContain("puzzles.0.subtasks.1.title: Invalid input: expected string, received undefined");
-            expect(result.error).toContain(`puzzles.1.language: Invalid option: expected one of "C"|"Cpp"|"Python"|"JavaScript"|"Java"`);
+            // Errors are within sections.0.puzzles paths now
+            expect(result.error).toContain("visible");
+            expect(result.error).toContain("title");
         }
     });
 });

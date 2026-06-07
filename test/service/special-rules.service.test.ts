@@ -19,18 +19,25 @@ describe('special-rules.service', () => {
                     params: { target: 'main' },
                 },
             ],
-            puzzles: [
+            sections: [
                 {
-                    title: 'p0',
-                    language: 'Cpp',
-                    subtasks: [],
-                    specialRules: [
+                    id: 's0',
+                    title: 'Section 1',
+                    maxScore: 100,
+                    puzzles: [
                         {
-                            id: 'p1',
-                            type: 'use',
-                            constraint: 'MUST_NOT_HAVE',
-                            message: 'must not include scanf',
-                            params: { target: 'scanf' },
+                            title: 'p0',
+                            language: 'Cpp',
+                            subtasks: [],
+                            specialRules: [
+                                {
+                                    id: 'p1',
+                                    type: 'use',
+                                    constraint: 'MUST_NOT_HAVE',
+                                    message: 'must not include scanf',
+                                    params: { target: 'scanf' },
+                                },
+                            ],
                         },
                     ],
                 },
