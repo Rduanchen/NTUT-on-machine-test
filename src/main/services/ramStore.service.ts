@@ -7,9 +7,10 @@ import type {
   RamStoreState,
   ServerMessage,
   SocketConnectionStatus,
-  SpecialRuleResultRecord
+  SpecialRuleResultRecord,
+  ExamState
 } from '../../common/types';
-import os from 'os';
+import * as os from 'os';
 
 /**
  * RAM Store Service - In-memory key-value store
@@ -36,7 +37,8 @@ class RamStoreService {
     notifications: [],
     messageVersion: 0,
     configVersion: 0,
-    socketStatus: 'disconnected'
+    socketStatus: 'disconnected',
+    examStatus: 'UNINITIALIZED'
   };
 
   /** Event listeners for state changes */
@@ -84,7 +86,8 @@ class RamStoreService {
       notifications: [],
       messageVersion: 0,
       configVersion: 0,
-      socketStatus: 'disconnected'
+      socketStatus: 'disconnected',
+      examStatus: 'UNINITIALIZED'
     };
   }
 
@@ -182,6 +185,14 @@ class RamStoreService {
 
   set socketStatus(status: SocketConnectionStatus) {
     this.set('socketStatus', status);
+  }
+
+  get examStatus(): ExamState {
+    return this.state.examStatus;
+  }
+
+  set examStatus(status: ExamState) {
+    this.set('examStatus', status);
   }
 
   // ─── Test Results ─────────────────────────────────────────────

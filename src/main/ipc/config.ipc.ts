@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
 import { configService } from '../services/config.service';
+import { ramStore } from '../services/ramStore.service';
 
 /**
  * Config IPC Handlers
@@ -25,5 +26,9 @@ export function registerConfigIpc(): void {
 
   ipcMain.handle('config:setup-complete', () => {
     return configService.isConfigLoaded();
+  });
+
+  ipcMain.handle('config:has-backend-url', () => {
+    return !!ramStore.backendUrl;
   });
 }

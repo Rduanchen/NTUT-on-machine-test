@@ -6,6 +6,7 @@ import type {
   JudgeRunResult,
   SpecialRuleResultRecord,
   SpecialRule,
+  ExamState,
 } from '../../common/types';
 import { getEffectiveSpecialRules } from '../services/special-rules.service';
 
@@ -36,8 +37,19 @@ export function registerStoreIpc(): void {
     },
   );
 
+  // Push exam status changes to renderer for lifecycle routing
+  ramStore.on('examStatus', (status: ExamState) => {
+    const win = getMainWindow();
+    if (!win || win.isDestroyed()) return;
+    win.webContents?.send('exam:status-changed', status);
+  });
+
   ipcMain.handle('store:get-connection-status', () => {
     return ramStore.connectionStatus;
+  });
+
+  ipcMain.handle('store:get-exam-status', (): ExamState => {
+    return ramStore.examStatus ?? 'UNINITIALIZED';
   });
 
   ipcMain.handle('store:get-test-results', () => {
@@ -52,8 +64,11 @@ export function registerStoreIpc(): void {
     const config = ramStore.examConfig;
     if (!config) return {} as Record<string, SpecialRule[]>;
 
+    // Flatten puzzles from sections
+    const allPuzzles = config.sections?.flatMap(s => s.puzzles) ?? config.puzzles ?? [];
+
     const map: Record<string, SpecialRule[]> = {};
-    for (let i = 0; i < config.puzzles.length; i += 1) {
+    for (let i = 0; i < allPuzzles.length; i += 1) {
       map[String(i)] = getEffectiveSpecialRules({ examConfig: config, puzzleIndex: i });
     }
     return map;
@@ -63,11 +78,36 @@ export function registerStoreIpc(): void {
     const config = ramStore.examConfig;
     if (!config) return [];
 
-    return config.puzzles.map((puzzle, index) => ({
-      id: String(index),
-      title: puzzle.title,
-      language: puzzle.language
-    }));
+    const puzzlesWithSection: PuzzleInfo[] = [];
+
+    if (config.sections) {
+      for (const section of config.sections) {
+        if (!section.puzzles) continue;
+        for (const puzzle of section.puzzles) {
+          puzzlesWithSection.push({
+            id: puzzle.id,
+            title: puzzle.title,
+            language: puzzle.language,
+            sectionId: section.id,
+            sectionTitle: section.title,
+            score: puzzle.score ?? 0
+          });
+        }
+      }
+    } else if (config.puzzles) {
+      // Legacy flat puzzles
+      for (let i = 0; i < config.puzzles.length; i++) {
+        const puzzle = config.puzzles[i];
+        puzzlesWithSection.push({
+          id: puzzle.id ?? String(i),
+          title: puzzle.title,
+          language: puzzle.language,
+          score: puzzle.score ?? 0
+        });
+      }
+    }
+
+    return puzzlesWithSection;
   });
 
   ipcMain.handle('store:get-exam-info', () => {

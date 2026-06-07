@@ -11,14 +11,19 @@ export interface TestCase {
 
 export interface Subtask {
   title: string;
+  score?: number;
   visible: TestCase[];
   hidden: TestCase[];
 }
 
+export type ExamState = 'UNINITIALIZED' | 'NOT_STARTED' | 'IN_PROGRESS' | 'FINISHED';
+
 export type SupportedLanguage = 'C' | 'Cpp' | 'Python' | 'JavaScript' | 'Java';
 
 export interface Puzzle {
+  id?: string;
   title: string;
+  score?: number;
   language: SupportedLanguage;
   timeLimit?: number;
   memoryLimit?: number;
@@ -30,10 +35,11 @@ export type RuleConstraint = 'MUST_HAVE' | 'MUST_NOT_HAVE';
 
 export interface SpecialRule {
   id: string;
-  type: 'regex' | 'use' | 'composite';
+  type: 'regex' | 'use' | 'composite' | 'nestedLoop';
   constraint: RuleConstraint;
   message: string;
   severity?: 'info' | 'warn';
+  multiplier?: number;
   params: unknown;
 }
 
@@ -48,11 +54,20 @@ export interface SpecialRuleResultRecord {
 export interface AccessableUser {
   id: string;
   name: string;
+  ip?: string;
 }
 
 export interface JudgerSettings {
   timeLimit: number;
   memoryLimit: number;
+}
+
+export interface Section {
+  id: string;
+  title: string;
+  description?: string;
+  maxScore: number;
+  puzzles: Puzzle[];
 }
 
 export interface ExamConfig {
@@ -61,7 +76,8 @@ export interface ExamConfig {
   judgerSettings: JudgerSettings;
   accessibleUsers: AccessableUser[];
   globalSpecialRules?: SpecialRule[];
-  puzzles: Puzzle[];
+  sections: Section[];
+  puzzles?: Puzzle[]; // legacy/optional flat list
 }
 
 // ─── Notification & Messaging Types ───────────────────────────────
@@ -71,6 +87,7 @@ export interface ServerMessage {
   type: string;
   message: string;
   createdAt: string;
+  namespace?: string;
 }
 
 export type SocketConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
@@ -129,6 +146,7 @@ export interface RamStoreState {
   messageVersion: number;
   configVersion: number;
   socketStatus: SocketConnectionStatus;
+  examStatus: ExamState;
 }
 
 export type ConnectionStatus = 'connected' | 'disconnected';
@@ -195,6 +213,9 @@ export interface PuzzleInfo {
   id: string;
   title: string;
   language: SupportedLanguage;
+  sectionId?: string;
+  sectionTitle?: string;
+  score?: number;
 }
 
 // ─── Connection Service Types ───────────────────────────────────────

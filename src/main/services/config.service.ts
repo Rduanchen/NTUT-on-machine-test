@@ -1,9 +1,9 @@
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 import { app } from 'electron';
 import { ramStore } from './ramStore.service';
 import { logger } from './logger.service';
-import { fetchExamConfig } from './api.service';
+import { getExamStatus, fetchSecureExamConfig, healthCheck } from './api.service';
 import { connectionService } from './connection.service';
 import { messageSyncService } from './message-sync.service';
 import { examConfigSchema } from '../schemas/examConfig.schema';
@@ -66,17 +66,13 @@ class ConfigService {
       const preSettings = validation.data;
       const remoteHost = preSettings.remoteHost;
 
-      // If remoteHost exists, try to fetch config from server
+      // If remoteHost exists, set URL and start services
       if (remoteHost) {
         ramStore.backendUrl = remoteHost;
-        const result = await this.fetchAndSaveConfig(remoteHost);
-        if (result.success) {
-          logger.info('[Config] Config loaded from server via pre_settings.');
-          connectionService.start();
-          messageSyncService.start(remoteHost);
-          return;
-        }
-        logger.warn('[Config] Failed to fetch config from server. Waiting for manual setup.');
+        logger.info(`[Config] Backend URL set to ${remoteHost} via pre_settings. Starting services...`);
+        connectionService.start();
+        messageSyncService.start(remoteHost);
+        return;
       }
 
       ramStore.isConfigured = false;
@@ -123,20 +119,23 @@ class ConfigService {
   /** Set config from server URL */
   public async setConfigFromServer(host: string): Promise<IpcResponse<void>> {
     ramStore.backendUrl = host;
+    
+    // Start services so we can connect to sockets and get exam status
+    connectionService.start();
+    messageSyncService.start(host);
+    
     const result = await this.fetchAndSaveConfig(host);
-
-    if (result.success) {
-      connectionService.start();
-      messageSyncService.start(host);
-    }
+    
+    // Even if fetching config fails (e.g. not logged in yet), we started the services
+    // which allows the app to redirect to /not-initialized if status is UNINITIALIZED.
     return result;
   }
 
   /** Check if a server is reachable and returns valid status */
   public async checkServerStatus(hostname: string): Promise<IpcResponse<void>> {
     try {
-      const response = await fetchExamConfig(hostname);
-      if (!response.success) {
+      const isUp = await healthCheck(hostname);
+      if (!isUp) {
         return {
           success: false,
           error: { code: ErrorCode.SERVER_STATUS_NOT_OK, message: 'Cannot reach server' }
@@ -159,7 +158,7 @@ class ConfigService {
   // ─── Internal Helpers ─────────────────────────────────────────
 
   private async fetchAndSaveConfig(host: string): Promise<IpcResponse<void>> {
-    const response = await fetchExamConfig(host);
+    const response = await fetchSecureExamConfig();
 
     if (!response.success || !response.data) {
       ramStore.isConfigured = false;
