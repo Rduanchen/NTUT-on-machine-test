@@ -39,11 +39,11 @@
     "lodash": "^4.17.21",
     "pidusage": "^4.0.1",
     "socket.io-client": "^4.7.5",
+    "special-rule-engine": "github:Rduanchen/special-rule-engine",
     "vue-i18n": "^11.1.11",
     "vue-router": "^4.5.1",
     "vuetify": "^3.7.0-beta.1",
-    "zod": "^4.3.5",
-    "special-rule-engine": "file:../special-rule-engine"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config": "^1.0.2",
@@ -51,7 +51,7 @@
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@mdi/font": "^7.4.47",
     "@rushstack/eslint-patch": "^1.10.3",
-    "@types/node": "^20.19.30",
+    "@types/node": "^20.19.42",
     "@vitejs/plugin-vue": "^6.0.1",
     "@vue/eslint-config-prettier": "^9.0.0",
     "@vue/eslint-config-typescript": "^13.0.0",

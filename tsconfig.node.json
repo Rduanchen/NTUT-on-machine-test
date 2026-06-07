@@ -12,7 +12,7 @@
   "compilerOptions": {
     "composite": true,
     "target": "esnext",
-    "types": ["electron-vite/node"],
+    "types": ["electron-vite/node", "node"],
     "module": "ESNext",
     "moduleResolution": "node"
   },

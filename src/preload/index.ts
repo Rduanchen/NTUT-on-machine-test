@@ -12,12 +12,14 @@ const api = {
     setJson: (jsonFilePath: string) => ipcRenderer.invoke('config:set-json', jsonFilePath),
     getFromServer: (host: string) => ipcRenderer.invoke('config:get-from-server', host),
     getServerStatus: (hostname: string) => ipcRenderer.invoke('config:server-status', hostname),
-    isSetupComplete: () => ipcRenderer.invoke('config:setup-complete')
+    isSetupComplete: () => ipcRenderer.invoke('config:setup-complete'),
+    hasBackendUrl: () => ipcRenderer.invoke('config:has-backend-url')
   },
 
   /** Authentication: student login and verification */
   auth: {
-    login: (studentID: string) => ipcRenderer.invoke('auth:login', studentID),
+    register: () => ipcRenderer.invoke('auth:register'),
+    login: (studentId?: string) => ipcRenderer.invoke('auth:login', studentId),
     isVerified: () => ipcRenderer.invoke('auth:is-verified'),
     getStudentInfo: () => ipcRenderer.invoke('auth:get-student-info')
   },
@@ -31,9 +33,19 @@ const api = {
     getPuzzleInfo: () => ipcRenderer.invoke('store:get-puzzle-info'),
     getExamInfo: () => ipcRenderer.invoke('store:get-exam-info'),
 
+    /** Get current exam status (UNINITIALIZED | NOT_STARTED | IN_PROGRESS | FINISHED) */
+    getExamStatus: () => ipcRenderer.invoke('store:get-exam-status'),
+
     /** Subscribe to connection status changes from main process */
     onConnectionStatusChanged: (callback: (status: string) => void) => {
       ipcRenderer.on('connection:status-changed', (_event, status) => {
+        callback(status);
+      });
+    },
+
+    /** Subscribe to exam status changes pushed from main process */
+    onExamStatusChanged: (callback: (status: string) => void) => {
+      ipcRenderer.on('exam:status-changed', (_event, status) => {
         callback(status);
       });
     },
