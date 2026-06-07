@@ -13,7 +13,13 @@ export function getEffectiveSpecialRules(input: {
 }): SpecialRule[] {
     const { examConfig, puzzleIndex } = input;
     const globalRules = examConfig.globalSpecialRules ?? [];
-    const puzzleRules = examConfig.puzzles?.[puzzleIndex]?.specialRules ?? [];
+
+    // Flatten puzzles from sections first, then fall back to legacy flat puzzles array
+    const allPuzzles = examConfig.sections
+        ? examConfig.sections.flatMap((s) => s.puzzles)
+        : (examConfig.puzzles ?? []);
+
+    const puzzleRules = allPuzzles[puzzleIndex]?.specialRules ?? [];
     return [...globalRules, ...puzzleRules];
 }
 

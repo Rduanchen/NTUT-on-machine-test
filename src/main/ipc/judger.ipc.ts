@@ -2,9 +2,10 @@ import { ipcMain } from 'electron';
 import { nodeJudgerService } from '../services/node-judger.service';
 import { ramStore } from '../services/ramStore.service';
 import { localProgramStore } from '../services/localProgram.service';
-import { uploadTestResult, uploadProgramFile } from '../services/api.service';
+import { submitScore, submitCode } from '../services/api.service';
 import type { IpcResponse, JudgeRunResult } from '../../common/types';
 import { judgeManager } from '../services/judge-manager.service';
+import * as fs from 'fs';
 
 /**
  * Judger IPC Handlers
@@ -34,12 +35,12 @@ export function registerJudgerIpc(): void {
   });
 
   ipcMain.handle('judger:sync-results', async (): Promise<IpcResponse<void>> => {
-    const results = ramStore.testResults;
-    const response = await uploadTestResult(results);
-    if (response.success) {
-      ramStore.markTestResultSynced();
+    try {
+      await judgeManager.syncResultsInBackground(true);
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: { code: 'SYNC_ERROR', message: e.message } };
     }
-    return response;
   });
 
   ipcMain.handle('judger:get-zip', (): Buffer | null => {
@@ -51,8 +52,26 @@ export function registerJudgerIpc(): void {
     if (!localProgramStore.hasFiles()) {
       return { success: true };
     }
-    const zipBuffer = localProgramStore.zipTempDir();
-    const studentId = ramStore.studentInfo.id;
-    return uploadProgramFile(zipBuffer, studentId);
+    
+    const entries = localProgramStore.getStoredProgramEntries();
+    
+    for (const entry of entries) {
+      const codeContent = fs.readFileSync(entry.filePath, 'utf-8');
+      
+      // Determine language from extension
+      const ext = entry.filePath.split('.').pop()?.toLowerCase();
+      let language = 'Cpp';
+      if (ext === 'c') language = 'C';
+      else if (ext === 'py') language = 'Python';
+      else if (ext === 'js') language = 'JavaScript';
+      else if (ext === 'java') language = 'Java';
+
+      const res = await submitCode(codeContent, entry.puzzleId, language);
+      if (!res.success) {
+        return res; // fail early if one fails
+      }
+    }
+    
+    return { success: true };
   });
 }

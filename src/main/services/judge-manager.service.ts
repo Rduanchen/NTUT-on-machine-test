@@ -3,9 +3,10 @@ import { ErrorCode } from '../../common/errorCodes';
 import { nodeJudgerService } from './node-judger.service';
 import { ramStore } from './ramStore.service';
 import { localProgramStore } from './localProgram.service';
-import { uploadProgramFile, uploadTestResult } from './api.service';
+import { submitCode, submitScore } from './api.service';
 import { connectionService } from './connection.service';
 import { logger } from './logger.service';
+import * as fs from 'fs';
 
 class JudgeManagerService {
   private countPassedSubtasks(result: JudgeRunResult | undefined | null): number {
@@ -111,7 +112,12 @@ class JudgeManagerService {
       const lastKnownPassedSubtasks = this.countPassedSubtasksInAllPuzzles(ramStore.testResults);
 
       if (currentPassedSubtasks >= lastKnownPassedSubtasks) {
-        const response = await uploadTestResult(results);
+        // Calculate total subtasks across all sections
+        const allPuzzles = ramStore.examConfig?.sections?.flatMap(s => s.puzzles) ?? [];
+        const totalSubtasks = allPuzzles.reduce((acc, p) => acc + p.subtasks.length, 0) || 1;
+        const score = Math.round((currentPassedSubtasks / totalSubtasks) * 100);
+        
+        const response = await submitScore(score);
         if (response.success) {
           ramStore.markTestResultSynced();
           connectionService.clearPendingTestResult();
@@ -121,13 +127,25 @@ class JudgeManagerService {
       }
 
       if (uploadCode && localProgramStore.hasFiles()) {
-        const zipBuffer = localProgramStore.zipTempDir();
-        const studentId = ramStore.studentInfo.id;
-        const codeResponse = await uploadProgramFile(zipBuffer, studentId);
-        if (codeResponse.success) {
+        let allSuccess = true;
+        const entries = localProgramStore.getStoredProgramEntries();
+        for (const entry of entries) {
+          const codeContent = fs.readFileSync(entry.filePath, 'utf-8');
+          const ext = entry.filePath.split('.').pop()?.toLowerCase();
+          let language = 'Cpp';
+          if (ext === 'c') language = 'C';
+          else if (ext === 'py') language = 'Python';
+          else if (ext === 'js') language = 'JavaScript';
+          else if (ext === 'java') language = 'Java';
+
+          const codeResponse = await submitCode(codeContent, entry.puzzleId, language);
+          if (!codeResponse.success) allSuccess = false;
+        }
+
+        if (allSuccess) {
           connectionService.clearPendingProgramFile();
         } else {
-          connectionService.markPendingProgramFile(zipBuffer);
+          connectionService.markPendingProgramFile();
         }
       }
     } catch (error) {
