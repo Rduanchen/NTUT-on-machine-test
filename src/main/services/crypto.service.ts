@@ -1,6 +1,5 @@
 import * as crypto from 'crypto';
 import { ramStore } from './ramStore.service';
-import type { RegisterUserCryptoPayload, UserAccessTokenPayload } from '../../common/types';
 
 /**
  * Crypto Service - Handles AES-GCM-256 and RSA encryption
@@ -43,36 +42,38 @@ class CryptoService {
   // ─── AES-GCM-256 Encryption ──────────────────────────────────
 
   /**
-   * Encrypt data with AES-GCM-256
-   * Output format: iv:authTag:encryptedHex
+   * Encrypt data with AES-GCM-256 (Base64 encoded)
    */
-  public encryptAes(plaintext: string, aesKeyHex: string): string {
+  public encryptAesPayload(plaintext: string, aesKeyHex: string, device_uuid: string) {
     const key = Buffer.from(aesKeyHex, 'hex');
     const iv = crypto.randomBytes(12); // GCM standard 12 bytes
     const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
 
-    let encrypted = cipher.update(plaintext, 'utf8');
-    encrypted = Buffer.concat([encrypted, cipher.final()]);
+    let encrypted = cipher.update(plaintext, 'utf8', 'base64');
+    encrypted += cipher.final('base64');
     const authTag = cipher.getAuthTag();
 
-    return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted.toString('hex')}`;
+    return {
+      iv: iv.toString('base64'),
+      ciphertext: encrypted,
+      tag: authTag.toString('base64'),
+      device_uuid,
+    };
   }
 
-  /** Decrypt AES-GCM-256 data (format: iv:authTag:encryptedHex) */
-  public decryptAes(encryptedToken: string, aesKeyHex: string): string {
-    const [ivHex, authTagHex, encryptedHex] = encryptedToken.split(':');
+  /** Decrypt AES-GCM-256 data (Base64 encoded) */
+  public decryptAesPayload(payload: { iv: string; tag: string; ciphertext: string }, aesKeyHex: string): string {
     const key = Buffer.from(aesKeyHex, 'hex');
-    const iv = Buffer.from(ivHex, 'hex');
-    const authTag = Buffer.from(authTagHex, 'hex');
-    const encrypted = Buffer.from(encryptedHex, 'hex');
+    const iv = Buffer.from(payload.iv, 'base64');
+    const authTag = Buffer.from(payload.tag, 'base64');
 
     const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
     decipher.setAuthTag(authTag);
 
-    let decrypted = decipher.update(encrypted);
-    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    let decrypted = decipher.update(payload.ciphertext, 'base64', 'utf8');
+    decrypted += decipher.final('utf8');
 
-    return decrypted.toString('utf8');
+    return decrypted;
   }
 
   // ─── RSA Encryption ──────────────────────────────────────────
@@ -92,63 +93,47 @@ class CryptoService {
 
   // ─── Token Generation ────────────────────────────────────────
 
-  /**
-   * Create an encrypted access token for authenticated API requests.
-   * Uses the AES key stored in RAM store.
-   */
-  public createToken(): string {
+  public createTokenPayload(deviceUuid: string) {
     const cryptoState = ramStore.cryptoState;
     if (!cryptoState) {
       throw new Error('Crypto state not initialized. Register first.');
     }
 
-    const studentInfo = ramStore.studentInfo;
-    const payload: UserAccessTokenPayload = {
-      studentID: studentInfo.id,
+    const payload = {
       timestamp: Date.now(),
-      userSessionID: cryptoState.userSessionID,
-      randomString: this.generateRandomString()
+      nonce: this.generateRandomString(), // Use random string as nonce
+      session_token: cryptoState.userSessionID // Storing session token here to be encrypted
     };
 
-    return this.encryptAes(JSON.stringify(payload), cryptoState.aesKeyHex);
+    return this.encryptAesPayload(JSON.stringify(payload), cryptoState.aesKeyHex, deviceUuid);
   }
 
   // ─── Registration ────────────────────────────────────────────
 
-  /**
-   * Build the encrypted registration payload.
-   * Encrypts with RSA public key for server registration.
-   */
-  public buildRegistrationPayload(rsaPublicKey: string): string {
+  public buildRegistrationPayload(rsaPublicKey: string, deviceUuid: string) {
     const aesKey = this.generateAesKey();
-    const sessionId = this.generateSessionId();
-    const ipAddress = ramStore.getLocalIpAddress();
-    const studentInfo = ramStore.studentInfo;
-
-    // Save crypto state to RAM
+    
+    // Save crypto state to RAM temporarily. Session token will be updated upon login.
     ramStore.cryptoState = {
       aesKeyHex: aesKey,
-      userSessionID: sessionId,
+      userSessionID: '', // to be populated
       rsaPublicKey
     };
 
-    const payload: RegisterUserCryptoPayload = {
-      studentID: studentInfo.id,
-      aesKey,
-      userSessionID: sessionId,
-      ipAddress
+    const aesKeyBuffer = Buffer.from(aesKey, 'hex');
+    const encryptedAesKey = crypto.publicEncrypt(
+      {
+        key: rsaPublicKey,
+        padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+        oaepHash: 'sha256'
+      },
+      aesKeyBuffer
+    ).toString('base64');
+
+    return {
+      device_uuid: deviceUuid,
+      encrypted_aes_key: encryptedAesKey
     };
-
-    return this.encryptRsa(JSON.stringify(payload), rsaPublicKey);
-  }
-
-  /**
-   * Initialize crypto: generate keys and register with server.
-   * Returns the encrypted payload ready to send to POST /auth/register.
-   */
-  public initializeCrypto(rsaPublicKey: string): { encryptedPayload: string } {
-    const encryptedPayload = this.buildRegistrationPayload(rsaPublicKey);
-    return { encryptedPayload };
   }
 }
 

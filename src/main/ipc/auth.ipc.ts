@@ -1,10 +1,11 @@
 import { ipcMain } from 'electron';
 import { ramStore } from '../services/ramStore.service';
 import { cryptoService } from '../services/crypto.service';
-import { checkStudentId, getPublicKey, registerUser } from '../services/api.service';
+import { getStudentIdByIp, getPublicKey, registerDevice, login, getMacAddresses } from '../services/api.service';
 import { logger } from '../services/logger.service';
 import type { IpcResponse } from '../../common/types';
 import { ErrorCode } from '../../common/errorCodes';
+import { messageSyncService } from '../services/message-sync.service';
 
 /**
  * Auth IPC Handlers
@@ -16,81 +17,111 @@ import { ErrorCode } from '../../common/errorCodes';
  */
 export function registerAuthIpc(): void {
   /**
-   * Login flow:
-   * 1. Check student ID with server (or fallback to local config)
-   * 2. If valid → get RSA public key
-   * 3. Generate AES key + session ID
-   * 4. Encrypt and register with server
-   * 5. Save student info + crypto state to RAM
+   * Device Registration Flow:
+   * 1. Get RSA public key
+   * 2. Generate AES key + session ID
+   * 3. Encrypt and register with server
    */
-  ipcMain.handle('auth:login', async (_event, studentID: string): Promise<IpcResponse<void>> => {
-    logger.info(`[Auth] Login attempt for student: ${studentID}`);
+  ipcMain.handle('auth:register', async (_event): Promise<IpcResponse<void>> => {
+    logger.info(`[Auth] Manual device registration attempt`);
+    try {
+      const keyResponse = await getPublicKey();
+      if (!keyResponse.success || !keyResponse.data?.publicKey) {
+        return { success: false, error: { code: ErrorCode.REGISTRATION_FAILED, message: 'Failed to get RSA public key' } };
+      }
 
-    // Try server verification first
-    const serverResponse = await checkStudentId(studentID);
+      const deviceUuid = getMacAddresses();
+      const { encrypted_aes_key } = cryptoService.buildRegistrationPayload(keyResponse.data.publicKey, deviceUuid);
+      const registerResponse = await registerDevice(deviceUuid, encrypted_aes_key);
 
-    if (serverResponse.success) {
-      // Server is available - do full crypto registration
-      try {
-        // Get RSA public key
+      if (!registerResponse.success) {
+        return { success: false, error: { code: ErrorCode.REGISTRATION_FAILED, message: 'Failed to register device' } };
+      }
+
+      messageSyncService.registerSocket();
+      return { success: true };
+    } catch (error) {
+      logger.error('[Auth] Error during registration:', error);
+      return { success: false, error: { code: ErrorCode.REGISTRATION_FAILED, message: 'Server unreachable' } };
+    }
+  });
+
+  /**
+   * Login flow:
+   * 1. Check student ID with server
+   * 2. If valid → perform login
+   */
+  ipcMain.handle('auth:login', async (_event, manualTestId?: string): Promise<IpcResponse<void>> => {
+    logger.info(`[Auth] Auto-login attempt via IP or manual login`);
+
+    try {
+      // 1. Ensure device is registered
+      if (!ramStore.cryptoState) {
         const keyResponse = await getPublicKey();
         if (!keyResponse.success || !keyResponse.data?.publicKey) {
-          return {
-            success: false,
-            error: { code: ErrorCode.REGISTRATION_FAILED, message: 'Failed to get RSA public key' }
-          };
+          return { success: false, error: { code: ErrorCode.REGISTRATION_FAILED, message: 'Failed to get RSA public key' } };
         }
-
-        // Set student info in RAM
-        ramStore.studentInfo = { id: studentID, name: serverResponse.data?.name || studentID };
-
-        // Generate crypto keys and register
-        const { encryptedPayload } = cryptoService.initializeCrypto(keyResponse.data.publicKey);
-        const registerResponse = await registerUser(encryptedPayload);
-
+        const deviceUuid = getMacAddresses();
+        const { encrypted_aes_key } = cryptoService.buildRegistrationPayload(keyResponse.data.publicKey, deviceUuid);
+        const registerResponse = await registerDevice(deviceUuid, encrypted_aes_key);
         if (!registerResponse.success) {
+          return { success: false, error: { code: ErrorCode.REGISTRATION_FAILED, message: 'Failed to register device with server' } };
+        }
+        messageSyncService.registerSocket();
+      }
+
+      // 2. Determine student ID (manual vs IP)
+      let testId = manualTestId;
+      if (!testId) {
+        const idResponse = await getStudentIdByIp();
+        if (idResponse.success && idResponse.data?.testId) {
+          testId = idResponse.data.testId;
+        }
+      }
+      
+      if (testId) {
+        // 4. Perform login
+        const loginResponse = await login({ testId });
+        
+        if (loginResponse.success && loginResponse.data?.session_token) {
+          const sessionToken = loginResponse.data.session_token;
+          
+          if (ramStore.cryptoState) {
+             ramStore.cryptoState.userSessionID = sessionToken;
+          }
+          
+          ramStore.studentInfo = { id: testId, name: testId }; // Can update name if provided by API
+          ramStore.isStudentVerified = true;
+          logger.info(`[Auth] Student ${testId} logged in successfully`);
+          return { success: true };
+        } else {
+          ramStore.cryptoState = null;
           return {
             success: false,
             error: {
-              code: ErrorCode.REGISTRATION_FAILED,
-              message: 'Failed to register with server'
+              code: ErrorCode.STUDENT_NOT_FOUND,
+              message: loginResponse.error?.message || 'Login failed'
             }
           };
         }
-
-        ramStore.isStudentVerified = true;
-        logger.info(`[Auth] Student ${studentID} registered successfully with server`);
-        return { success: true };
-      } catch (error) {
-        logger.error('[Auth] Error during server registration:', error);
-        // Fall through to offline verification
       }
-    }
+      
+      return {
+        success: false,
+        error: { code: ErrorCode.STUDENT_NOT_FOUND, message: 'Auto-login failed. IP not recognized or login failed.' }
+      };
 
-    // Offline verification: check against accessibleUsers in config
-    const config = ramStore.examConfig;
-    if (!config) {
+    } catch (error) {
+      logger.error('[Auth] Error during login:', error);
+      ramStore.cryptoState = null;
       return {
         success: false,
         error: {
-          code: ErrorCode.STUDENT_NOT_FOUND,
-          message: 'No config loaded and server unavailable'
+          code: ErrorCode.REGISTRATION_FAILED,
+          message: 'Server unreachable or error during login'
         }
       };
     }
-
-    const user = config.accessibleUsers.find((u) => u.id === studentID);
-    if (!user) {
-      return {
-        success: false,
-        error: { code: ErrorCode.STUDENT_NOT_FOUND, message: 'Student ID not found' }
-      };
-    }
-
-    ramStore.studentInfo = { id: user.id, name: user.name };
-    ramStore.isStudentVerified = true;
-    logger.info(`[Auth] Student ${studentID} verified offline`);
-    return { success: true };
   });
 
   ipcMain.handle('auth:is-verified', () => {
