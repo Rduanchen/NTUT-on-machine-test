@@ -114,7 +114,7 @@
               <template #message>
                 <div class="d-flex flex-column align-center text-medium-emphasis">
                   <v-icon size="32" class="mb-2">mdi-upload-outline</v-icon>
-                  <span>Drag & Drop or Click</span>
+                  <span>{{ t('examSystem.config.upload.dragDropHint') }}</span>
                 </div>
               </template>
             </v-file-upload>

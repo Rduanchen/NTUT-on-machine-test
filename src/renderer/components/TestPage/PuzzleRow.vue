@@ -67,12 +67,12 @@ const { t } = useI18n();
 const rulesChip = computed<null | { text: string; color: string }>(() => {
   const effectiveRuleCount = props.effectiveSpecialRules?.length ?? 0;
   if (effectiveRuleCount === 0) {
-    return { text: 'Rules N/A', color: 'grey' };
+    return { text: t('examSystem.puzzles.rulesNotAvailable'), color: 'grey' };
   }
 
   const results = props.specialRuleResults;
   if (!results || results.length === 0) {
-    return { text: `Rules 0/${effectiveRuleCount}`, color: 'grey' };
+    return { text: t('examSystem.puzzles.rulesSummary', { passed: 0, total: effectiveRuleCount }), color: 'grey' };
   }
 
   const effectiveIds = new Set((props.effectiveSpecialRules ?? []).map((r) => r.id));
@@ -80,7 +80,7 @@ const rulesChip = computed<null | { text: string; color: string }>(() => {
   const passed = effectiveResults.filter((r) => r.passed).length;
   const allPassed = effectiveResults.length === effectiveRuleCount && passed === effectiveRuleCount;
   return {
-    text: `Rules ${passed}/${effectiveRuleCount}`,
+    text: t('examSystem.puzzles.rulesSummary', { passed, total: effectiveRuleCount }),
     color: allPassed ? 'success' : 'error',
   };
 });

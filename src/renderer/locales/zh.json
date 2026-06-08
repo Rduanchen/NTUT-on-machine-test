@@ -11,7 +11,11 @@
     },
     "errors": {
       "generic": "登入失敗，請確認學號是否正確後再試一次。"
-    }
+    },
+    "autoLoginProgress": "自動登入中...",
+    "autoLoginSuccess": "自動登入成功",
+    "waitingForExam": "等待考試開始，請稍後...",
+    "autoLoginFailed": "自動登入失敗，請手動登入。"
   },
   "examSystem": {
     "title": "北科大考試系統",
@@ -24,6 +28,13 @@
     "currentLanguage": "目前語言",
     "switchToLight": "切換為亮色主題",
     "switchToDark": "切換為暗色主題",
+    "developedBy": "本系統由 VerechoTJI 開發 | ",
+    "easterEgg": {
+      "title": "被你發現了！",
+      "developerName": "阿端(Justin)",
+      "class": "北科大 資工一(CS1)",
+      "role": "全端開發者"
+    },
     "studentInfo": {
       "name": "學生姓名",
       "id": "學號"
@@ -45,7 +56,8 @@
         "title": "上傳設定檔案",
         "label": "選擇設定檔案",
         "success": "設定檔案上傳成功",
-        "failed": "設定檔案上傳失敗"
+        "failed": "設定檔案上傳失敗",
+        "dragDropHint": "拖曳檔案至此或點擊選取"
       },
       "saveButton": "儲存設定",
       "saveSuccess": "設定已儲存"
@@ -70,10 +82,21 @@
       "caseFailed": "失敗 (WA)",
       "hiddenOutput": "(測資隱藏)",
       "noResult": "目前沒有可顯示的測試結果。",
+      "passedLabel": "通過：",
+      "specialRules": "特殊規則",
+      "subtaskLabel": "子任務 {id}",
+      "notEvaluated": "未評估",
+      "pass": "通過",
+      "fail": "未通過",
       "tableHeaders": {
         "caseId": "測試案例 ID",
         "result": "結果",
-        "userOutput": "您的輸出"
+        "userOutput": "您的輸出",
+        "status": "狀態",
+        "rule": "規則",
+        "reason": "原因",
+        "time": "時間",
+        "output": "輸出"
       }
     },
     "common": {
@@ -83,6 +106,7 @@
     "notificationCenter": {
       "title": "即時通知",
       "subtitle": "與後端訊息及設定保持同步",
+      "socketFeed": "即時通知摘要",
       "messageVersion": "訊息版本",
       "configVersion": "設定版本",
       "autoSync": "每 60 秒自動同步一次。最後同步：{time}",
@@ -103,6 +127,15 @@
     "puzzles": {
       "forceStop": "強制停止所有評測",
       "exportZip": "匯出作答壓縮檔",
+      "earlyEndConfirm": "您確定要提前結束考試嗎？",
+      "earlyEnd": "提前結束",
+      "bufferCountdown": "考試已結束，將在 {seconds} 秒後跳轉...",
+      "defaultSection": "預設區段",
+      "maxScoreLabel": "最高分數：",
+      "estimatedScoreLabel": "預估分數：",
+      "totalEstimatedScoreLabel": "總預估分數：",
+      "rulesNotAvailable": "規則無",
+      "rulesSummary": "規則 {passed}/{total}",
       "summary": "共 {count} 題",
       "finisheTheExam": {
         "label": "完成考試",
@@ -137,5 +170,45 @@
         "description": "請選擇您要上傳的程式碼檔案。"
       }
     }
+  },
+  "notInitialized": {
+    "title": "系統尚未初始化",
+    "subtitle": "請等待監考老師進行考試系統初始化。",
+    "statusChip": "等待系統設定中",
+    "registerSection": "裝置註冊",
+    "registerBtn": "註冊此裝置",
+    "retryBtn": "重新整理 / 測試連線",
+    "registerSuccess": "裝置註冊成功",
+    "registerFailed": "裝置註冊失敗"
+  },
+  "waiting": {
+    "title": "等待考試開始",
+    "subtitle": "設定已載入。請等待考試開始。",
+    "statusChip": "考試已準備就緒",
+    "studentId": "學號",
+    "verified": "已驗證",
+    "autoLoginSuccess": "自動登入成功",
+    "autoLoginFailed": "自動登入失敗，請聯絡助教。",
+    "hint": "請保持此頁面開啟。考試開始時系統將自動跳轉。"
+  },
+  "finished": {
+    "banner": "考試已結束",
+    "bannerSub": "作答已鎖定。請依照以下步驟完成繳交。",
+    "examEnded": "已結束",
+    "points": "分",
+    "subtasks": "個子任務",
+    "confirmWarning": "請確認您的最終得分。若有任何疑問，請立即聯絡助教。",
+    "actionsTitle": "繳交步驟",
+    "pushCode": "1. 上傳所有程式碼",
+    "confirmScore": "2. 確認分數並送出",
+    "downloadCode": "下載作答備份 ZIP",
+    "taWarningTitle": "離場前重要注意事項",
+    "taWarning1": "在助教確認收到您的繳交之前，請勿關閉此程式。",
+    "taWarning2": "請妥善保存下載的備份 ZIP 檔案，以防萬一。",
+    "taWarning3": "經監考人員或助教確認無誤後，方可離場。",
+    "codePushSuccess": "程式碼上傳成功",
+    "codePushFailed": "程式碼上傳失敗。請重試或聯絡助教。",
+    "scoreConfirmSuccess": "成績確認並送出成功",
+    "scoreConfirmFailed": "成績送出失敗。請重試或聯絡助教。"
   }
 }

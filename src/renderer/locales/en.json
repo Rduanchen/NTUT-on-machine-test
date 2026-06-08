@@ -11,7 +11,11 @@
     },
     "errors": {
       "generic": "Login failed. Please check your student ID and try again."
-    }
+    },
+    "autoLoginProgress": "Auto-login in progress...",
+    "autoLoginSuccess": "Auto-login Successful",
+    "waitingForExam": "Waiting for the exam to start. Please wait...",
+    "autoLoginFailed": "Auto-login failed. Please log in manually."
   },
   "examSystem": {
     "title": "NTUT Exam System",
@@ -24,6 +28,13 @@
     "currentLanguage": "Language",
     "switchToLight": "Switch to Light Theme",
     "switchToDark": "Switch to Dark Theme",
+    "developedBy": "This system is developed by VerechoTJI | ",
+    "easterEgg": {
+      "title": "You catch me !!",
+      "developerName": "Justin",
+      "class": "NTUT CS1",
+      "role": "Full Stack Developer"
+    },
     "studentInfo": {
       "name": "Student",
       "id": "Exam ID"
@@ -45,7 +56,8 @@
         "title": "Upload Config File",
         "label": "Select config file",
         "success": "Config file uploaded successfully",
-        "failed": "Failed to upload config file"
+        "failed": "Failed to upload config file",
+        "dragDropHint": "Drag & Drop or Click"
       },
       "saveButton": "Save Settings",
       "saveSuccess": "Settings saved"
@@ -70,10 +82,21 @@
       "caseFailed": "Failed (WA)",
       "hiddenOutput": "(Hidden test case)",
       "noResult": "There is no test result to display.",
+      "passedLabel": "Passed:",
+      "specialRules": "Special Rules",
+      "subtaskLabel": "Subtask {id}",
+      "notEvaluated": "Not evaluated",
+      "pass": "PASS",
+      "fail": "FAIL",
       "tableHeaders": {
         "caseId": "Test Case ID",
         "result": "Result",
-        "userOutput": "Your Output"
+        "userOutput": "Your Output",
+        "status": "Status",
+        "rule": "Rule",
+        "reason": "Reason",
+        "time": "Time",
+        "output": "Output"
       }
     },
     "common": {
@@ -83,6 +106,7 @@
     "notificationCenter": {
       "title": "Realtime Alerts",
       "subtitle": "Stay synced with backend messages & config",
+      "socketFeed": "Socket notifications feed",
       "messageVersion": "Message Version",
       "configVersion": "Config Version",
       "autoSync": "Auto sync runs every 60 seconds. Latest sync: {time}",
@@ -103,6 +127,15 @@
     "puzzles": {
       "forceStop": "Force Stop All Tests",
       "exportZip": "Export Answers as ZIP",
+      "earlyEndConfirm": "Are you sure you want to end the exam early?",
+      "earlyEnd": "Early End",
+      "bufferCountdown": "Exam ended. Navigating in {seconds}s...",
+      "defaultSection": "Default Section",
+      "maxScoreLabel": "Max Score: ",
+      "estimatedScoreLabel": "Estimated Score: ",
+      "totalEstimatedScoreLabel": "Total Estimated Score:",
+      "rulesNotAvailable": "Rules N/A",
+      "rulesSummary": "Rules {passed}/{total}",
       "finisheTheExam": {
         "label": "Finish the Exam",
         "finisheTheExamIntro": "Please follow the following steps to complete your exam:",
@@ -137,5 +170,45 @@
         "description": "Please select the source code file you want to upload."
       }
     }
+  },
+  "notInitialized": {
+    "title": "System Not Initialized",
+    "subtitle": "Please wait for the proctor to initialize the exam system.",
+    "statusChip": "Waiting for System Setup",
+    "registerSection": "Device Registration",
+    "registerBtn": "Register Device",
+    "retryBtn": "Retry Connection",
+    "registerSuccess": "Device registered successfully",
+    "registerFailed": "Device registration failed"
+  },
+  "waiting": {
+    "title": "Waiting for Exam",
+    "subtitle": "The exam config has been loaded. Please wait for the exam to start.",
+    "statusChip": "Exam Ready",
+    "studentId": "Student ID",
+    "verified": "Verified",
+    "autoLoginSuccess": "Auto-login successful",
+    "autoLoginFailed": "Auto-login failed. Please contact the TA.",
+    "hint": "Please keep this page open. You will be automatically redirected to the exam page once it starts."
+  },
+  "finished": {
+    "banner": "Exam Finished",
+    "bannerSub": "Your answers have been locked. Please complete the following steps to submit.",
+    "examEnded": "Ended",
+    "points": "Points",
+    "subtasks": "subtasks",
+    "confirmWarning": "Please verify that your final score is correct. If there are any discrepancies, contact the TA immediately.",
+    "actionsTitle": "Submission Steps",
+    "pushCode": "1. Upload All Source Codes",
+    "confirmScore": "2. Confirm Score & Submit",
+    "downloadCode": "Download Backup ZIP",
+    "taWarningTitle": "Important Instructions before leaving",
+    "taWarning1": "Do not close this application until the TA has confirmed receipt of your submission.",
+    "taWarning2": "Please keep a copy of the backup ZIP file just in case.",
+    "taWarning3": "You may leave the classroom only after the TA gives permission.",
+    "codePushSuccess": "Code uploaded successfully",
+    "codePushFailed": "Code upload failed. Please try again or contact the TA.",
+    "scoreConfirmSuccess": "Score confirmed and submitted successfully",
+    "scoreConfirmFailed": "Failed to submit score. Please try again or contact the TA."
   }
 }

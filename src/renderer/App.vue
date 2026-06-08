@@ -30,12 +30,12 @@
 
         <div class="d-flex align-center no-drag">
           <v-text class="mr-3 font-weight-medium" style="font-size: 1.2em">
-            This system is developed by VerechoTJI |
+            {{ t('examSystem.developedBy') }}
             <span
               :class="['neon-text', isDark ? 'neon-text--dark' : 'neon-text--light']"
               @click="handleSecretClick"
             >
-              阿端
+              {{ t('examSystem.easterEgg.developerName') }}
               <v-tooltip activator="parent" location="bottom" open-delay="50">
                 <span class="text-caption">{{ t('examSystem.secretLabel') }}</span>
               </v-tooltip>
@@ -109,7 +109,7 @@
         <v-btn icon variant="text" size="small" @click="showNotifications = true">
           <v-icon>mdi-bell-badge-outline</v-icon>
           <v-tooltip activator="parent" location="bottom">
-            {{ t('examSystem.serverStatusLabel') }} socket feed
+            {{ t('examSystem.notificationCenter.socketFeed') }}
           </v-tooltip>
         </v-btn>
       </div>
@@ -136,14 +136,14 @@
           class="text-h3 font-weight-black mb-6"
           :class="['mega-neon-text', isDark ? 'mega-neon-text--dark' : 'mega-neon-text--light']"
         >
-          You catch me !!
+          {{ t('examSystem.easterEgg.title') }}
         </div>
 
-        <div class="text-h5 font-weight-bold mb-1">阿端(Justin)</div>
+        <div class="text-h5 font-weight-bold mb-1">{{ t('examSystem.easterEgg.developerName') }}</div>
 
         <div class="text-subtitle-1 text-medium-emphasis mb-6 font-weight-medium">
-          NTUT 資工一(CS1) <br />
-          <span class="text-primary">Full Stack Developer</span>
+          {{ t('examSystem.easterEgg.class') }} <br />
+          <span class="text-primary">{{ t('examSystem.easterEgg.role') }}</span>
         </div>
 
         <div class="mb-6">
@@ -164,7 +164,7 @@
         <v-divider class="mb-4"></v-divider>
 
         <v-btn color="primary" variant="flat" block size="large" @click="showEasterEgg = false">
-          Close
+          {{ t('examSystem.common.close') }}
         </v-btn>
       </v-card>
     </v-dialog>

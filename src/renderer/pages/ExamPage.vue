@@ -193,7 +193,7 @@ function openUploadDialog(item: PuzzleInfo) {
 }
 
 async function handleEarlyEnd() {
-  if (confirm("Are you sure you want to end the exam early?")) {
+  if (confirm(t('examSystem.puzzles.earlyEndConfirm'))) {
     router.push('/finished');
   }
 }

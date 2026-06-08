@@ -14,7 +14,7 @@
         class="font-weight-bold pulse-chip"
         prepend-icon="mdi-timer-sand"
       >
-        Exam ended. Navigating in {{ bufferTimeLeft }}s...
+        {{ t('examSystem.puzzles.bufferCountdown', { seconds: bufferTimeLeft }) }}
       </v-chip>
     </div>
 
@@ -47,7 +47,7 @@
         height="40"
         @click="$emit('early-end')"
       >
-        Early End
+        {{ t('examSystem.puzzles.earlyEnd') }}
       </v-btn>
 
       <v-dialog max-width="700">
@@ -95,7 +95,7 @@
             </v-card-text>
             <v-card-actions>
               <v-spacer />
-              <v-btn text @click="isActive.value = false">Close</v-btn>
+              <v-btn text @click="isActive.value = false">{{ t('examSystem.common.close') }}</v-btn>
             </v-card-actions>
           </v-card>
         </template>
