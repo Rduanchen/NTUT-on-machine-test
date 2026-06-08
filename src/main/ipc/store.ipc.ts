@@ -69,7 +69,8 @@ export function registerStoreIpc(): void {
 
     const map: Record<string, SpecialRule[]> = {};
     for (let i = 0; i < allPuzzles.length; i += 1) {
-      map[String(i)] = getEffectiveSpecialRules({ examConfig: config, puzzleIndex: i });
+      const puzzleId = allPuzzles[i].id ?? String(i);
+      map[puzzleId] = getEffectiveSpecialRules({ examConfig: config, puzzleId });
     }
     return map;
   });
@@ -85,12 +86,15 @@ export function registerStoreIpc(): void {
         if (!section.puzzles) continue;
         for (const puzzle of section.puzzles) {
           puzzlesWithSection.push({
-            id: puzzle.id,
+            id: puzzle.id ?? String(puzzlesWithSection.length),
             title: puzzle.title,
             language: puzzle.language,
             sectionId: section.id,
             sectionTitle: section.title,
-            score: puzzle.score ?? 0
+            sectionDescription: section.description,
+            sectionMaxScore: section.maxScore,
+            score: puzzle.score ?? 0,
+            subtasks: puzzle.subtasks?.map(s => ({ title: s.title, score: s.score ?? 0 }))
           });
         }
       }
@@ -102,7 +106,8 @@ export function registerStoreIpc(): void {
           id: puzzle.id ?? String(i),
           title: puzzle.title,
           language: puzzle.language,
-          score: puzzle.score ?? 0
+          score: puzzle.score ?? 0,
+          subtasks: puzzle.subtasks?.map(s => ({ title: s.title, score: s.score ?? 0 }))
         });
       }
     }

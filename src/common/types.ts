@@ -215,7 +215,10 @@ export interface PuzzleInfo {
   language: SupportedLanguage;
   sectionId?: string;
   sectionTitle?: string;
+  sectionDescription?: string;
+  sectionMaxScore?: number;
   score?: number;
+  subtasks?: { title: string; score?: number }[];
 }
 
 // ─── Connection Service Types ───────────────────────────────────────

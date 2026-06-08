@@ -67,31 +67,34 @@ class NodeJudgerService {
     const config = ramStore.examConfig;
     if (!config) throw new Error('ExamConfig not loaded');
 
-    const puzzleIndex = Number(puzzleId);
-    if (Number.isNaN(puzzleIndex)) throw new Error(`Invalid puzzle index: ${puzzleId}`);
+    let puzzle: Puzzle | undefined;
+    if (config.sections && config.sections.length > 0) {
+      puzzle = config.sections.flatMap(s => s.puzzles).find((p, idx) => (p.id ?? String(idx)) === puzzleId);
+    } else if (config.puzzles) {
+      puzzle = config.puzzles.find((p, idx) => (p.id ?? String(idx)) === puzzleId);
+    }
 
-    const puzzle = config.puzzles[puzzleIndex];
-    if (!puzzle) throw new Error(`Puzzle not found at index: ${puzzleId}`);
+    if (!puzzle) throw new Error(`Puzzle not found with ID: ${puzzleId}`);
 
     const extension = getExtensionForLanguage(puzzle.language);
-    const storedPath = localProgramStore.addFile(String(puzzleIndex), extension, codeFilePath);
+    const storedPath = localProgramStore.addFile(puzzleId, extension, codeFilePath);
     const codeString = fs.readFileSync(storedPath, 'utf-8');
 
     // Evaluate special rules immediately (student should see PASS/FAIL right after submit)
     try {
       const effectiveRules = getEffectiveSpecialRules({
         examConfig: config,
-        puzzleIndex,
+        puzzleId,
       });
       const specialRuleResults = evaluateSpecialRules({
         rules: effectiveRules,
         language: puzzle.language,
         sourceText: codeString,
       });
-      ramStore.setSpecialRuleResults(String(puzzleIndex), specialRuleResults);
+      ramStore.setSpecialRuleResults(puzzleId, specialRuleResults);
     } catch (e: any) {
       // Defensive: don't break judging even if rule evaluation fails.
-      ramStore.setSpecialRuleResults(String(puzzleIndex), [
+      ramStore.setSpecialRuleResults(puzzleId, [
         {
           ruleId: '__engine_error__',
           passed: false,
@@ -104,7 +107,8 @@ class NodeJudgerService {
 
     const judgerSettings = config.judgerSettings;
     const timeLimit = puzzle.timeLimit || judgerSettings.timeLimit;
-    const memoryLimit = puzzle.memoryLimit || judgerSettings.memoryLimit;
+    const memoryLimitMB = puzzle.memoryLimit || judgerSettings.memoryLimit || 128; // fallback to 128MB
+    const memoryLimitBytes = memoryLimitMB * 1024 * 1024;
 
     const subtasks: NodeJudgeTestCase[][] = puzzle.subtasks.map((subtask) => {
       const cases: NodeJudgeTestCase[] = [];
@@ -119,7 +123,7 @@ class NodeJudgerService {
 
     const judge = new Judge({
       defaultTimeLimit: timeLimit,
-      defaultMemoryLimit: memoryLimit
+      defaultMemoryLimit: memoryLimitBytes
     });
 
     currentHandle = judge.run({
@@ -127,7 +131,7 @@ class NodeJudgerService {
       codeString,
       compareMode: 'loose',
       timeLimit,
-      memoryLimit,
+      memoryLimit: memoryLimitBytes,
       subtasks
     });
 

@@ -9,9 +9,9 @@ import { evaluateRules } from 'special-rule-engine';
 
 export function getEffectiveSpecialRules(input: {
     examConfig: ExamConfig;
-    puzzleIndex: number;
+    puzzleId: string;
 }): SpecialRule[] {
-    const { examConfig, puzzleIndex } = input;
+    const { examConfig, puzzleId } = input;
     const globalRules = examConfig.globalSpecialRules ?? [];
 
     // Flatten puzzles from sections first, then fall back to legacy flat puzzles array
@@ -19,7 +19,8 @@ export function getEffectiveSpecialRules(input: {
         ? examConfig.sections.flatMap((s) => s.puzzles)
         : (examConfig.puzzles ?? []);
 
-    const puzzleRules = allPuzzles[puzzleIndex]?.specialRules ?? [];
+    const puzzle = allPuzzles.find((p, idx) => (p.id ?? String(idx)) === puzzleId);
+    const puzzleRules = puzzle?.specialRules ?? [];
     return [...globalRules, ...puzzleRules];
 }
 

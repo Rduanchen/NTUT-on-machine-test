@@ -11,14 +11,24 @@
           <th style="width: 120px">{{ t('examSystem.puzzles.headers.upload') }}</th>
         </tr>
       </thead>
-      <template v-for="(group, sectionTitle) in groupedPuzzles" :key="sectionTitle">
+      <template v-for="(group, sectionId) in groupedPuzzles" :key="sectionId">
         <tbody>
-          <!-- Section Header -->
           <tr class="bg-grey-lighten-4">
-            <td colspan="6" class="font-weight-bold text-primary">
-              <v-icon start size="small">mdi-folder-outline</v-icon>
-              {{ sectionTitle || 'Default Section' }}
-              <span class="float-right mr-4">Estimated Score: {{ calculateSectionScore(group) }}</span>
+            <td colspan="6" class="py-2">
+              <div class="d-flex align-center w-100">
+                <v-icon start size="small" class="text-primary mr-2">mdi-folder-outline</v-icon>
+                <span class="font-weight-bold text-primary text-subtitle-1">{{ group[0].sectionTitle || sectionId || t('examSystem.puzzles.defaultSection') }}</span>
+                <v-spacer></v-spacer>
+                <div v-if="group[0].sectionMaxScore" class="mr-4 text-caption text-grey-darken-1">
+                  {{ t('examSystem.puzzles.maxScoreLabel') }} {{ group[0].sectionMaxScore }}
+                </div>
+                <div class="font-weight-bold">
+                  {{ t('examSystem.puzzles.estimatedScoreLabel') }} <span class="text-primary">{{ calculateSectionScore(group) }}</span>
+                </div>
+              </div>
+              <div v-if="group[0].sectionDescription" class="mt-1 ml-6 text-caption text-grey-darken-1">
+                {{ group[0].sectionDescription }}
+              </div>
             </td>
           </tr>
           <!-- Puzzle Rows -->
@@ -40,7 +50,7 @@
       <!-- Total Score Footer -->
       <tfoot>
         <tr class="bg-primary text-white font-weight-bold">
-          <td colspan="5" class="text-right">Total Estimated Score:</td>
+          <td colspan="5" class="text-right">{{ t('examSystem.puzzles.totalEstimatedScoreLabel') }}</td>
           <td class="text-center">{{ totalScore }}</td>
         </tr>
       </tfoot>
@@ -70,7 +80,7 @@ const { t } = useI18n();
 const groupedPuzzles = computed(() => {
   const groups: Record<string, PuzzleInfo[]> = {};
   for (const p of props.puzzles) {
-    const section = p.sectionTitle || '';
+    const section = p.sectionId || 'default';
     if (!groups[section]) groups[section] = [];
     groups[section].push(p);
   }
@@ -78,10 +88,29 @@ const groupedPuzzles = computed(() => {
 });
 
 function calculatePuzzleScore(puzzle: PuzzleInfo): number {
-  const passRateInfo = props.puzzlePassRates[String(puzzle.id)];
-  if (!passRateInfo || passRateInfo.text === 'N/A') return 0;
-  const rate = parseInt(passRateInfo.text.replace('%', ''), 10);
-  if (isNaN(rate)) return 0;
+  const result = props.testResult[String(puzzle.id)];
+  let baseScore = 0;
+
+  if (result && puzzle.subtasks && puzzle.subtasks.length > 0) {
+    for (let i = 0; i < puzzle.subtasks.length; i++) {
+      const subtaskResult = result.subtasks[i];
+      const subtaskConfig = puzzle.subtasks[i];
+      
+      if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.length > 0) {
+        if (subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
+          baseScore += (subtaskConfig.score || 0);
+        }
+      }
+    }
+  } else {
+    const passRateInfo = props.puzzlePassRates[String(puzzle.id)];
+    if (passRateInfo && passRateInfo.text !== 'N/A') {
+      const rate = parseInt(passRateInfo.text.replace('%', ''), 10);
+      if (!isNaN(rate)) {
+        baseScore = Number(((puzzle.score || 0) * (rate / 100)).toFixed(1));
+      }
+    }
+  }
   
   // Apply multiplier if special rules failed
   let multiplier = 1.0;
@@ -99,8 +128,7 @@ function calculatePuzzleScore(puzzle: PuzzleInfo): number {
     }
   }
 
-  const baseScore = puzzle.score || 0;
-  return Number(((baseScore * (rate / 100)) * multiplier).toFixed(1));
+  return Number((baseScore * multiplier).toFixed(1));
 }
 
 function calculateSectionScore(group: PuzzleInfo[]): number {

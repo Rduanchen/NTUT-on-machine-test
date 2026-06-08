@@ -97,7 +97,6 @@ class JudgeManagerService {
 
   public async syncResultsInBackground(uploadCode: boolean): Promise<void> {
     try {
-      const results = ramStore.hiddenTestResults;
 
       // Prevent lower-score overwrite on backend:
       // only upload test results if the *current* score (passed subtasks) is >=
@@ -112,10 +111,45 @@ class JudgeManagerService {
       const lastKnownPassedSubtasks = this.countPassedSubtasksInAllPuzzles(ramStore.testResults);
 
       if (currentPassedSubtasks >= lastKnownPassedSubtasks) {
-        // Calculate total subtasks across all sections
-        const allPuzzles = ramStore.examConfig?.sections?.flatMap(s => s.puzzles) ?? [];
-        const totalSubtasks = allPuzzles.reduce((acc, p) => acc + p.subtasks.length, 0) || 1;
-        const score = Math.round((currentPassedSubtasks / totalSubtasks) * 100);
+        let totalScore = 0;
+        const allPuzzles = ramStore.examConfig?.sections?.flatMap(s => s.puzzles) ?? ramStore.examConfig?.puzzles ?? [];
+        
+        for (const [puzzleId, result] of Object.entries(ramStore.hiddenTestResults)) {
+          const puzzle = allPuzzles.find((p, idx) => (p.id ?? String(idx)) === puzzleId);
+          if (!puzzle || !result?.subtasks) continue;
+
+          let puzzleScore = 0;
+          if (puzzle.subtasks && puzzle.subtasks.length > 0) {
+            for (let i = 0; i < puzzle.subtasks.length; i++) {
+              const subtaskResult = result.subtasks[i];
+              if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.length > 0) {
+                if (subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
+                  puzzleScore += (puzzle.subtasks[i].score || 0);
+                }
+              }
+            }
+          }
+
+          // Apply special rule multiplier for hidden result?
+          // The local judger evaluated rules.
+          const srr = ramStore.specialRuleResults[puzzleId];
+          const esr = puzzle.specialRules || []; // we might not have global rules here easily, but let's do our best
+          let multiplier = 1.0;
+          if (srr && esr) {
+            for (const res of srr) {
+              if (!res.passed) {
+                const rule = esr.find(r => r.id === res.ruleId) || ramStore.examConfig?.globalSpecialRules?.find(r => r.id === res.ruleId);
+                if (rule && rule.multiplier !== undefined) {
+                  multiplier *= rule.multiplier;
+                }
+              }
+            }
+          }
+
+          totalScore += puzzleScore * multiplier;
+        }
+
+        const score = Math.round(totalScore);
         
         const response = await submitScore(score);
         if (response.success) {
