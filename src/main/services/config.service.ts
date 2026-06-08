@@ -3,7 +3,7 @@ import * as path from 'path';
 import { app } from 'electron';
 import { ramStore } from './ramStore.service';
 import { logger } from './logger.service';
-import { getExamStatus, fetchSecureExamConfig, healthCheck } from './api.service';
+import { fetchSecureExamConfig, healthCheck } from './api.service';
 import { connectionService } from './connection.service';
 import { messageSyncService } from './message-sync.service';
 import { examConfigSchema } from '../schemas/examConfig.schema';
@@ -157,7 +157,8 @@ class ConfigService {
 
   // ─── Internal Helpers ─────────────────────────────────────────
 
-  private async fetchAndSaveConfig(host: string): Promise<IpcResponse<void>> {
+  public async fetchAndSaveConfig(host?: string): Promise<IpcResponse<void>> {
+    const targetHost = host ?? ramStore.backendUrl;
     const response = await fetchSecureExamConfig();
 
     if (!response.success || !response.data) {
@@ -184,7 +185,7 @@ class ConfigService {
     }
 
     ramStore.examConfig = validation.data as ExamConfig;
-    ramStore.backendUrl = host;
+    ramStore.backendUrl = targetHost;
     logger.info('[Config] Config saved to RAM from server.');
     return { success: true };
   }

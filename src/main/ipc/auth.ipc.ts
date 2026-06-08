@@ -6,6 +6,7 @@ import { logger } from '../services/logger.service';
 import type { IpcResponse } from '../../common/types';
 import { ErrorCode } from '../../common/errorCodes';
 import { messageSyncService } from '../services/message-sync.service';
+import { configService } from '../services/config.service';
 
 /**
  * Auth IPC Handlers
@@ -93,6 +94,13 @@ export function registerAuthIpc(): void {
           ramStore.studentInfo = { id: testId, name: testId }; // Can update name if provided by API
           ramStore.isStudentVerified = true;
           logger.info(`[Auth] Student ${testId} logged in successfully`);
+
+          // Fetch the config right away now that we have the session token
+          await configService.fetchAndSaveConfig();
+          
+          // Refresh messages immediately since initial sync likely failed due to no crypto
+          await messageSyncService.manualRefresh();
+          
           return { success: true };
         } else {
           ramStore.cryptoState = null;
