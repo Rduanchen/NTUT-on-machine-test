@@ -46,11 +46,16 @@ function createAuthenticatedClient(): AxiosInstance {
       if (!cryptoState) throw new Error('Crypto state not initialized');
 
       const deviceUuid = getMacAddresses();
+      let originalData = config.data;
+      if (typeof originalData === 'string') {
+        try { originalData = JSON.parse(originalData); } catch (e) {}
+      }
+
       const payloadObj = {
+        ...(originalData || {}),
         timestamp: Date.now(),
         nonce: cryptoService.generateRandomString(),
-        session_token: cryptoState.userSessionID,
-        ...(config.data || {})
+        session_token: cryptoState.userSessionID
       };
       
       const encryptedPayload = cryptoService.encryptAesPayload(
@@ -63,6 +68,7 @@ function createAuthenticatedClient(): AxiosInstance {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.silly(`[API] Failed to encrypt body for authenticated request: ${msg}`);
+      return Promise.reject(err);
     }
     return config;
   });
@@ -172,7 +178,15 @@ export async function submitScore(score: number): Promise<IpcResponse<void>> {
 
 export async function logAction(payload: LogActionPayload): Promise<IpcResponse<void>> {
   try {
-    const response = await authClient.post(`${getBaseUrl()}/log`, payload);
+    if (!ramStore.cryptoState?.userSessionID) {
+       return { success: false, error: { code: 'NOT_LOGGED_IN', message: 'Cannot send logs before login' } };
+    }
+
+    const mappedPayload = {
+      ...payload,
+      actionType: payload.action
+    };
+    const response = await authClient.post(`${getBaseUrl()}/log`, mappedPayload);
     return { success: true, data: response.data };
   } catch (error) {
     return makeErrorResponse('logAction', error);
