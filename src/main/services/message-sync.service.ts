@@ -5,7 +5,7 @@ import {
   getMessages,
   getExamStatus,
   fetchSecureExamConfig,
-  getMacAddresses
+  getDeviceUuid
 } from './api.service';
 import { logger } from './logger.service';
 import type { ServerMessage, ExamState } from '../../common/types';
@@ -31,9 +31,9 @@ class MessageSyncService {
     return MessageSyncService.instance;
   }
 
-  public registerSocket(): void {
+  public async registerSocket(): Promise<void> {
     if (this.socket && this.socket.connected) {
-      const deviceUuid = getMacAddresses();
+      const deviceUuid = await getDeviceUuid();
       logger.info(`[MessageSync] Registering socket for device: ${deviceUuid}`);
       this.socket.emit('register', { device_uuid: deviceUuid });
     }

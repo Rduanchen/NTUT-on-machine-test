@@ -3,6 +3,7 @@ import { ramStore } from './ramStore.service';
 import { cryptoService } from './crypto.service';
 import { logger } from './logger.service';
 import * as os from 'os';
+import * as si from 'systeminformation';
 import type {
   ExamConfig,
   LogActionPayload,
@@ -12,18 +13,40 @@ import type {
 
 const API_TIMEOUT = 5000;
 
-export function getMacAddresses() {
+let cachedDeviceUuid: string | null = null;
+
+export async function getDeviceUuid(): Promise<string> {
+  if (cachedDeviceUuid) return cachedDeviceUuid;
+
+  try {
+    const baseboard = await si.baseboard();
+    if (baseboard.serial && baseboard.serial !== '-' && baseboard.serial.toLowerCase() !== 'unknown') {
+      cachedDeviceUuid = baseboard.serial;
+      return cachedDeviceUuid;
+    }
+    const system = await si.system();
+    if (system.uuid && system.uuid !== '-' && system.uuid.toLowerCase() !== 'unknown') {
+      cachedDeviceUuid = system.uuid;
+      return cachedDeviceUuid;
+    }
+  } catch (e) {
+    logger.warn('[getDeviceUuid] Failed to get hardware info, falling back to mac address');
+  }
+
   const interfaces = os.networkInterfaces();
   for (const name in interfaces) {
     const nets = interfaces[name];
     if (!nets) continue;
     for (const net of nets) {
       if (!net.internal && net.mac !== '00:00:00:00:00:00') {
-        return net.mac;
+        cachedDeviceUuid = net.mac;
+        return cachedDeviceUuid;
       }
     }
   }
-  return 'unknown';
+  
+  cachedDeviceUuid = 'fallback-uuid-' + Date.now();
+  return cachedDeviceUuid;
 }
 
 function createPublicClient(): AxiosInstance {
@@ -40,12 +63,12 @@ function createAuthenticatedClient(): AxiosInstance {
     headers: { 'Content-Type': 'application/json' }
   });
 
-  client.interceptors.request.use((config) => {
+  client.interceptors.request.use(async (config) => {
     try {
       const cryptoState = ramStore.cryptoState;
       if (!cryptoState) throw new Error('Crypto state not initialized');
 
-      const deviceUuid = getMacAddresses();
+      const deviceUuid = await getDeviceUuid();
       let originalData = config.data;
       if (typeof originalData === 'string') {
         try { originalData = JSON.parse(originalData); } catch (e) {}
@@ -165,9 +188,25 @@ export async function submitCode(codeContent: string, questionId: string, langua
   }
 }
 
-export async function submitScore(score: number): Promise<IpcResponse<void>> {
+export async function getSubmissions(): Promise<IpcResponse<any[]>> {
   try {
-    const response = await authClient.post(`${getBaseUrl()}/submissions/score`, { score });
+    const response = await authClient.get(`${getBaseUrl()}/submissions/codes`);
+    return { success: true, data: response.data };
+  } catch (error) {
+    return makeErrorResponse('getSubmissions', error);
+  }
+}
+
+export async function submitScore(payload: { 
+  score: number, 
+  puzzleResults?: any, 
+  subtaskAmount?: number, 
+  passedSubtaskAmount?: number, 
+  puzzleAmount?: number, 
+  passedPuzzleAmount?: number 
+}): Promise<IpcResponse<void>> {
+  try {
+    const response = await authClient.post(`${getBaseUrl()}/submissions/score`, payload);
     return { success: true, data: response.data };
   } catch (error) {
     return makeErrorResponse('submitScore', error);
@@ -231,13 +270,21 @@ export async function healthCheck(host?: string): Promise<boolean> {
 // ─── Error Helper ───────────────────────────────────────────────────
 
 function makeErrorResponse(context: string, error: unknown): IpcResponse<any> {
-  const message = error instanceof Error ? error.message : String(error);
+  let message = '';
+  if (axios.isAxiosError(error) && error.response?.data?.error) {
+    message = error.response.data.error;
+  } else if (error instanceof Error) {
+    message = error.message;
+  } else {
+    message = String(error);
+  }
+  
   logger.silly(`[API] ${context}: ${message}`);
   return {
     success: false,
     error: {
       code: 'NETWORK_ERROR',
-      message: `${context}: ${message}`
+      message: message
     }
   };
 }

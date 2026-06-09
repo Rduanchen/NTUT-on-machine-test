@@ -1,12 +1,17 @@
 import { ipcMain } from 'electron';
 import { ramStore } from '../services/ramStore.service';
 import { cryptoService } from '../services/crypto.service';
-import { getStudentIdByIp, getPublicKey, registerDevice, login, getMacAddresses } from '../services/api.service';
-import { logger } from '../services/logger.service';
+import { getStudentIdByIp, getPublicKey, registerDevice, login, getDeviceUuid, getSubmissions } from '../services/api.service';
+import { logger, logServerEvent } from '../services/logger.service';
 import type { IpcResponse } from '../../common/types';
 import { ErrorCode } from '../../common/errorCodes';
 import { messageSyncService } from '../services/message-sync.service';
 import { configService } from '../services/config.service';
+import { judgeManager } from '../services/judge-manager.service';
+import { getExtensionForLanguage } from '../services/node-judger.service';
+import path from 'path';
+import { app } from 'electron';
+import fs from 'fs';
 
 /**
  * Auth IPC Handlers
@@ -31,7 +36,7 @@ export function registerAuthIpc(): void {
         return { success: false, error: { code: ErrorCode.REGISTRATION_FAILED, message: 'Failed to get RSA public key' } };
       }
 
-      const deviceUuid = getMacAddresses();
+      const deviceUuid = await getDeviceUuid();
       const { encrypted_aes_key } = cryptoService.buildRegistrationPayload(keyResponse.data.publicKey, deviceUuid);
       const registerResponse = await registerDevice(deviceUuid, encrypted_aes_key);
 
@@ -62,7 +67,7 @@ export function registerAuthIpc(): void {
         if (!keyResponse.success || !keyResponse.data?.publicKey) {
           return { success: false, error: { code: ErrorCode.REGISTRATION_FAILED, message: 'Failed to get RSA public key' } };
         }
-        const deviceUuid = getMacAddresses();
+        const deviceUuid = await getDeviceUuid();
         const { encrypted_aes_key } = cryptoService.buildRegistrationPayload(keyResponse.data.publicKey, deviceUuid);
         const registerResponse = await registerDevice(deviceUuid, encrypted_aes_key);
         if (!registerResponse.success) {
@@ -94,12 +99,30 @@ export function registerAuthIpc(): void {
           ramStore.studentInfo = { id: testId, name: testId }; // Can update name if provided by API
           ramStore.isStudentVerified = true;
           logger.info(`[Auth] Student ${testId} logged in successfully`);
+          logServerEvent('USER_LOGIN', `Student ${testId} logged in successfully`);
 
           // Fetch the config right away now that we have the session token
           await configService.fetchAndSaveConfig();
           
           // Refresh messages immediately since initial sync likely failed due to no crypto
           await messageSyncService.manualRefresh();
+
+          // Recover previous submissions if any
+          try {
+            const submissionsResponse = await getSubmissions();
+            if (submissionsResponse.success && submissionsResponse.data) {
+              for (const sub of submissionsResponse.data) {
+                const ext = getExtensionForLanguage(sub.language);
+                const tempPath = path.join(app.getPath('temp'), `recovered_${sub.questionId}.${ext}`);
+                fs.writeFileSync(tempPath, sub.codeContent);
+                // judgeManager will also save it in localProgramStore
+                await judgeManager.runJudge(sub.questionId, tempPath);
+                fs.unlinkSync(tempPath);
+              }
+            }
+          } catch (e) {
+            logger.error('[Auth] Code recovery failed:', e);
+          }
           
           return { success: true };
         } else {

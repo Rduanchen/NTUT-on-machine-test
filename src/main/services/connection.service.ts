@@ -4,7 +4,8 @@ import {
   getAndClearLogQueue,
   hasQueuedLogs,
   requeueLogs,
-  setLogSendFunction
+  setLogSendFunction,
+  logServerEvent
 } from './logger.service';
 import { logAction } from './api.service';
 import type { LogActionPayload, SocketConnectionStatus } from '../../common/types';
@@ -86,6 +87,7 @@ class ConnectionService {
       ramStore.connectionStatus = 'disconnected';
       if (wasConnected) {
         logger.warn(`[Connection] Server connection lost (socket: ${socketStatus})`);
+        logServerEvent('USER_DISCONNECT', `Server connection lost (socket: ${socketStatus})`);
       }
     }
 
