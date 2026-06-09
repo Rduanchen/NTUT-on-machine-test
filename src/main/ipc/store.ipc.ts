@@ -56,6 +56,14 @@ export function registerStoreIpc(): void {
     return ramStore.testResults;
   });
 
+  ipcMain.handle('store:get-hidden-test-results', () => {
+    return ramStore.hiddenTestResults;
+  });
+
+  ipcMain.handle('store:get-exam-config', () => {
+    return ramStore.examConfig;
+  });
+
   ipcMain.handle('store:get-special-rule-results', () => {
     return ramStore.specialRuleResults;
   });

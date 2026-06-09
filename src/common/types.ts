@@ -60,6 +60,7 @@ export interface AccessableUser {
 export interface JudgerSettings {
   timeLimit: number;
   memoryLimit: number;
+  compareMode?: 'strict' | 'loose';
 }
 
 export interface Section {

@@ -1,8 +1,7 @@
 import { ipcMain } from 'electron';
 import { nodeJudgerService } from '../services/node-judger.service';
-import { ramStore } from '../services/ramStore.service';
 import { localProgramStore } from '../services/localProgram.service';
-import { submitScore, submitCode } from '../services/api.service';
+import { submitCode } from '../services/api.service';
 import type { IpcResponse, JudgeRunResult } from '../../common/types';
 import { judgeManager } from '../services/judge-manager.service';
 import * as fs from 'fs';
@@ -32,6 +31,15 @@ export function registerJudgerIpc(): void {
   ipcMain.handle('judger:force-stop', () => {
     nodeJudgerService.stop();
     return { success: true };
+  });
+
+  ipcMain.handle('judger:rejudge-all', async (): Promise<IpcResponse<void>> => {
+    try {
+      await judgeManager.rejudgeAllStoredPrograms();
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: { code: 'REJUDGE_ERROR', message: e.message } };
+    }
   });
 
   ipcMain.handle('judger:sync-results', async (): Promise<IpcResponse<void>> => {

@@ -65,6 +65,7 @@ export const examConfigSchema = z.object({
     judgerSettings: z.object({
         timeLimit: z.number(),
         memoryLimit: z.number(),
+        compareMode: z.enum(["strict", "loose"]).optional().default("loose"),
     }),
     environmentVariables: z.record(
         z.string(),

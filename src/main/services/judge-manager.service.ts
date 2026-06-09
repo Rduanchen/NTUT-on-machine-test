@@ -5,7 +5,7 @@ import { ramStore } from './ramStore.service';
 import { localProgramStore } from './localProgram.service';
 import { submitCode, submitScore } from './api.service';
 import { connectionService } from './connection.service';
-import { logger } from './logger.service';
+import { logger, logServerEvent } from './logger.service';
 import * as fs from 'fs';
 
 class JudgeManagerService {
@@ -112,49 +112,187 @@ class JudgeManagerService {
 
       if (currentPassedSubtasks >= lastKnownPassedSubtasks) {
         let totalScore = 0;
-        const allPuzzles = ramStore.examConfig?.sections?.flatMap(s => s.puzzles) ?? ramStore.examConfig?.puzzles ?? [];
+        const sections = ramStore.examConfig?.sections || [];
+        const allPuzzles = sections.flatMap(s => s.puzzles) ?? ramStore.examConfig?.puzzles ?? [];
         
-        for (const [puzzleId, result] of Object.entries(ramStore.hiddenTestResults)) {
-          const puzzle = allPuzzles.find((p, idx) => (p.id ?? String(idx)) === puzzleId);
-          if (!puzzle || !result?.subtasks) continue;
+        let puzzleAmount = 0;
+        let passedPuzzleAmount = 0;
+        let subtaskAmount = 0;
+        let passedSubtaskAmount = 0;
+        let puzzleResults: Record<string, any> = {};
 
-          let puzzleScore = 0;
-          if (puzzle.subtasks && puzzle.subtasks.length > 0) {
-            for (let i = 0; i < puzzle.subtasks.length; i++) {
-              const subtaskResult = result.subtasks[i];
-              if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.length > 0) {
-                if (subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
-                  puzzleScore += (puzzle.subtasks[i].score || 0);
+        if (sections.length > 0) {
+          for (const section of sections) {
+            let sectionScore = 0;
+            for (const puzzle of section.puzzles) {
+              puzzleAmount++;
+              const puzzleIndexInAll = allPuzzles.findIndex(p => p.id === puzzle.id);
+              const fallbackKey = puzzleIndexInAll !== -1 ? String(puzzleIndexInAll) : '';
+              const puzzleId = puzzle.id && ramStore.hiddenTestResults[puzzle.id] 
+                ? puzzle.id 
+                : (ramStore.hiddenTestResults[fallbackKey] ? fallbackKey : (puzzle.id || ''));
+              
+              const result = ramStore.hiddenTestResults[puzzleId];
+              let puzzleScore = 0;
+              let puzzlePassedSubtasks = 0;
+              const puzzleTotalSubtasks = puzzle.subtasks ? puzzle.subtasks.length : 0;
+              subtaskAmount += puzzleTotalSubtasks;
+              
+              let subtasksInfo: any[] = [];
+
+              if (puzzle.subtasks && puzzle.subtasks.length > 0) {
+                for (let i = 0; i < puzzle.subtasks.length; i++) {
+                  const subtaskConfig = puzzle.subtasks[i];
+                  const subtaskResult = result?.subtasks?.[i];
+                  const visibleResult = ramStore.testResults[puzzleId]?.subtasks?.[i] || [];
+                  
+                  if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.length > 0) {
+                    if (subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
+                      puzzleScore += (subtaskConfig.score || 0);
+                      puzzlePassedSubtasks += 1;
+                      passedSubtaskAmount += 1;
+                    }
+                  }
+
+                  subtasksInfo.push({
+                    visible: visibleResult.map((c: any) => ({
+                      status: c?.statusCode || 'WA',
+                      userOutput: c?.userOutput || '',
+                      expectedOutput: c?.expectingOutput || '',
+                      time: c?.time || '0'
+                    })),
+                    hidden: (subtaskResult || []).map((c: any) => ({
+                      status: c?.statusCode || 'WA',
+                      userOutput: c?.userOutput || '',
+                      expectedOutput: c?.expectingOutput || '',
+                      time: c?.time || '0'
+                    }))
+                  });
+                }
+              }
+
+              if (puzzlePassedSubtasks === puzzleTotalSubtasks && puzzleTotalSubtasks > 0) {
+                passedPuzzleAmount += 1;
+              }
+
+              const srr = ramStore.specialRuleResults[puzzleId];
+              const esr = puzzle.specialRules || [];
+              let multiplier = 1.0;
+              if (srr && esr) {
+                for (const res of srr) {
+                  if (!res.passed) {
+                    const rule = esr.find(r => r.id === res.ruleId) || ramStore.examConfig?.globalSpecialRules?.find(r => r.id === res.ruleId);
+                    if (rule && rule.multiplier !== undefined) {
+                      multiplier *= rule.multiplier;
+                    }
+                  }
+                }
+              }
+
+              const finalPuzzleScore = Math.floor(puzzleScore * multiplier);
+              sectionScore += finalPuzzleScore;
+
+              const finalIndex = puzzleIndexInAll !== -1 ? puzzleIndexInAll : 0;
+              puzzleResults[`Q${finalIndex + 1}`] = {
+                subtasks: subtasksInfo,
+                specialRuleResults: srr || []
+              };
+            }
+
+            const cappedSectionScore = (section.maxScore !== undefined && section.maxScore !== null && section.maxScore >= 0)
+              ? Math.min(sectionScore, section.maxScore)
+              : sectionScore;
+            totalScore += cappedSectionScore;
+          }
+        } else {
+          // Flat list legacy fallback
+          const puzzles = ramStore.examConfig?.puzzles || [];
+          for (const puzzle of puzzles) {
+            puzzleAmount++;
+            const puzzleId = puzzle.id || puzzle.title;
+            const result = ramStore.hiddenTestResults[puzzleId];
+            
+            let puzzleScore = 0;
+            let puzzlePassedSubtasks = 0;
+            const puzzleTotalSubtasks = puzzle.subtasks ? puzzle.subtasks.length : 0;
+            subtaskAmount += puzzleTotalSubtasks;
+            
+            let subtasksInfo: any[] = [];
+
+            if (puzzle.subtasks && puzzle.subtasks.length > 0) {
+              for (let i = 0; i < puzzle.subtasks.length; i++) {
+                const subtaskConfig = puzzle.subtasks[i];
+                const subtaskResult = result?.subtasks?.[i];
+                const visibleResult = ramStore.testResults[puzzleId]?.subtasks?.[i] || [];
+                
+                if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.length > 0) {
+                  if (subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
+                    puzzleScore += (subtaskConfig.score || 0);
+                    puzzlePassedSubtasks += 1;
+                    passedSubtaskAmount += 1;
+                  }
+                }
+
+                subtasksInfo.push({
+                  visible: visibleResult.map((c: any) => ({
+                    status: c?.statusCode || 'WA',
+                    userOutput: c?.userOutput || '',
+                    expectedOutput: c?.expectingOutput || '',
+                    time: c?.time || '0'
+                  })),
+                  hidden: (subtaskResult || []).map((c: any) => ({
+                    status: c?.statusCode || 'WA',
+                    userOutput: c?.userOutput || '',
+                    expectedOutput: c?.expectingOutput || '',
+                    time: c?.time || '0'
+                  }))
+                });
+              }
+            }
+
+            if (puzzlePassedSubtasks === puzzleTotalSubtasks && puzzleTotalSubtasks > 0) {
+              passedPuzzleAmount += 1;
+            }
+
+            const srr = ramStore.specialRuleResults[puzzleId];
+            const esr = puzzle.specialRules || [];
+            let multiplier = 1.0;
+            if (srr && esr) {
+              for (const res of srr) {
+                if (!res.passed) {
+                  const rule = esr.find(r => r.id === res.ruleId) || ramStore.examConfig?.globalSpecialRules?.find(r => r.id === res.ruleId);
+                  if (rule && rule.multiplier !== undefined) {
+                    multiplier *= rule.multiplier;
+                  }
                 }
               }
             }
-          }
 
-          // Apply special rule multiplier for hidden result?
-          // The local judger evaluated rules.
-          const srr = ramStore.specialRuleResults[puzzleId];
-          const esr = puzzle.specialRules || []; // we might not have global rules here easily, but let's do our best
-          let multiplier = 1.0;
-          if (srr && esr) {
-            for (const res of srr) {
-              if (!res.passed) {
-                const rule = esr.find(r => r.id === res.ruleId) || ramStore.examConfig?.globalSpecialRules?.find(r => r.id === res.ruleId);
-                if (rule && rule.multiplier !== undefined) {
-                  multiplier *= rule.multiplier;
-                }
-              }
-            }
-          }
+            totalScore += Math.floor(puzzleScore * multiplier);
 
-          totalScore += puzzleScore * multiplier;
+            const puzzleIndex = puzzles.findIndex((p) => (p.id || p.title) === puzzleId);
+            const finalIndex = puzzleIndex !== -1 ? puzzleIndex : 0;
+            puzzleResults[`Q${finalIndex + 1}`] = {
+              subtasks: subtasksInfo,
+              specialRuleResults: srr || []
+            };
+          }
         }
 
-        const score = Math.round(totalScore);
+        const score = totalScore;
         
-        const response = await submitScore(score);
+        const response = await submitScore({
+          score,
+          puzzleResults,
+          subtaskAmount,
+          passedSubtaskAmount,
+          puzzleAmount,
+          passedPuzzleAmount
+        });
         if (response.success) {
           ramStore.markTestResultSynced();
           connectionService.clearPendingTestResult();
+          logServerEvent('UPLOAD_SCORE', '成績上傳成功', { score });
         } else {
           connectionService.markPendingTestResult();
         }

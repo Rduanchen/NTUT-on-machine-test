@@ -109,6 +109,7 @@ class NodeJudgerService {
     const timeLimit = puzzle.timeLimit || judgerSettings.timeLimit;
     const memoryLimitMB = puzzle.memoryLimit || judgerSettings.memoryLimit || 128; // fallback to 128MB
     const memoryLimitBytes = memoryLimitMB * 1024 * 1024;
+    const compareMode = judgerSettings.compareMode || 'loose';
 
     const subtasks: NodeJudgeTestCase[][] = puzzle.subtasks.map((subtask) => {
       const cases: NodeJudgeTestCase[] = [];
@@ -129,7 +130,7 @@ class NodeJudgerService {
     currentHandle = judge.run({
       language: mapLanguage(puzzle.language),
       codeString,
-      compareMode: 'loose',
+      compareMode,
       timeLimit,
       memoryLimit: memoryLimitBytes,
       subtasks

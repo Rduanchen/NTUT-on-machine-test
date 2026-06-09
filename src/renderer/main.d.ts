@@ -12,17 +12,19 @@ declare global {
       store?: {
         getConnectionStatus: () => Promise<string>;
         getTestResults: () => Promise<Record<string, JudgeRunResult>>;
+        getHiddenTestResults?: () => Promise<Record<string, JudgeRunResult>>;
+        getExamConfig?: () => Promise<any>;
         getSpecialRuleResults: () => Promise<Record<string, SpecialRuleResultRecord[]>>;
         getEffectiveSpecialRules: () => Promise<Record<string, SpecialRule[]>>;
         getPuzzleInfo: () => Promise<PuzzleInfo[]>;
         getExamInfo: () => Promise<any>;
         getExamStatus: () => Promise<ExamState>;
-        onConnectionStatusChanged: (callback: (status: string) => void) => void;
-        onExamStatusChanged?: (callback: (status: ExamState) => void) => void;
-        onTestResultsUpdated?: (callback: (results: Record<string, JudgeRunResult>) => void) => void;
+        onConnectionStatusChanged: (callback: (status: string) => void) => (() => void);
+        onExamStatusChanged?: (callback: (status: ExamState) => void) => (() => void);
+        onTestResultsUpdated?: (callback: (results: Record<string, JudgeRunResult>) => void) => (() => void);
         onSpecialRuleResultsUpdated?: (
           callback: (results: Record<string, SpecialRuleResultRecord[]>) => void,
-        ) => void;
+        ) => (() => void);
       };
       judger?: {
         forceStop: () => void;
