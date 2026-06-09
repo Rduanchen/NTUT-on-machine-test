@@ -3,6 +3,7 @@ import { registerAuthIpc } from './auth.ipc';
 import { registerStoreIpc } from './store.ipc';
 import { registerJudgerIpc } from './judger.ipc';
 import { registerNotificationIpc } from './notification.ipc';
+import { registerLogIpc } from './log.ipc';
 
 /**
  * Register all IPC handlers.
@@ -14,4 +15,5 @@ export function registerAllIpc(): void {
   registerStoreIpc();
   registerJudgerIpc();
   registerNotificationIpc();
+  registerLogIpc();
 }

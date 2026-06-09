@@ -26,13 +26,17 @@ interface AuthAPI {
 interface StoreAPI {
   getConnectionStatus: () => Promise<ConnectionStatus>;
   getTestResults: () => Promise<Record<string, JudgeRunResult>>;
+  getHiddenTestResults: () => Promise<Record<string, JudgeRunResult>>;
+  getExamConfig: () => Promise<ExamConfig | null>;
   getSpecialRuleResults: () => Promise<Record<string, SpecialRuleResultRecord[]>>;
   getEffectiveSpecialRules: () => Promise<Record<string, SpecialRule[]>>;
   getPuzzleInfo: () => Promise<PuzzleInfo[]>;
   getExamInfo: () => Promise<{ testTitle: string; description: string } | null>;
-  onConnectionStatusChanged: (callback: (status: string) => void) => void;
-  onTestResultsUpdated: (callback: (results: Record<string, JudgeRunResult>) => void) => void;
-  onSpecialRuleResultsUpdated: (callback: (results: Record<string, SpecialRuleResultRecord[]>) => void) => void;
+  getExamStatus: () => Promise<ExamState>;
+  onConnectionStatusChanged: (callback: (status: string) => void) => () => void;
+  onExamStatusChanged: (callback: (status: string) => void) => () => void;
+  onTestResultsUpdated: (callback: (results: Record<string, JudgeRunResult>) => void) => () => void;
+  onSpecialRuleResultsUpdated: (callback: (results: Record<string, SpecialRuleResultRecord[]>) => void) => () => void;
 }
 
 interface JudgerAPI {
@@ -48,8 +52,8 @@ interface NotificationAPI {
   getVersions: () => Promise<{ configVersion: number; messageVersion: number }>;
   getSocketStatus: () => Promise<SocketConnectionStatus>;
   refresh: () => Promise<IpcResponse<void>>;
-  onUpdated: (callback: (messages: ServerMessage[]) => void) => void;
-  onSocketStatusChanged: (callback: (status: SocketConnectionStatus) => void) => void;
+  onUpdated: (callback: (messages: ServerMessage[]) => void) => () => void;
+  onSocketStatusChanged: (callback: (status: SocketConnectionStatus) => void) => () => void;
 }
 
 interface API {

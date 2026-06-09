@@ -4,7 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import icon from '../../resources/icon.png?asset';
 import { registerAllIpc } from './ipc/index.ipc';
 import { setMainWindow } from './system/windowManager';
-import { logger, setupLogger, clearLogOnStartup } from './services/logger.service';
+import { logger, setupLogger, clearLogOnStartup, logServerEvent } from './services/logger.service';
 import { configService } from './services/config.service';
 import { connectionService } from './services/connection.service';
 import { localProgramStore } from './services/localProgram.service';
@@ -35,6 +35,7 @@ function createWindow(): void {
 
   mainWindow.on('close', (e) => {
     logger.warn('User attempted to close the main window during an active test.');
+    logServerEvent('alert', 'User attempted to close the main window during an active test.', { type: 'APP_ON_QUIT' });
     e.preventDefault();
 
     const choice = dialog.showMessageBoxSync(mainWindow, {
