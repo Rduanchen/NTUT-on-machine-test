@@ -7,8 +7,7 @@
         :is-buffering="isBuffering"
         @force-stop="stopTestCase"
         @export-zip="exportZip"
-        @finish-actions="handleFinish"
-        @early-end="handleEarlyEnd"
+        @finish-exam="handleFinishExam"
       />
       <PuzzleTable
         :puzzles="puzzleInfo"
@@ -178,10 +177,12 @@ async function exportZip() {
   URL.revokeObjectURL(url);
 }
 
-async function handleFinish() {
-  await window.api?.judger?.syncResults();
-  await window.api?.judger?.syncCode();
-  await exportZip();
+async function handleFinishExam() {
+  if (window.api?.log) {
+    await window.api.log.serverEvent('END_EXAM', '使用者主動結束考試');
+  }
+  // No need to sync results/code here because they were synced in the toolbar dialog
+  router.push('/finished');
 }
 
 function openResultDialog(item: PuzzleInfo) {
@@ -192,26 +193,28 @@ function openUploadDialog(item: PuzzleInfo) {
   uploadDialog.value = { isOpen: true, item };
 }
 
-async function handleEarlyEnd() {
-  if (confirm(t('examSystem.puzzles.earlyEndConfirm'))) {
-    router.push('/finished');
-  }
-}
+import { startBuffer, clearBuffer } from '../constants/bufferState';
 
 function startFinishBuffer() {
   if (isBuffering.value) return;
   isBuffering.value = true;
   bufferTimeLeft.value = FINISH_BUFFER_SECONDS;
+  startBuffer(FINISH_BUFFER_SECONDS);
   bufferTimer = setInterval(() => {
     bufferTimeLeft.value--;
     if (bufferTimeLeft.value <= 0) {
       clearInterval(bufferTimer!);
+      clearBuffer();
       router.push('/finished');
     }
   }, 1000);
 }
 
 // ─── Init ───────────────────────────────────────────────────────────
+
+let resultsUnsubscribe: (() => void) | null = null;
+let rulesUnsubscribe: (() => void) | null = null;
+let statusUnsubscribe: (() => void) | null = null;
 
 onMounted(async () => {
   if (!window.api?.store) return;
@@ -220,23 +223,35 @@ onMounted(async () => {
   await refreshEffectiveRules();
 
   // Listen for test results pushed from main process after config_update rejudge
-  window.api.store.onTestResultsUpdated?.((results) => {
+  resultsUnsubscribe = window.api.store.onTestResultsUpdated?.((results) => {
     testResult.value = results as Record<string, JudgeRunResult>;
-  });
+  }) || null;
 
-  window.api.store.onSpecialRuleResultsUpdated?.((results) => {
+  rulesUnsubscribe = window.api.store.onSpecialRuleResultsUpdated?.((results) => {
     specialRuleResults.value = results as Record<string, SpecialRuleResultRecord[]>;
-  });
+  }) || null;
 
-  window.api.store.onExamStatusChanged?.((status: string) => {
+  statusUnsubscribe = window.api.store.onExamStatusChanged?.((status: string) => {
     if (status === 'FINISHED') {
       startFinishBuffer();
+    } else if (status === 'IN_PROGRESS') {
+      if (bufferTimer) {
+        clearInterval(bufferTimer);
+        bufferTimer = null;
+      }
+      clearBuffer();
+      isBuffering.value = false;
+      bufferTimeLeft.value = FINISH_BUFFER_SECONDS;
     }
-  });
+  }) || null;
 });
 
 import { onBeforeUnmount } from 'vue';
 onBeforeUnmount(() => {
   if (bufferTimer) clearInterval(bufferTimer);
+  clearBuffer();
+  if (resultsUnsubscribe) resultsUnsubscribe();
+  if (rulesUnsubscribe) rulesUnsubscribe();
+  if (statusUnsubscribe) statusUnsubscribe();
 });
 </script>

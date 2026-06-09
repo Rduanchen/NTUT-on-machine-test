@@ -110,6 +110,8 @@ async function checkExamStatus() {
   }
 }
 
+let statusUnsubscribe: (() => void) | null = null;
+
 onMounted(async () => {
   if (window.api?.store) {
     examInfo.value = await window.api.store.getExamInfo();
@@ -120,15 +122,16 @@ onMounted(async () => {
 
   pollTimer = setInterval(checkExamStatus, 5000);
 
-  window.api?.store?.onExamStatusChanged?.((status: string) => {
+  statusUnsubscribe = window.api?.store?.onExamStatusChanged?.((status: string) => {
     if (status === 'IN_PROGRESS') router.push('/exam');
     else if (status === 'FINISHED') router.push('/finished');
     else if (status === 'UNINITIALIZED') router.push('/not-initialized');
-  });
+  }) || null;
 });
 
 onBeforeUnmount(() => {
   if (pollTimer) clearInterval(pollTimer);
+  if (statusUnsubscribe) statusUnsubscribe();
 });
 </script>
 

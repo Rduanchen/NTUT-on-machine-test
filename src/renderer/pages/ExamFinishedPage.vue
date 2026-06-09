@@ -146,11 +146,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import type { JudgeRunResult, ExamConfig } from '../../common/types';
 
 const { t } = useI18n();
+const router = useRouter();
 
 // ─── State ──────────────────────────────────────────────────────────
 const isSyncingCode = ref(false);
@@ -159,6 +161,7 @@ const syncMsg = ref('');
 const syncSuccess = ref(false);
 const testResults = ref<Record<string, JudgeRunResult>>({});
 const examConfig = ref<ExamConfig | null>(null);
+let statusUnsubscribe: (() => void) | null = null;
 
 // ─── Computed: sections summary ───────────────────────────────────────
 interface SectionSummary {
@@ -173,39 +176,70 @@ const specialRuleResults = ref<Record<string, any>>({});
 const effectiveSpecialRules = ref<Record<string, any>>({});
 
 const sections = computed<SectionSummary[]>(() => {
-  if (!examConfig.value?.sections) return [];
-  return examConfig.value.sections.map((section) => {
+  if (!examConfig.value) return [];
+  
+  const allPuzzles = examConfig.value.sections?.flatMap((s: any) => s.puzzles) ?? examConfig.value.puzzles ?? [];
+  const rawSections = examConfig.value.sections || [];
+  
+  if (rawSections.length === 0 && examConfig.value.puzzles && examConfig.value.puzzles.length > 0) {
+    rawSections.push({
+      id: 'default',
+      title: t('examSystem.puzzles.defaultSection'),
+      puzzles: examConfig.value.puzzles
+    });
+  }
+
+  return rawSections.map((section: any) => {
     let passed = 0;
     let total = 0;
     let sectionScore = 0;
 
     for (const puzzle of section.puzzles) {
-      const result = testResults.value[puzzle.id ?? puzzle.title];
+      const puzzleIndexInAll = allPuzzles.findIndex((p: any) => p.id === puzzle.id && p.title === puzzle.title);
+      const fallbackKey = puzzleIndexInAll !== -1 ? String(puzzleIndexInAll) : '';
+      const puzzleKey = (puzzle.id && testResults.value[puzzle.id])
+        ? puzzle.id
+        : (testResults.value[fallbackKey] ? fallbackKey : (puzzle.id ?? puzzle.title ?? ''));
+
+      const result = testResults.value[puzzleKey];
       let puzzlePassedSubtasks = 0;
-      let puzzleTotalSubtasks = puzzle.subtasks?.length || 1;
+      let puzzleTotalSubtasks = puzzle.subtasks?.length || 0;
       
-      if (result?.subtasks) {
-        puzzleTotalSubtasks = result.subtasks.length;
-        for (const subtaskCases of result.subtasks) {
-          if (Array.isArray(subtaskCases) && subtaskCases.every((c: any) => c?.statusCode === 'AC')) {
+      let puzzleScore = 0;
+      
+      if (puzzle.subtasks && puzzle.subtasks.length > 0) {
+        for (let i = 0; i < puzzle.subtasks.length; i++) {
+          const subtask = puzzle.subtasks[i];
+          const subtaskResult = result?.subtasks?.[i];
+          if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
+            puzzleScore += (subtask.score || 0);
             puzzlePassedSubtasks++;
           }
         }
+      } else {
+        if (result?.subtasks) {
+          puzzleTotalSubtasks = result.subtasks.length;
+          for (const subtaskCases of result.subtasks) {
+            if (Array.isArray(subtaskCases) && subtaskCases.every((c: any) => c?.statusCode === 'AC')) {
+              puzzlePassedSubtasks++;
+            }
+          }
+        }
+        const rate = puzzleTotalSubtasks > 0 ? (puzzlePassedSubtasks / puzzleTotalSubtasks) : 0;
+        const baseScore = puzzle.score || 0;
+        puzzleScore = baseScore * rate;
       }
 
       passed += puzzlePassedSubtasks;
       total += puzzleTotalSubtasks;
 
-      const rate = puzzleTotalSubtasks > 0 ? (puzzlePassedSubtasks / puzzleTotalSubtasks) : 0;
-      
-      // Calculate multiplier
       let multiplier = 1.0;
-      const srr = specialRuleResults.value?.[puzzle.id ?? puzzle.title];
-      const esr = effectiveSpecialRules.value?.[puzzle.id ?? puzzle.title];
+      const srr = specialRuleResults.value?.[puzzleKey];
+      const esr = effectiveSpecialRules.value?.[puzzleKey] || puzzle.specialRules || [];
       if (srr && esr) {
         for (const res of srr) {
           if (!res.passed) {
-            const rule = esr.find((r: any) => r.id === res.ruleId);
+            const rule = esr.find((r: any) => r.id === res.ruleId) || examConfig.value?.globalSpecialRules?.find((r: any) => r.id === res.ruleId);
             if (rule && rule.multiplier !== undefined) {
               multiplier *= rule.multiplier;
             }
@@ -213,16 +247,20 @@ const sections = computed<SectionSummary[]>(() => {
         }
       }
 
-      const baseScore = puzzle.score || 0;
-      sectionScore += Number((baseScore * rate * multiplier).toFixed(1));
+      const finalPuzzleScore = Math.floor(puzzleScore * multiplier);
+      sectionScore += finalPuzzleScore;
     }
+
+    const cappedScore = (section.maxScore !== undefined && section.maxScore !== null && section.maxScore >= 0)
+      ? Math.min(sectionScore, section.maxScore)
+      : sectionScore;
 
     return {
       id: section.id,
       title: section.title,
       passedSubtasks: passed,
       totalSubtasks: total,
-      score: sectionScore,
+      score: cappedScore,
     };
   });
 });
@@ -285,27 +323,39 @@ async function downloadCode() {
 // ─── Init ────────────────────────────────────────────────────────────
 onMounted(async () => {
   if (window.api?.store) {
-    testResults.value = await window.api.store.getTestResults();
-    examConfig.value = await window.api.store.getExamInfo?.() as any;
-    
-    // Attempt to get exam config properly if getExamInfo doesn't include sections
-    if (!examConfig.value?.sections) {
-       // getExamStatus doesn't return config, we might need a specific IPC for full config or just puzzle info
-       const puzzleInfo = await window.api.store.getPuzzleInfo?.();
-       if (puzzleInfo) {
-         // Mock sections if backend config IPC is not available
-         // Actually, wait, ramStore.examConfig is what we need.
-         // Let's add an IPC to get full config if needed, or rely on what's available.
-       }
+    if (window.api.store.getHiddenTestResults) {
+      testResults.value = await window.api.store.getHiddenTestResults();
+    } else {
+      testResults.value = await window.api.store.getTestResults();
+    }
+
+    if (window.api.store.getExamConfig) {
+      examConfig.value = await window.api.store.getExamConfig();
+    } else {
+      examConfig.value = await window.api.store.getExamInfo?.() as any;
     }
     
     specialRuleResults.value = await window.api.store.getSpecialRuleResults?.() || {};
     effectiveSpecialRules.value = await window.api.store.getEffectiveSpecialRules?.() || {};
+
+    statusUnsubscribe = window.api.store.onExamStatusChanged?.((status: string) => {
+      if (status === 'IN_PROGRESS') {
+        router.push('/exam');
+      } else if (status === 'NOT_STARTED') {
+        router.push('/login');
+      } else if (status === 'UNINITIALIZED') {
+        router.push('/not-initialized');
+      }
+    }) || null;
   }
 
   // Auto push on mount
   await pushAllCode();
   await confirmScore();
+});
+
+onBeforeUnmount(() => {
+  if (statusUnsubscribe) statusUnsubscribe();
 });
 </script>
 

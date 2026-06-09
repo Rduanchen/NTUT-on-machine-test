@@ -16,6 +16,8 @@ const routes = [
   { path: '/finished', name: 'finished', component: ExamFinishedPage }
 ];
 
+import { isBuffering, bufferEndTime } from '../constants/bufferState';
+
 export const router = createRouter({
   history: createMemoryHistory(),
   routes
@@ -62,15 +64,21 @@ router.beforeEach(async (to) => {
   }
 
   if (examStatus === 'FINISHED' && to.name !== 'finished') {
+    if (isBuffering.value && Date.now() < bufferEndTime.value && to.name === 'exam') {
+      return true;
+    }
     return { name: 'finished' };
   }
 
   if (examStatus === 'IN_PROGRESS') {
-    if (!isVerified && to.name !== 'settings') {
-      return { name: 'settings' };
-    }
-    if (isVerified && (to.name === 'login' || to.name === 'not-initialized' || to.name === 'waiting')) {
-      return { name: 'exam' };
+    if (!isVerified) {
+      if (to.name !== 'settings' && to.name !== 'login') {
+        return { name: 'login' };
+      }
+    } else {
+      if (to.name === 'login' || to.name === 'not-initialized' || to.name === 'waiting') {
+        return { name: 'exam' };
+      }
     }
   }
 

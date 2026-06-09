@@ -128,14 +128,23 @@ function calculatePuzzleScore(puzzle: PuzzleInfo): number {
     }
   }
 
-  return Number((baseScore * multiplier).toFixed(1));
+  return Math.floor(baseScore * multiplier);
 }
 
 function calculateSectionScore(group: PuzzleInfo[]): number {
-  return group.reduce((sum, p) => sum + calculatePuzzleScore(p), 0);
+  const rawSum = group.reduce((sum, p) => sum + calculatePuzzleScore(p), 0);
+  const maxScore = group[0]?.sectionMaxScore;
+  if (maxScore !== undefined && maxScore !== null && maxScore >= 0) {
+    return Math.min(rawSum, maxScore);
+  }
+  return rawSum;
 }
 
 const totalScore = computed(() => {
-  return props.puzzles.reduce((sum, p) => sum + calculatePuzzleScore(p), 0);
+  let sum = 0;
+  for (const group of Object.values(groupedPuzzles.value)) {
+    sum += calculateSectionScore(group);
+  }
+  return sum;
 });
 </script>

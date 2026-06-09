@@ -125,6 +125,8 @@ async function handleRegisterDevice() {
   }
 }
 
+let statusUnsubscribe: (() => void) | null = null;
+
 onMounted(() => {
   checkStatus();
   pollTimer = setInterval(checkStatus, 5000);
@@ -134,15 +136,16 @@ onMounted(() => {
   handleRegisterDevice();
 
   // Listen for status changes pushed from main process
-  window.api?.store?.onExamStatusChanged?.((status: string) => {
+  statusUnsubscribe = window.api?.store?.onExamStatusChanged?.((status: string) => {
     if (status === 'NOT_STARTED') router.push('/login');
     else if (status === 'IN_PROGRESS') router.push('/exam');
     else if (status === 'FINISHED') router.push('/finished');
-  });
+  }) || null;
 });
 
 onBeforeUnmount(() => {
   if (pollTimer) clearInterval(pollTimer);
+  if (statusUnsubscribe) statusUnsubscribe();
 });
 </script>
 
