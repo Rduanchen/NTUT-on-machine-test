@@ -37,7 +37,7 @@ export const router = createRouter({
  *   - Unverified student cannot access /exam, /waiting, or /finished.
  *   - /settings (config page) is always accessible for initial setup.
  */
-router.beforeEach(async (to) => {
+router.beforeEach(async (to, from) => {
   const api = (window as any).api;
   if (!api) return true;
 
@@ -46,10 +46,16 @@ router.beforeEach(async (to) => {
 
   // Always allow settings (needed for initial backend URL config)
   if (to.name === 'settings') {
-    if (api?.config?.hasBackendUrl) {
+    // Only auto-redirect on initial application load
+    if (from.name === undefined && api?.config?.hasBackendUrl) {
       const hasUrl = await api.config.hasBackendUrl();
       if (hasUrl) {
-        if (examStatus === 'UNINITIALIZED') return { name: 'not-initialized' };
+        const connStatus = await api.store.getConnectionStatus();
+        
+        if (examStatus === 'UNINITIALIZED') {
+          if (connStatus === 'connected') return { name: 'not-initialized' };
+          else return true; // Stay on settings if disconnected
+        }
         if (examStatus === 'NOT_STARTED') return { name: 'login' };
         if (examStatus === 'IN_PROGRESS') return isVerified ? { name: 'exam' } : { name: 'login' };
         if (examStatus === 'FINISHED') return { name: 'finished' };

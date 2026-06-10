@@ -59,7 +59,34 @@
       </v-alert>
 
       <p class="text-caption text-medium-emphasis">{{ t('waiting.hint') }}</p>
+
+      <!-- Offline Bypass -->
+      <div class="mt-8 text-caption text-disabled" style="cursor: pointer; font-size: 10px;" @click="showPasswordDialog = true">
+        start with password
+      </div>
     </v-card>
+
+    <!-- Password Dialog -->
+    <v-dialog v-model="showPasswordDialog" max-width="400">
+      <v-card class="pa-4 rounded-xl">
+        <v-card-title class="text-h6 font-weight-bold text-center">Start Exam Manually</v-card-title>
+        <v-card-text>
+          <v-text-field
+            v-model="startPasswordInput"
+            label="Start Password"
+            variant="outlined"
+            :error-messages="passwordError"
+            @keyup.enter="submitPassword"
+            autofocus
+            class="mt-4"
+          />
+        </v-card-text>
+        <v-card-actions class="justify-center mb-2">
+          <v-btn color="grey" variant="text" @click="showPasswordDialog = false">Cancel</v-btn>
+          <v-btn color="primary" variant="flat" @click="submitPassword">Start</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
@@ -75,6 +102,10 @@ const examInfo = ref<{ testTitle: string; description: string } | null>(null);
 const studentInfo = ref<{ id: string; name: string } | null>(null);
 const autoLoginMsg = ref('');
 const autoLoginSuccess = ref(false);
+
+const showPasswordDialog = ref(false);
+const startPasswordInput = ref('');
+const passwordError = ref('');
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -107,6 +138,35 @@ async function checkExamStatus() {
     router.push('/finished');
   } else if (status === 'UNINITIALIZED') {
     router.push('/not-initialized');
+  }
+}
+
+function generateFallbackPassword(title: string): string {
+  let hash = 0;
+  for (let i = 0; i < title.length; i++) {
+    hash = ((hash << 5) - hash) + title.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(36).padEnd(6, 'a').slice(0, 6);
+}
+
+async function submitPassword() {
+  passwordError.value = '';
+  if (!startPasswordInput.value) return;
+
+  const config = await window.api?.store?.getExamConfig?.();
+  if (!config) {
+    passwordError.value = 'Exam config not found';
+    return;
+  }
+
+  const expectedPassword = config.startPassword || generateFallbackPassword(config.testTitle || 'ntut-exam');
+  
+  if (startPasswordInput.value === expectedPassword) {
+    showPasswordDialog.value = false;
+    await window.api?.store?.setExamStatus?.('IN_PROGRESS');
+  } else {
+    passwordError.value = 'Invalid password';
   }
 }
 

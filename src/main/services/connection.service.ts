@@ -7,7 +7,7 @@ import {
   setLogSendFunction,
   logServerEvent
 } from './logger.service';
-import { logAction } from './api.service';
+import { logAction, login } from './api.service';
 import type { LogActionPayload, SocketConnectionStatus } from '../../common/types';
 import { getMainWindow } from '../system/windowManager';
 
@@ -98,9 +98,37 @@ class ConnectionService {
 
   private async onConnectionRestored(): Promise<void> {
     if (this.isSyncing) return;
+    if (ramStore.isOfflineMode) {
+      logger.info('[Connection] Offline mode active. Ignoring connection restored sync.');
+      return;
+    }
+    
     this.isSyncing = true;
 
     try {
+      // 0. Retroactive Login Sync
+      if (ramStore.pendingLoginSync && ramStore.studentInfo?.id) {
+        logger.info(`[Connection] Attempting retroactive login sync for ${ramStore.studentInfo.id}`);
+        try {
+          const loginRes = await login({ testId: ramStore.studentInfo.id });
+          if (loginRes.success && loginRes.data?.session_token) {
+            if (ramStore.cryptoState) {
+              ramStore.cryptoState.userSessionID = loginRes.data.session_token;
+            }
+            ramStore.pendingLoginSync = false;
+            logger.info('[Connection] Retroactive login sync successful');
+          } else {
+            logger.warn(`[Connection] Retroactive login failed: ${loginRes.error?.message}`);
+            // Do not reset pendingLoginSync, maybe it's a temporary backend error, or it's a violation.
+            // If it's a violation, backend throws 403, but we updated it to log and return token?
+            // Actually, if it's a violation, we changed backend to allow it and log violation!
+            // So if it fails, it's a real network error.
+          }
+        } catch (err) {
+          logger.error('[Connection] Retroactive login error', err);
+        }
+      }
+
       // 1. Flush queued logger requests
       await this.flushLogQueue();
 
@@ -134,6 +162,7 @@ class ConnectionService {
   // ─── Log Queue Management ────────────────────────────────────
 
   private async flushLogQueue(): Promise<void> {
+    if (ramStore.isOfflineMode) return;
     if (!hasQueuedLogs()) return;
 
     const logs = getAndClearLogQueue();

@@ -57,6 +57,7 @@ const judgerSettingsSchema = z.object({
 export const examConfigSchema = z.object({
   testTitle: z.string(),
   description: z.string(),
+  startPassword: z.string().optional(),
   judgerSettings: judgerSettingsSchema,
   accessibleUsers: z.array(accessUserSchema),
   globalSpecialRules: z.array(specialRuleBaseSchema).optional(),

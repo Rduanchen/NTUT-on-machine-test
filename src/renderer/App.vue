@@ -195,12 +195,13 @@
 
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useTheme } from 'vuetify';
 import NotificationCenter from './components/NotificationCenter.vue';
 
 const route = useRoute();
+const router = useRouter();
 const studentInfo = ref(null);
 const serverStatus = ref('disconnected');
 const showNotifications = ref(false);
@@ -249,6 +250,15 @@ onMounted(async () => {
 
     window.api.store.onConnectionStatusChanged(async (status) => {
       serverStatus.value = status === 'connected' ? 'connected' : 'disconnected';
+      
+      // Auto-redirect from settings if server connects successfully
+      if (status === 'connected' && route.name === 'settings') {
+        const examStatus = await window.api.store.getExamStatus?.() ?? 'UNINITIALIZED';
+        if (examStatus === 'UNINITIALIZED') router.push('/not-initialized');
+        else if (examStatus === 'NOT_STARTED') router.push('/login');
+        else if (examStatus === 'IN_PROGRESS') router.push('/exam');
+        else if (examStatus === 'FINISHED') router.push('/finished');
+      }
     });
   }
 

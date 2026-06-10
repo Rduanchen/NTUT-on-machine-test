@@ -148,6 +148,8 @@ export interface RamStoreState {
   configVersion: number;
   socketStatus: SocketConnectionStatus;
   examStatus: ExamState;
+  isOfflineMode: boolean;
+  pendingLoginSync: boolean;
 }
 
 export type ConnectionStatus = 'connected' | 'disconnected';

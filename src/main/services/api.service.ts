@@ -271,8 +271,15 @@ export async function healthCheck(host?: string): Promise<boolean> {
 
 function makeErrorResponse(context: string, error: unknown): IpcResponse<any> {
   let message = '';
-  if (axios.isAxiosError(error) && error.response?.data?.error) {
-    message = error.response.data.error;
+  let code = 'NETWORK_ERROR';
+  if (axios.isAxiosError(error)) {
+    if (error.response) {
+      code = `HTTP_${error.response.status}`;
+      message = error.response.data?.error || error.response.data?.message || error.message;
+    } else {
+      code = 'NETWORK_ERROR';
+      message = error.message;
+    }
   } else if (error instanceof Error) {
     message = error.message;
   } else {
@@ -283,8 +290,8 @@ function makeErrorResponse(context: string, error: unknown): IpcResponse<any> {
   return {
     success: false,
     error: {
-      code: 'NETWORK_ERROR',
-      message: message
+      code,
+      message
     }
   };
 }

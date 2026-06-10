@@ -38,6 +38,9 @@ const api = {
     /** Get current exam status (UNINITIALIZED | NOT_STARTED | IN_PROGRESS | FINISHED) */
     getExamStatus: () => ipcRenderer.invoke('store:get-exam-status'),
 
+    /** Set exam status manually (e.g. for offline bypass) */
+    setExamStatus: (status: string) => ipcRenderer.invoke('store:set-exam-status', status),
+
     /** Subscribe to connection status changes from main process */
     onConnectionStatusChanged: (callback: (status: string) => void) => {
       const listener = (_event: any, status: string) => callback(status);

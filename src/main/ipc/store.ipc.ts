@@ -52,6 +52,11 @@ export function registerStoreIpc(): void {
     return ramStore.examStatus ?? 'UNINITIALIZED';
   });
 
+  ipcMain.handle('store:set-exam-status', (_event, status: ExamState) => {
+    ramStore.examStatus = status;
+    return { success: true };
+  });
+
   ipcMain.handle('store:get-test-results', () => {
     return ramStore.testResults;
   });

@@ -105,7 +105,12 @@ class ConfigService {
       }
 
       ramStore.examConfig = validation.data as ExamConfig;
-      logger.info('[Config] Config loaded from uploaded file.');
+      
+      // Manual config means we are in pure offline mode.
+      ramStore.isOfflineMode = true;
+      ramStore.examStatus = 'NOT_STARTED'; // Push router to login page
+      
+      logger.info('[Config] Config loaded from uploaded file (Offline Mode).');
       return { success: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

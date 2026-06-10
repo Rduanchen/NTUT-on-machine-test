@@ -61,6 +61,17 @@ export function registerAuthIpc(): void {
     logger.info(`[Auth] Auto-login attempt via IP or manual login`);
 
     try {
+      // 0. Complete Offline Mode Bypass
+      if (ramStore.isOfflineMode) {
+        if (!manualTestId) {
+          return { success: false, error: { code: ErrorCode.STUDENT_NOT_FOUND, message: 'Offline mode requires manual student ID input' } };
+        }
+        ramStore.studentInfo = { id: manualTestId, name: manualTestId };
+        ramStore.isStudentVerified = true;
+        logger.info(`[Auth] Student ${manualTestId} logged in successfully (Offline Mode Bypass)`);
+        return { success: true };
+      }
+
       // 1. Ensure device is registered
       if (!ramStore.cryptoState) {
         const keyResponse = await getPublicKey();
@@ -71,6 +82,7 @@ export function registerAuthIpc(): void {
         const { encrypted_aes_key } = cryptoService.buildRegistrationPayload(keyResponse.data.publicKey, deviceUuid);
         const registerResponse = await registerDevice(deviceUuid, encrypted_aes_key);
         if (!registerResponse.success) {
+          ramStore.cryptoState = null;
           return { success: false, error: { code: ErrorCode.REGISTRATION_FAILED, message: 'Failed to register device with server' } };
         }
         messageSyncService.registerSocket();
@@ -126,6 +138,16 @@ export function registerAuthIpc(): void {
           
           return { success: true };
         } else {
+          // 5. Offline Fallback for registered devices
+          if (loginResponse.error?.code === 'NETWORK_ERROR' && ramStore.cryptoState) {
+            logger.warn(`[Auth] Network down, falling back to offline login for registered device`);
+            ramStore.studentInfo = { id: testId, name: testId };
+            ramStore.isStudentVerified = true;
+            ramStore.pendingLoginSync = true;
+            logger.info(`[Auth] Student ${testId} logged in successfully (Retroactive Offline Fallback)`);
+            return { success: true };
+          }
+
           ramStore.cryptoState = null;
           return {
             success: false,

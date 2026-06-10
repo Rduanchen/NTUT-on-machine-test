@@ -38,7 +38,9 @@ class RamStoreService {
     messageVersion: 0,
     configVersion: 0,
     socketStatus: 'disconnected',
-    examStatus: 'UNINITIALIZED'
+    examStatus: 'UNINITIALIZED',
+    isOfflineMode: false,
+    pendingLoginSync: false
   };
 
   /** Event listeners for state changes */
@@ -87,7 +89,9 @@ class RamStoreService {
       messageVersion: 0,
       configVersion: 0,
       socketStatus: 'disconnected',
-      examStatus: 'UNINITIALIZED'
+      examStatus: 'UNINITIALIZED',
+      isOfflineMode: false,
+      pendingLoginSync: false
     };
   }
 
@@ -143,6 +147,22 @@ class RamStoreService {
 
   set isConfigured(value: boolean) {
     this.set('isConfigured', value);
+  }
+
+  get isOfflineMode(): boolean {
+    return this.state.isOfflineMode;
+  }
+
+  set isOfflineMode(value: boolean) {
+    this.set('isOfflineMode', value);
+  }
+
+  get pendingLoginSync(): boolean {
+    return this.state.pendingLoginSync;
+  }
+
+  set pendingLoginSync(value: boolean) {
+    this.set('pendingLoginSync', value);
   }
 
   get backendUrl(): string {
