@@ -245,6 +245,14 @@ class MessageSyncService {
       return;
     }
 
+    if (message.type === 'force_logout') {
+      const win = getMainWindow();
+      if (win && !win.isDestroyed()) {
+        win.webContents?.send('app:force-logout', message.message);
+      }
+      return;
+    }
+
     if (message.type === 'config_update') {
       this.refreshConfigFromServer()
         .then(() => {

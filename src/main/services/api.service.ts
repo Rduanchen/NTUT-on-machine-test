@@ -258,7 +258,7 @@ export async function getMessages(afterId?: string): Promise<IpcResponse<ServerM
 
 export async function healthCheck(host?: string): Promise<boolean> {
   try {
-    const baseUrl = host ? host.replace(/\/+$/, '') + '/api' : ramStore.backendUrl.replace(/\/+$/, '') + '/api';
+    const baseUrl = host ? host.replace(/\/+$/, '') : ramStore.backendUrl.replace(/\/+$/, '');
     // Use the public status endpoint for health check
     await publicClient.get(`${baseUrl}/user/exam/status`, { timeout: 3000 });
     return true;
@@ -274,7 +274,7 @@ function makeErrorResponse(context: string, error: unknown): IpcResponse<any> {
   let code = 'NETWORK_ERROR';
   if (axios.isAxiosError(error)) {
     if (error.response) {
-      code = `HTTP_${error.response.status}`;
+      code = error.response.data?.code || `HTTP_${error.response.status}`;
       message = error.response.data?.error || error.response.data?.message || error.message;
     } else {
       code = 'NETWORK_ERROR';
@@ -286,6 +286,14 @@ function makeErrorResponse(context: string, error: unknown): IpcResponse<any> {
     message = String(error);
   }
   
+  if (code === 'CRYPTO_VERIFICATION_FAILED') {
+    const { getMainWindow } = require('../system/windowManager');
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) {
+      win.webContents?.send('app:force-logout', message);
+    }
+  }
+
   logger.silly(`[API] ${context}: ${message}`);
   return {
     success: false,

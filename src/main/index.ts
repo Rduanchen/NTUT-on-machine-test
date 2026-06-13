@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, dialog } from 'electron';
+import { app, shell, BrowserWindow, dialog, ipcMain } from 'electron';
 import { join } from 'path';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import icon from '../../resources/icon.png?asset';
@@ -94,6 +94,10 @@ app.whenReady().then(async () => {
 
   // Register all IPC handlers
   registerAllIpc();
+
+  ipcMain.handle('app:quit', () => {
+    app.quit();
+  });
 
   // Try to load config from pre_settings.json
   await configService.initFromPreSettings();

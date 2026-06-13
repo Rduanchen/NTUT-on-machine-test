@@ -27,7 +27,7 @@ import { ErrorCode } from '../../common/errorCodes';
 
 class ConfigService {
   private static instance: ConfigService;
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): ConfigService {
     if (!ConfigService.instance) {
@@ -105,11 +105,11 @@ class ConfigService {
       }
 
       ramStore.examConfig = validation.data as ExamConfig;
-      
+
       // Manual config means we are in pure offline mode.
       ramStore.isOfflineMode = true;
       ramStore.examStatus = 'NOT_STARTED'; // Push router to login page
-      
+
       logger.info('[Config] Config loaded from uploaded file (Offline Mode).');
       return { success: true };
     } catch (error) {
@@ -124,13 +124,14 @@ class ConfigService {
   /** Set config from server URL */
   public async setConfigFromServer(host: string): Promise<IpcResponse<void>> {
     ramStore.backendUrl = host;
-    
+    ramStore.isOfflineMode = false;
+
     // Start services so we can connect to sockets and get exam status
     connectionService.start();
     messageSyncService.start(host);
-    
+
     const result = await this.fetchAndSaveConfig(host);
-    
+
     // Even if fetching config fails (e.g. not logged in yet), we started the services
     // which allows the app to redirect to /not-initialized if status is UNINITIALIZED.
     return result;

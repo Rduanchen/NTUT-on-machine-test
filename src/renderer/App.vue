@@ -170,6 +170,19 @@
     </v-dialog>
     <NotificationCenter v-model="showNotifications" />
 
+    <!-- Force Logout Dialog -->
+    <v-dialog v-model="forceLogoutDialog" persistent width="auto">
+      <v-card class="pa-8 text-center rounded-xl" style="border: 2px solid #F44336;" elevation="24" min-width="320">
+        <v-icon color="error" size="64" class="mb-4">mdi-alert-octagon</v-icon>
+        <div class="text-h5 font-weight-bold text-error mb-2">安全連線錯誤或已被強制登出</div>
+        <div class="text-body-1 mb-6 font-weight-medium">{{ forceLogoutMessage }}</div>
+        
+        <v-btn color="error" variant="flat" block size="large" @click="handleAppQuit">
+          關閉系統 [Quit Application]
+        </v-btn>
+      </v-card>
+    </v-dialog>
+
     <!-- Bottom-right toast snackbar for incoming notifications -->
     <v-snackbar
       v-model="snackbarVisible"
@@ -205,6 +218,9 @@ const router = useRouter();
 const studentInfo = ref(null);
 const serverStatus = ref('disconnected');
 const showNotifications = ref(false);
+
+const forceLogoutDialog = ref(false);
+const forceLogoutMessage = ref('');
 
 // Snackbar for new incoming notifications
 const snackbarVisible = ref(false);
@@ -244,6 +260,12 @@ const updateServerAvailability = async () => {
   serverStatus.value = status === 'connected' ? 'connected' : 'disconnected';
 };
 
+const handleAppQuit = () => {
+  if (window.api?.app) {
+    window.api.app.quit();
+  }
+};
+
 onMounted(async () => {
   if (window.api?.store) {
     await updateServerAvailability();
@@ -274,6 +296,12 @@ onMounted(async () => {
       message: latest.message || t('examSystem.notificationCenter.noMessage')
     });
     snackbarVisible.value = true;
+  });
+
+  // Listen for force logout from server or local crypto failure
+  window.api?.auth?.onForceLogout?.((message) => {
+    forceLogoutMessage.value = message || '您的連線已失效，請重新綁定裝置。';
+    forceLogoutDialog.value = true;
   });
 });
 

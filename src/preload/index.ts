@@ -21,7 +21,14 @@ const api = {
     register: () => ipcRenderer.invoke('auth:register'),
     login: (studentId?: string) => ipcRenderer.invoke('auth:login', studentId),
     isVerified: () => ipcRenderer.invoke('auth:is-verified'),
-    getStudentInfo: () => ipcRenderer.invoke('auth:get-student-info')
+    getStudentInfo: () => ipcRenderer.invoke('auth:get-student-info'),
+    onForceLogout: (callback: (message: string) => void) => {
+      const listener = (_event: any, message: string) => callback(message);
+      ipcRenderer.on('app:force-logout', listener);
+      return () => {
+        ipcRenderer.removeListener('app:force-logout', listener);
+      };
+    }
   },
 
   /** Store: read exam state (test results, puzzles, exam info) */
@@ -114,6 +121,10 @@ const api = {
   log: {
     serverEvent: (actionType: string, message: string, details?: any) =>
       ipcRenderer.invoke('log:server-event', actionType, message, details)
+  },
+
+  app: {
+    quit: () => ipcRenderer.invoke('app:quit')
   }
 };
 
