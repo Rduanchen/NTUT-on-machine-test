@@ -61,9 +61,15 @@
       <p class="text-caption text-medium-emphasis">{{ t('waiting.hint') }}</p>
 
       <!-- Offline Bypass -->
-      <div class="mt-8 text-caption text-disabled" style="cursor: pointer; font-size: 10px;" @click="showPasswordDialog = true">
-        start with password
-      </div>
+      <v-btn 
+        color="secondary" 
+        variant="outlined" 
+        class="mt-8 px-6 font-weight-bold" 
+        prepend-icon="mdi-lock-open-outline"
+        @click="showPasswordDialog = true"
+      >
+        Start with Password
+      </v-btn>
     </v-card>
 
     <!-- Password Dialog -->
@@ -141,15 +147,6 @@ async function checkExamStatus() {
   }
 }
 
-function generateFallbackPassword(title: string): string {
-  let hash = 0;
-  for (let i = 0; i < title.length; i++) {
-    hash = ((hash << 5) - hash) + title.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash).toString(36).padEnd(6, 'a').slice(0, 6);
-}
-
 async function submitPassword() {
   passwordError.value = '';
   if (!startPasswordInput.value) return;
@@ -160,7 +157,11 @@ async function submitPassword() {
     return;
   }
 
-  const expectedPassword = config.startPassword || generateFallbackPassword(config.testTitle || 'ntut-exam');
+  const expectedPassword = config.environmentVariables?.startPassword;
+  if (!expectedPassword) {
+    passwordError.value = 'Missing startPassword in environmentVariables';
+    return;
+  }
   
   if (startPasswordInput.value === expectedPassword) {
     showPasswordDialog.value = false;

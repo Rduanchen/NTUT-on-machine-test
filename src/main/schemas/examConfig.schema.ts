@@ -54,10 +54,14 @@ const judgerSettingsSchema = z.object({
   memoryLimit: z.number()
 });
 
+const environmentVariablesSchema = z.object({
+  startPassword: z.string()
+}).catchall(z.union([z.string(), z.number(), z.boolean()]));
+
 export const examConfigSchema = z.object({
   testTitle: z.string(),
   description: z.string(),
-  startPassword: z.string().optional(),
+  environmentVariables: environmentVariablesSchema,
   judgerSettings: judgerSettingsSchema,
   accessibleUsers: z.array(accessUserSchema),
   globalSpecialRules: z.array(specialRuleBaseSchema).optional(),

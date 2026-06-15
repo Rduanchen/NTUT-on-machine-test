@@ -28,10 +28,10 @@
     "currentLanguage": "Language",
     "switchToLight": "Switch to Light Theme",
     "switchToDark": "Switch to Dark Theme",
-    "developedBy": "This system is developed by VerechoTJI | ",
+    "developedBy": "This system is developed by VerechoTJI {'|'} ",
     "easterEgg": {
       "title": "You catch me !!",
-      "developerName": "Justin",
+      "developerName": "阿端",
       "class": "NTUT CS1",
       "role": "Full Stack Developer"
     },

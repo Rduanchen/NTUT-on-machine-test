@@ -286,11 +286,14 @@ function makeErrorResponse(context: string, error: unknown): IpcResponse<any> {
     message = String(error);
   }
   
-  if (code === 'CRYPTO_VERIFICATION_FAILED') {
+  if (code === 'CRYPTO_VERIFICATION_FAILED' || 
+      code === 'HTTP_401' || 
+      code === 'HTTP_403' ||
+      (typeof message === 'string' && (message.includes('not registered') || message.includes('Unauthorized')))) {
     const { getMainWindow } = require('../system/windowManager');
     const win = getMainWindow();
     if (win && !win.isDestroyed()) {
-      win.webContents?.send('app:force-logout', message);
+      win.webContents?.send('app:force-logout', message || '您的裝置已被登出或解除綁定。');
     }
   }
 

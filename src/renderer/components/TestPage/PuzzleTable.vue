@@ -13,7 +13,7 @@
       </thead>
       <template v-for="(group, sectionId) in groupedPuzzles" :key="sectionId">
         <tbody>
-          <tr class="bg-grey-lighten-4">
+          <tr :class="isDark ? 'bg-grey-darken-3' : 'bg-grey-lighten-4'">
             <td colspan="6" class="py-2">
               <div class="d-flex align-center w-100">
                 <v-icon start size="small" class="text-primary mr-2">mdi-folder-outline</v-icon>
@@ -61,6 +61,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useTheme } from 'vuetify';
 import PuzzleRow from './PuzzleRow.vue';
 import type { PuzzleInfo } from '../../../common/types';
 import type { SpecialRule, SpecialRuleResultRecord } from '../../../common/types';
@@ -76,6 +77,8 @@ const props = defineProps<{
 }>();
 defineEmits(['open-result', 'upload']);
 const { t } = useI18n();
+const theme = useTheme();
+const isDark = computed(() => theme.global.current.value.dark);
 
 const groupedPuzzles = computed(() => {
   const groups: Record<string, PuzzleInfo[]> = {};
