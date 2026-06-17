@@ -10,6 +10,7 @@
         <div class="pa-4 overflow-y-auto custom-scrollbar">
           <ResultTableCard
             v-if="resultForItem"
+            :puzzle-id="String(item?.id)"
             :result="resultForItem"
             :effective-special-rules="effectiveSpecialRulesForItem"
             :special-rule-results="specialRuleResultsForItem"
