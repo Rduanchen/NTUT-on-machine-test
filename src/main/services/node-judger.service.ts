@@ -108,7 +108,14 @@ class NodeJudgerService {
     const judgerSettings = config.judgerSettings;
     const timeLimit = puzzle.timeLimit || judgerSettings.timeLimit;
     const memoryLimitMB = puzzle.memoryLimit || judgerSettings.memoryLimit || 128; // fallback to 128MB
-    const memoryLimitBytes = memoryLimitMB * 1024 * 1024;
+    
+    // Auto-detect if memory limit was entered in bytes instead of MB
+    // If it's > 10240 (10 GB), it's highly likely they meant bytes.
+    let memoryLimitBytes = Math.floor(memoryLimitMB * 1024 * 1024);
+    if (memoryLimitMB > 10240) {
+      memoryLimitBytes = Math.floor(memoryLimitMB);
+    }
+
     const compareMode = judgerSettings.compareMode || 'loose';
 
     const subtasks: NodeJudgeTestCase[][] = puzzle.subtasks.map((subtask) => {
