@@ -122,7 +122,7 @@ export function runProcess(options: RunOptions): Promise<RunResult> {
             }
           })
           .catch(() => { });
-      }, 20);
+      }, 5);
     }
 
     child.stdout!.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));

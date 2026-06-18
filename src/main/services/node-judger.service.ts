@@ -105,9 +105,9 @@ class NodeJudgerService {
       ]);
     }
 
-    const judgerSettings = config.judgerSettings;
-    const timeLimit = puzzle.timeLimit || judgerSettings.timeLimit;
-    const memoryLimitMB = puzzle.memoryLimit || judgerSettings.memoryLimit || 128; // fallback to 128MB
+    const judgerSettings = config.judgerSettings || {};
+    const timeLimit = puzzle.timeLimit ?? judgerSettings.timeLimit ?? 5000;
+    const memoryLimitMB = puzzle.memoryLimit ?? judgerSettings.memoryLimit ?? 128; // fallback to 128MB
     
     // Auto-detect if memory limit was entered in bytes instead of MB
     // If it's > 10240 (10 GB), it's highly likely they meant bytes.
