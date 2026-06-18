@@ -42,6 +42,7 @@ function createWindow(): void {
       type: 'warning',
       buttons: ['取消[cancel]', '關閉[close]'],
       defaultId: 0,
+      cancelId: 0,
       title: '您尚未完成考試，請勿關閉這個程式！[Do not close the application]',
       message: '這個動作會影響到你的考試成績 [This action will affect your test results]',
       detail:
