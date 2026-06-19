@@ -82,6 +82,25 @@
             {{ syncMsg }}
           </v-alert>
 
+          <!-- Version Selection -->
+          <div class="mb-4">
+            <div class="text-subtitle-2 font-weight-bold mb-2">重新上傳版本選擇</div>
+            <v-select
+              v-model="selectedVersion"
+              :items="[
+                { title: '現在版（目前最後一次撰寫的程式碼）', value: 'current' },
+                { title: '歷史最高分版（系統紀錄得分最高的版本）', value: 'highest' }
+              ]"
+              density="compact"
+              variant="outlined"
+              hide-details
+              @update:model-value="updateVersionSelection"
+            ></v-select>
+            <div class="text-caption text-medium-emphasis mt-1">
+              若想更改上傳版本，請選擇後再次點擊下方的「上傳程式」與「上傳分數」。
+            </div>
+          </div>
+
           <!-- Action Buttons -->
           <div class="d-flex flex-column gap-3">
             <!-- 1. Push all code -->
@@ -155,6 +174,7 @@ const { t } = useI18n();
 const router = useRouter();
 
 // ─── State ──────────────────────────────────────────────────────────
+const selectedVersion = ref<'current' | 'highest'>('current');
 const isSyncingCode = ref(false);
 const isSyncingScore = ref(false);
 const syncMsg = ref('');
@@ -185,6 +205,7 @@ const sections = computed<SectionSummary[]>(() => {
     rawSections.push({
       id: 'default',
       title: t('examSystem.puzzles.defaultSection'),
+      maxScore: 0,
       puzzles: examConfig.value.puzzles
     });
   }
@@ -272,6 +293,31 @@ const finalScore = computed(() => {
 });
 
 // ─── Actions ──────────────────────────────────────────────────────────
+async function fetchScores() {
+  if (!window.api?.store) return;
+  const isHighest = selectedVersion.value === 'highest';
+  if (isHighest && window.api.store.getHighestHiddenTestResults) {
+    testResults.value = await window.api.store.getHighestHiddenTestResults();
+  } else if (window.api.store.getHiddenTestResults) {
+    testResults.value = await window.api.store.getHiddenTestResults();
+  } else {
+    testResults.value = await window.api.store.getTestResults();
+  }
+
+  if (isHighest && window.api.store.getHighestSpecialRuleResults) {
+    specialRuleResults.value = await window.api.store.getHighestSpecialRuleResults() || {};
+  } else {
+    specialRuleResults.value = await window.api.store.getSpecialRuleResults?.() || {};
+  }
+}
+
+async function updateVersionSelection(newVal: string) {
+  if (window.api?.store?.setUploadVersionPreference) {
+    await window.api.store.setUploadVersionPreference(newVal as any);
+  }
+  await fetchScores();
+}
+
 async function pushAllCode() {
   if (!window.api?.judger) return;
   isSyncingCode.value = true;
@@ -323,11 +369,11 @@ async function downloadCode() {
 // ─── Init ────────────────────────────────────────────────────────────
 onMounted(async () => {
   if (window.api?.store) {
-    if (window.api.store.getHiddenTestResults) {
-      testResults.value = await window.api.store.getHiddenTestResults();
-    } else {
-      testResults.value = await window.api.store.getTestResults();
+    if (window.api.store.getUploadVersionPreference) {
+      selectedVersion.value = await window.api.store.getUploadVersionPreference() as 'current' | 'highest';
     }
+
+    await fetchScores();
 
     if (window.api.store.getExamConfig) {
       examConfig.value = await window.api.store.getExamConfig();
@@ -335,7 +381,6 @@ onMounted(async () => {
       examConfig.value = await window.api.store.getExamInfo?.() as any;
     }
     
-    specialRuleResults.value = await window.api.store.getSpecialRuleResults?.() || {};
     effectiveSpecialRules.value = await window.api.store.getEffectiveSpecialRules?.() || {};
 
     statusUnsubscribe = window.api.store.onExamStatusChanged?.((status: string) => {

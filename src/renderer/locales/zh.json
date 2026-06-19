@@ -149,7 +149,18 @@
           "rejudge": "重新評測",
           "uploadCode": "上傳程式",
           "uploadScore": "上傳分數"
-        }
+        },
+        "versionSelectTitle": "請選擇您要上傳的程式碼版本：",
+        "versionCurrent": "現在版（目前最後一次撰寫的版本）",
+        "versionCurrentShort": "現在版",
+        "versionHighest": "歷史最高分版（系統自動紀錄得分最高的版本）",
+        "versionHighestShort": "最高分版",
+        "startUpload": "開始上傳",
+        "confirmWithTA": "請先與助教確認成績",
+        "confirmWithTADesc": "您的成績與程式碼已上傳至伺服器。請呼叫助教來確認成績，如果成績有誤，您可以點擊「取消」重新上傳另一個版本。確認無誤後，才能點擊「確認並且結束考試」。",
+        "confirmWarningTitle": "注意：確認後將無法反悔",
+        "confirmWarningDesc": "點擊「確認並且結束考試」後，您將無法再修改或重新提交程式碼。",
+        "confirmButton": "確認並且結束考試"
       },
       "headers": {
         "id": "編號",

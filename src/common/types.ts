@@ -138,8 +138,11 @@ export interface RamStoreState {
   cryptoState: CryptoState | null;
   testResults: Record<string, JudgeRunResult>;
   hiddenTestResults: Record<string, JudgeRunResult>;
+  highestTestResults: Record<string, JudgeRunResult>;
+  highestHiddenTestResults: Record<string, JudgeRunResult>;
   /** Per puzzleId latest evaluation results for special rules */
   specialRuleResults: Record<string, SpecialRuleResultRecord[]>;
+  highestSpecialRuleResults: Record<string, SpecialRuleResultRecord[]>;
   isTestResultDirty: boolean;
   connectionStatus: ConnectionStatus;
   backendUrl: string;
@@ -150,9 +153,11 @@ export interface RamStoreState {
   examStatus: ExamState;
   isOfflineMode: boolean;
   pendingLoginSync: boolean;
+  uploadVersionPreference: UploadVersionPreference;
 }
 
 export type ConnectionStatus = 'connected' | 'disconnected';
+export type UploadVersionPreference = 'highest' | 'current';
 
 // ─── Judge Result Types ─────────────────────────────────────────────
 

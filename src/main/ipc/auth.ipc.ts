@@ -66,7 +66,17 @@ export function registerAuthIpc(): void {
         if (!manualTestId) {
           return { success: false, error: { code: ErrorCode.STUDENT_NOT_FOUND, message: 'Offline mode requires manual student ID input' } };
         }
-        ramStore.studentInfo = { id: manualTestId, name: manualTestId };
+        let studentName = manualTestId;
+        if (ramStore.examConfig?.accessibleUsers && ramStore.examConfig.accessibleUsers.length > 0) {
+          const user = ramStore.examConfig.accessibleUsers.find(u => String(u.id) === String(manualTestId));
+          if (!user) {
+            return { success: false, error: { code: ErrorCode.STUDENT_NOT_FOUND, message: '此學號不在本次考試的名單內' } };
+          }
+          if (user.name) {
+            studentName = user.name;
+          }
+        }
+        ramStore.studentInfo = { id: manualTestId, name: studentName };
         ramStore.isStudentVerified = true;
         logger.info(`[Auth] Student ${manualTestId} logged in successfully (Offline Mode Bypass)`);
         return { success: true };
@@ -116,6 +126,13 @@ export function registerAuthIpc(): void {
           // Fetch the config right away now that we have the session token
           await configService.fetchAndSaveConfig();
           
+          if (ramStore.examConfig?.accessibleUsers) {
+            const user = ramStore.examConfig.accessibleUsers.find(u => u.id === testId);
+            if (user && user.name) {
+              ramStore.studentInfo.name = user.name;
+            }
+          }
+          
           // Refresh messages immediately since initial sync likely failed due to no crypto
           await messageSyncService.manualRefresh();
 
@@ -141,7 +158,17 @@ export function registerAuthIpc(): void {
           // 5. Offline Fallback for registered devices
           if (loginResponse.error?.code === 'NETWORK_ERROR' && ramStore.cryptoState) {
             logger.warn(`[Auth] Network down, falling back to offline login for registered device`);
-            ramStore.studentInfo = { id: testId, name: testId };
+            let studentName = testId;
+            if (ramStore.examConfig?.accessibleUsers && ramStore.examConfig.accessibleUsers.length > 0) {
+              const user = ramStore.examConfig.accessibleUsers.find(u => String(u.id) === String(testId));
+              if (!user) {
+                return { success: false, error: { code: ErrorCode.STUDENT_NOT_FOUND, message: '伺服器無法連線，且此學號不在離線名單內' } };
+              }
+              if (user.name) {
+                studentName = user.name;
+              }
+            }
+            ramStore.studentInfo = { id: testId, name: studentName };
             ramStore.isStudentVerified = true;
             ramStore.pendingLoginSync = true;
             logger.info(`[Auth] Student ${testId} logged in successfully (Retroactive Offline Fallback)`);

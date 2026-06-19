@@ -7,6 +7,7 @@ import type {
   SpecialRuleResultRecord,
   SpecialRule,
   ExamState,
+  UploadVersionPreference
 } from '../../common/types';
 import { getEffectiveSpecialRules } from '../services/special-rules.service';
 
@@ -44,6 +45,21 @@ export function registerStoreIpc(): void {
     win.webContents?.send('exam:status-changed', status);
   });
 
+  ramStore.on('highestTestResults', (results: Record<string, JudgeRunResult>) => {
+    const win = getMainWindow();
+    if (!win || win.isDestroyed()) return;
+    win.webContents?.send('store:highest-test-results-updated', results);
+  });
+
+  ramStore.on(
+    'highestSpecialRuleResults',
+    (results: Record<string, SpecialRuleResultRecord[]>) => {
+      const win = getMainWindow();
+      if (!win || win.isDestroyed()) return;
+      win.webContents?.send('store:highest-special-rule-results-updated', results);
+    },
+  );
+
   ipcMain.handle('store:get-connection-status', () => {
     return ramStore.connectionStatus;
   });
@@ -71,6 +87,27 @@ export function registerStoreIpc(): void {
 
   ipcMain.handle('store:get-special-rule-results', () => {
     return ramStore.specialRuleResults;
+  });
+
+  ipcMain.handle('store:get-highest-test-results', () => {
+    return ramStore.highestTestResults;
+  });
+
+  ipcMain.handle('store:get-highest-hidden-test-results', () => {
+    return ramStore.highestHiddenTestResults;
+  });
+
+  ipcMain.handle('store:get-highest-special-rule-results', () => {
+    return ramStore.highestSpecialRuleResults;
+  });
+
+  ipcMain.handle('store:get-upload-version-preference', () => {
+    return ramStore.uploadVersionPreference;
+  });
+
+  ipcMain.handle('store:set-upload-version-preference', (_event, preference: UploadVersionPreference) => {
+    ramStore.uploadVersionPreference = preference;
+    return { success: true };
   });
 
   ipcMain.handle('store:get-effective-special-rules', () => {

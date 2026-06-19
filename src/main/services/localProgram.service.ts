@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import admzip from 'adm-zip';
 import { logger } from './logger.service';
+import type { UploadVersionPreference } from '../../common/types';
 
 /**
  * Local Program Store - Manages student code files in a temp directory
@@ -55,6 +56,21 @@ class LocalProgramStoreService {
     return destPath;
   }
 
+  /**
+   * Add a high score file to the temp directory.
+   * Copies the source file and renames to {puzzleId}.highest.{extension}.
+   */
+  public saveHighestScoreFile(puzzleId: string, extension: string, sourcePath: string): string {
+    const destPath = path.join(this.tempDir, `${puzzleId}.highest.${extension}`);
+    const resolvedSource = path.resolve(sourcePath);
+    const resolvedDest = path.resolve(destPath);
+    if (resolvedSource !== resolvedDest) {
+      fs.copyFileSync(resolvedSource, resolvedDest);
+    }
+    logger.info(`[LocalProgram] Highest score file saved: ${sourcePath} → ${destPath}`);
+    return destPath;
+  }
+
   /** Delete the entire temp directory and all files */
   public deleteTempDir(): void {
     try {
@@ -67,10 +83,17 @@ class LocalProgramStoreService {
     }
   }
 
-  /** Package all files in temp directory as a zip, returns Buffer */
-  public zipTempDir(): Buffer {
+  /** Package files in temp directory as a zip according to preference, returns Buffer */
+  public zipTempDir(preference: UploadVersionPreference = 'current'): Buffer {
     const zip = new admzip();
-    zip.addLocalFolder(this.tempDir);
+    const entries = this.getStoredProgramEntries(preference);
+    for (const entry of entries) {
+      // The entry.filePath points to either the current or the highest file
+      // We want it to be named simply `${puzzleId}.${extension}` inside the zip
+      const extension = entry.filePath.split('.').pop() || 'txt';
+      const zipFileName = `${entry.puzzleId}.${extension}`;
+      zip.addLocalFile(entry.filePath, '', zipFileName);
+    }
     return zip.toBuffer();
   }
 
@@ -93,23 +116,38 @@ class LocalProgramStoreService {
     }
   }
 
-  /** Get the stored file path for a given puzzle id if it exists */
-  public getFilePathForPuzzle(puzzleId: string): string | null {
-    const entry = this.listFiles().find((fileName) => fileName.startsWith(`${puzzleId}.`));
-    if (!entry) return null;
-    return path.join(this.tempDir, entry);
+  /** Get the stored file path for a given puzzle id based on version preference */
+  public getFilePathForPuzzle(puzzleId: string, preference: UploadVersionPreference = 'current'): string | null {
+    const files = this.listFiles();
+    let targetFileName: string | undefined;
+
+    if (preference === 'highest') {
+      targetFileName = files.find((fileName) => fileName.startsWith(`${puzzleId}.highest.`));
+    }
+    
+    // Fallback to current version if highest doesn't exist or wasn't requested
+    if (!targetFileName) {
+      targetFileName = files.find((fileName) => fileName.startsWith(`${puzzleId}.`) && !fileName.includes('.highest.'));
+    }
+
+    if (!targetFileName) return null;
+    return path.join(this.tempDir, targetFileName);
   }
 
-  /** Get all stored program entries (puzzle id + absolute file path) */
-  public getStoredProgramEntries(): Array<{ puzzleId: string; filePath: string }> {
-    return this.listFiles()
-      .map((fileName) => {
-        const [puzzleId] = fileName.split('.');
-        if (typeof puzzleId === 'undefined' || puzzleId === '') return null;
-        return {
-          puzzleId,
-          filePath: path.join(this.tempDir, fileName)
-        };
+  /** Get all stored program entries (puzzle id + absolute file path) based on version preference */
+  public getStoredProgramEntries(preference: UploadVersionPreference = 'current'): Array<{ puzzleId: string; filePath: string }> {
+    const files = this.listFiles();
+    const puzzleIds = Array.from(new Set(
+      files
+        .map((fileName) => fileName.split('.')[0])
+        .filter((id) => id && id.length > 0)
+    ));
+
+    return puzzleIds
+      .map((puzzleId) => {
+        const filePath = this.getFilePathForPuzzle(puzzleId, preference);
+        if (!filePath) return null;
+        return { puzzleId, filePath };
       })
       .filter((entry): entry is { puzzleId: string; filePath: string } => Boolean(entry));
   }

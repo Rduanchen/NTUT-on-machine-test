@@ -62,8 +62,17 @@
           </v-card-title>
           
           <v-card-text>
+            <!-- Version Selection -->
+            <div v-if="showSelection" class="py-4">
+              <div class="text-subtitle-1 mb-4">{{ t('examSystem.puzzles.finisheTheExam.versionSelectTitle') }}</div>
+              <v-radio-group v-model="selectedVersion" color="primary">
+                <v-radio :label="t('examSystem.puzzles.finisheTheExam.versionCurrent')" value="current"></v-radio>
+                <v-radio :label="t('examSystem.puzzles.finisheTheExam.versionHighest')" value="highest"></v-radio>
+              </v-radio-group>
+            </div>
+
             <!-- Loading State -->
-            <div v-if="isLoading" class="d-flex flex-column align-center justify-center py-6">
+            <div v-else-if="isLoading" class="d-flex flex-column align-center justify-center py-6">
               <v-progress-circular indeterminate color="primary" size="64" class="mb-6"></v-progress-circular>
               <div class="text-h6 mb-4">{{ t('examSystem.puzzles.finisheTheExam.syncing') || '評測與同步中...' }}</div>
               
@@ -112,24 +121,38 @@
                 </div>
               </div>
 
+              <v-alert type="info" variant="tonal" class="mt-4" icon="mdi-information">
+                <div class="text-subtitle-2 font-weight-bold">{{ t('examSystem.puzzles.finisheTheExam.confirmWithTA') }}</div>
+                <div class="text-body-2">{{ t('examSystem.puzzles.finisheTheExam.confirmWithTADesc') }}</div>
+              </v-alert>
+              
               <v-alert type="warning" variant="tonal" class="mt-4" icon="mdi-alert">
-                <div class="text-subtitle-2 font-weight-bold">注意：確認後將無法反悔</div>
-                <div class="text-body-2">點擊「確認並且結束考試」後，您將無法再修改或重新提交程式碼。</div>
+                <div class="text-subtitle-2 font-weight-bold">{{ t('examSystem.puzzles.finisheTheExam.confirmWarningTitle') }}</div>
+                <div class="text-body-2">{{ t('examSystem.puzzles.finisheTheExam.confirmWarningDesc') }}</div>
               </v-alert>
             </div>
           </v-card-text>
 
           <v-card-actions>
             <v-spacer />
-            <v-btn text :disabled="isLoading" @click="isDialogActive = false">{{ t('examSystem.common.cancel') || '取消' }}</v-btn>
+            <v-btn text :disabled="isLoading" @click="cancelDialog">{{ t('examSystem.common.cancel') || '取消' }}</v-btn>
             <v-btn
-              v-if="!isLoading"
+              v-if="showSelection"
+              color="primary"
+              variant="elevated"
+              @click="startUploadFlow"
+            >
+              {{ t('examSystem.puzzles.finisheTheExam.startUpload') }}
+            </v-btn>
+            <v-btn
+              v-else-if="!isLoading"
               color="error"
               variant="elevated"
               prepend-icon="mdi-flag-checkered"
+              :disabled="countdown > 0"
               @click="confirmAndEndExam"
             >
-              確認並且結束考試
+              {{ t('examSystem.puzzles.finisheTheExam.confirmButton') }} <span v-if="countdown > 0">({{ countdown }})</span>
             </v-btn>
           </v-card-actions>
         </v-card>
@@ -153,8 +176,12 @@ const { t } = useI18n();
 
 // ─── Finish Exam Flow State ───
 const isDialogActive = ref(false);
+const showSelection = ref(true);
+const selectedVersion = ref('current');
 const isLoading = ref(false);
 const showPreview = ref(false);
+const countdown = ref(5);
+let countdownTimer: any = null;
 
 const testResults = ref<Record<string, JudgeRunResult>>({});
 const examConfig = ref<ExamConfig | null>(null);
@@ -293,7 +320,22 @@ const finalScore = computed(() => {
 });
 
 // ─── Actions ───
-async function startFinishFlow() {
+function startFinishFlow() {
+  isDialogActive.value = true;
+  showSelection.value = true;
+  isLoading.value = false;
+  showPreview.value = false;
+  selectedVersion.value = 'current';
+  if (countdownTimer) clearInterval(countdownTimer);
+}
+
+function cancelDialog() {
+  isDialogActive.value = false;
+  if (countdownTimer) clearInterval(countdownTimer);
+}
+
+async function startUploadFlow() {
+  showSelection.value = false;
   isLoading.value = true;
   showPreview.value = false;
 
@@ -302,6 +344,9 @@ async function startFinishFlow() {
   stepStatuses.value.uploadScore = 'waiting';
 
   try {
+    if (window.api?.store?.setUploadVersionPreference) {
+      await window.api.store.setUploadVersionPreference(selectedVersion.value);
+    }
     // 1. Recheck Code
     stepStatuses.value.rejudge = 'running';
     if (window.api?.judger?.rejudgeAll) {
@@ -343,7 +388,10 @@ async function startFinishFlow() {
 
     // 4. Fetch latest data to show score
     if (window.api?.store) {
-      if (window.api.store.getHiddenTestResults) {
+      const isHighest = selectedVersion.value === 'highest';
+      if (isHighest && window.api.store.getHighestHiddenTestResults) {
+        testResults.value = await window.api.store.getHighestHiddenTestResults();
+      } else if (window.api.store.getHiddenTestResults) {
         testResults.value = await window.api.store.getHiddenTestResults();
       } else {
         testResults.value = await window.api.store.getTestResults();
@@ -355,7 +403,11 @@ async function startFinishFlow() {
         examConfig.value = (await window.api.store.getExamInfo?.()) as any;
       }
 
-      specialRuleResults.value = await window.api.store.getSpecialRuleResults?.() || {};
+      if (isHighest && window.api.store.getHighestSpecialRuleResults) {
+        specialRuleResults.value = await window.api.store.getHighestSpecialRuleResults() || {};
+      } else {
+        specialRuleResults.value = await window.api.store.getSpecialRuleResults?.() || {};
+      }
       effectiveSpecialRules.value = await window.api.store.getEffectiveSpecialRules?.() || {};
     }
   } catch (error) {
@@ -368,10 +420,20 @@ async function startFinishFlow() {
     await new Promise((resolve) => setTimeout(resolve, 800));
     isLoading.value = false;
     showPreview.value = true;
+
+    // Start 5 second countdown for confirm button
+    countdown.value = 5;
+    countdownTimer = setInterval(() => {
+      countdown.value--;
+      if (countdown.value <= 0) {
+        clearInterval(countdownTimer);
+      }
+    }, 1000);
   }
 }
 
 function confirmAndEndExam() {
+  if (countdownTimer) clearInterval(countdownTimer);
   isDialogActive.value = false;
   emit('finish-exam');
 }

@@ -14,9 +14,11 @@
         :puzzle-statuses="puzzleStatuses"
         :puzzle-pass-rates="puzzlePassRates"
         :test-result="testResult"
+        :highest-test-result="highestTestResult"
         :on-sent="onSent"
-  :effective-special-rules="effectiveSpecialRules"
-  :special-rule-results="specialRuleResults"
+        :effective-special-rules="effectiveSpecialRules"
+        :special-rule-results="specialRuleResults"
+        :highest-special-rule-results="highestSpecialRuleResults"
         @open-result="openResultDialog"
         @upload="openUploadDialog"
       />
@@ -26,8 +28,10 @@
       v-model="resultDialog.isOpen"
       :item="resultDialog.item"
       :test-result="testResult"
-  :effective-special-rules="effectiveSpecialRules"
-  :special-rule-results="specialRuleResults"
+      :highest-test-result="highestTestResult"
+      :effective-special-rules="effectiveSpecialRules"
+      :special-rule-results="specialRuleResults"
+      :highest-special-rule-results="highestSpecialRuleResults"
     />
     <UploadDialog
       v-model="uploadDialog.isOpen"
@@ -49,8 +53,10 @@ import type { PuzzleInfo, JudgeRunResult, SpecialRule, SpecialRuleResultRecord }
 
 const puzzleInfo = ref<PuzzleInfo[]>([]);
 const testResult = ref<Record<string, JudgeRunResult>>({});
+const highestTestResult = ref<Record<string, JudgeRunResult>>({});
 const onSent = ref<Record<string, boolean>>({});
 const specialRuleResults = ref<Record<string, SpecialRuleResultRecord[]>>({});
+const highestSpecialRuleResults = ref<Record<string, SpecialRuleResultRecord[]>>({});
 const effectiveSpecialRules = ref<Record<string, SpecialRule[]>>({});
 
 const resultDialog = ref({ isOpen: false, item: null as PuzzleInfo | null });
@@ -129,7 +135,9 @@ const puzzlePassRates = computed<Record<string, StatusInfo>>(() => {
 async function refreshResults() {
   if (!window.api?.store) return;
   testResult.value = await window.api.store.getTestResults();
+  highestTestResult.value = await window.api.store.getHighestTestResults();
   specialRuleResults.value = await window.api.store.getSpecialRuleResults();
+  highestSpecialRuleResults.value = await window.api.store.getHighestSpecialRuleResults();
   for (const puzzle of puzzleInfo.value) {
     const id = String(puzzle.id);
     if (onSent.value[id]) onSent.value[id] = false;
@@ -213,7 +221,9 @@ function startFinishBuffer() {
 // ─── Init ───────────────────────────────────────────────────────────
 
 let resultsUnsubscribe: (() => void) | null = null;
+let highestResultsUnsubscribe: (() => void) | null = null;
 let rulesUnsubscribe: (() => void) | null = null;
+let highestRulesUnsubscribe: (() => void) | null = null;
 let statusUnsubscribe: (() => void) | null = null;
 
 onMounted(async () => {
@@ -227,8 +237,16 @@ onMounted(async () => {
     testResult.value = results as Record<string, JudgeRunResult>;
   }) || null;
 
-  rulesUnsubscribe = window.api.store.onSpecialRuleResultsUpdated?.((results) => {
+  highestResultsUnsubscribe = window.api.store.onHighestTestResultsUpdated?.((results: any) => {
+    highestTestResult.value = results as Record<string, JudgeRunResult>;
+  }) || null;
+
+  rulesUnsubscribe = window.api.store.onSpecialRuleResultsUpdated?.((results: any) => {
     specialRuleResults.value = results as Record<string, SpecialRuleResultRecord[]>;
+  }) || null;
+
+  highestRulesUnsubscribe = window.api.store.onHighestSpecialRuleResultsUpdated?.((results: any) => {
+    highestSpecialRuleResults.value = results as Record<string, SpecialRuleResultRecord[]>;
   }) || null;
 
   statusUnsubscribe = window.api.store.onExamStatusChanged?.((status: string) => {
@@ -251,7 +269,9 @@ onBeforeUnmount(() => {
   if (bufferTimer) clearInterval(bufferTimer);
   clearBuffer();
   if (resultsUnsubscribe) resultsUnsubscribe();
+  if (highestResultsUnsubscribe) highestResultsUnsubscribe();
   if (rulesUnsubscribe) rulesUnsubscribe();
+  if (highestRulesUnsubscribe) highestRulesUnsubscribe();
   if (statusUnsubscribe) statusUnsubscribe();
 });
 </script>

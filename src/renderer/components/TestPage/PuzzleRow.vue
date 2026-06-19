@@ -30,6 +30,28 @@
           {{ rulesChip.text }}
         </v-chip>
       </div>
+      <div class="text-caption text-medium-emphasis mt-1">
+        Score: {{ currentScore }}
+      </div>
+    </td>
+    <td>
+      <div class="d-flex align-center ga-2">
+        <ResultTrigger @click="$emit('open-result')" :rate="highestPassRate" :result="highestResult" />
+
+        <v-chip
+          v-if="highestRulesChip"
+          size="x-small"
+          variant="tonal"
+          :color="highestRulesChip.color"
+          class="font-weight-bold"
+          label
+        >
+          {{ highestRulesChip.text }}
+        </v-chip>
+      </div>
+      <div class="text-caption text-medium-emphasis mt-1">
+        Score: {{ highestScore }}
+      </div>
     </td>
     <td>
       <v-btn
@@ -56,10 +78,15 @@ const props = defineProps<{
   item: Puzzle;
   status?: StatusInfo;
   passRate?: StatusInfo;
+  highestPassRate?: StatusInfo;
   result?: any;
+  highestResult?: any;
   loading?: boolean;
   effectiveSpecialRules?: SpecialRule[];
   specialRuleResults?: SpecialRuleResultRecord[];
+  highestSpecialRuleResults?: SpecialRuleResultRecord[];
+  currentScore?: number;
+  highestScore?: number;
 }>();
 defineEmits(['open-result', 'upload']);
 const { t } = useI18n();
@@ -71,6 +98,27 @@ const rulesChip = computed<null | { text: string; color: string }>(() => {
   }
 
   const results = props.specialRuleResults;
+  if (!results || results.length === 0) {
+    return { text: t('examSystem.puzzles.rulesSummary', { passed: 0, total: effectiveRuleCount }), color: 'grey' };
+  }
+
+  const effectiveIds = new Set((props.effectiveSpecialRules ?? []).map((r) => r.id));
+  const effectiveResults = results.filter((r) => effectiveIds.has(r.ruleId));
+  const passed = effectiveResults.filter((r) => r.passed).length;
+  const allPassed = effectiveResults.length === effectiveRuleCount && passed === effectiveRuleCount;
+  return {
+    text: t('examSystem.puzzles.rulesSummary', { passed, total: effectiveRuleCount }),
+    color: allPassed ? 'success' : 'error',
+  };
+});
+
+const highestRulesChip = computed<null | { text: string; color: string }>(() => {
+  const effectiveRuleCount = props.effectiveSpecialRules?.length ?? 0;
+  if (effectiveRuleCount === 0) {
+    return { text: t('examSystem.puzzles.rulesNotAvailable'), color: 'grey' };
+  }
+
+  const results = props.highestSpecialRuleResults;
   if (!results || results.length === 0) {
     return { text: t('examSystem.puzzles.rulesSummary', { passed: 0, total: effectiveRuleCount }), color: 'grey' };
   }

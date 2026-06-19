@@ -40,6 +40,11 @@ class MessageSyncService {
   }
 
   public start(host?: string): void {
+    if (ramStore.isOfflineMode) {
+      logger.info('[MessageSync] Offline mode active. Skipping socket and polling.');
+      return;
+    }
+
     const targetHost = (host ?? ramStore.backendUrl)?.replace(/\/$/, '');
     if (!targetHost) {
       logger.warn('[MessageSync] Cannot start without backend URL');

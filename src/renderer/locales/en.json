@@ -148,7 +148,18 @@
           "rejudge": "Recheck Code",
           "uploadCode": "Upload Code",
           "uploadScore": "Upload Score"
-        }
+        },
+        "versionSelectTitle": "Please select the code version to upload:",
+        "versionCurrent": "Current Version (The latest version you wrote)",
+        "versionCurrentShort": "Current Version",
+        "versionHighest": "Highest Score Version (The version with the highest score recorded by the system)",
+        "versionHighestShort": "Highest Score",
+        "startUpload": "Start Upload",
+        "confirmWithTA": "Please verify your score with the TA first",
+        "confirmWithTADesc": "Your score and code have been uploaded to the server. Please call the TA to verify your score. If there is an error, you can click \"Cancel\" to re-upload another version. Only after verification is correct can you click \"Confirm and End Exam\".",
+        "confirmWarningTitle": "Warning: Cannot be undone after confirmation",
+        "confirmWarningDesc": "After clicking \"Confirm and End Exam\", you will not be able to modify or resubmit your code.",
+        "confirmButton": "Confirm and End Exam"
       },
       "summary": "{count} problems in total",
       "headers": {

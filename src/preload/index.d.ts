@@ -7,7 +7,10 @@ import type {
   ServerMessage,
   SocketConnectionStatus,
   SpecialRuleResultRecord,
-  SpecialRule
+  SpecialRule,
+  ExamConfig,
+  ExamState,
+  UploadVersionPreference
 } from '../common/types';
 
 interface ConfigAPI {
@@ -29,6 +32,11 @@ interface StoreAPI {
   getHiddenTestResults: () => Promise<Record<string, JudgeRunResult>>;
   getExamConfig: () => Promise<ExamConfig | null>;
   getSpecialRuleResults: () => Promise<Record<string, SpecialRuleResultRecord[]>>;
+  getHighestTestResults: () => Promise<Record<string, JudgeRunResult>>;
+  getHighestHiddenTestResults: () => Promise<Record<string, JudgeRunResult>>;
+  getHighestSpecialRuleResults: () => Promise<Record<string, SpecialRuleResultRecord[]>>;
+  getUploadVersionPreference: () => Promise<UploadVersionPreference>;
+  setUploadVersionPreference: (preference: UploadVersionPreference) => Promise<IpcResponse<void>>;
   getEffectiveSpecialRules: () => Promise<Record<string, SpecialRule[]>>;
   getPuzzleInfo: () => Promise<PuzzleInfo[]>;
   getExamInfo: () => Promise<{ testTitle: string; description: string } | null>;
@@ -37,6 +45,8 @@ interface StoreAPI {
   onExamStatusChanged: (callback: (status: string) => void) => () => void;
   onTestResultsUpdated: (callback: (results: Record<string, JudgeRunResult>) => void) => () => void;
   onSpecialRuleResultsUpdated: (callback: (results: Record<string, SpecialRuleResultRecord[]>) => void) => () => void;
+  onHighestTestResultsUpdated: (callback: (results: Record<string, JudgeRunResult>) => void) => () => void;
+  onHighestSpecialRuleResultsUpdated: (callback: (results: Record<string, SpecialRuleResultRecord[]>) => void) => () => void;
 }
 
 interface JudgerAPI {

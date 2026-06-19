@@ -38,6 +38,11 @@ const api = {
     getHiddenTestResults: () => ipcRenderer.invoke('store:get-hidden-test-results'),
     getExamConfig: () => ipcRenderer.invoke('store:get-exam-config'),
     getSpecialRuleResults: () => ipcRenderer.invoke('store:get-special-rule-results'),
+    getHighestTestResults: () => ipcRenderer.invoke('store:get-highest-test-results'),
+    getHighestHiddenTestResults: () => ipcRenderer.invoke('store:get-highest-hidden-test-results'),
+    getHighestSpecialRuleResults: () => ipcRenderer.invoke('store:get-highest-special-rule-results'),
+    getUploadVersionPreference: () => ipcRenderer.invoke('store:get-upload-version-preference'),
+    setUploadVersionPreference: (preference: string) => ipcRenderer.invoke('store:set-upload-version-preference', preference),
     getEffectiveSpecialRules: () => ipcRenderer.invoke('store:get-effective-special-rules'),
     getPuzzleInfo: () => ipcRenderer.invoke('store:get-puzzle-info'),
     getExamInfo: () => ipcRenderer.invoke('store:get-exam-info'),
@@ -81,6 +86,24 @@ const api = {
       ipcRenderer.on('store:special-rule-results-updated', listener);
       return () => {
         ipcRenderer.removeListener('store:special-rule-results-updated', listener);
+      };
+    },
+    
+    /** Subscribe to highest test results pushed from main process */
+    onHighestTestResultsUpdated: (callback: (results: Record<string, unknown>) => void) => {
+      const listener = (_event: any, results: any) => callback(results);
+      ipcRenderer.on('store:highest-test-results-updated', listener);
+      return () => {
+        ipcRenderer.removeListener('store:highest-test-results-updated', listener);
+      };
+    },
+
+    /** Subscribe to highest special-rule results pushed from main process */
+    onHighestSpecialRuleResultsUpdated: (callback: (results: Record<string, unknown>) => void) => {
+      const listener = (_event: any, results: any) => callback(results);
+      ipcRenderer.on('store:highest-special-rule-results-updated', listener);
+      return () => {
+        ipcRenderer.removeListener('store:highest-special-rule-results-updated', listener);
       };
     },
   },

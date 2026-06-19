@@ -9,7 +9,7 @@ export interface RunResult {
   timeTakenMs: number;
   peakMemoryBytes: number;
   killed: boolean;
-  killReason?: 'TLE' | 'MLE' | 'ABORTED';
+  killReason?: 'TLE' | 'MLE' | 'OLE' | 'ABORTED';
 }
 
 export interface RunOptions {
@@ -59,8 +59,11 @@ export function runProcess(options: RunOptions): Promise<RunResult> {
     const startTime = Date.now();
     let stdoutChunks: Buffer[] = [];
     let stderrChunks: Buffer[] = [];
+    let stdoutLen = 0;
+    let stderrLen = 0;
+    const MAX_OUTPUT_BYTES = 16 * 1024 * 1024; // 16MB limit
     let killed = false;
-    let killReason: 'TLE' | 'MLE' | 'ABORTED' | undefined;
+    let killReason: 'TLE' | 'MLE' | 'OLE' | 'ABORTED' | undefined;
     let peakMemoryBytes = 0;
     let memoryMonitorInterval: ReturnType<typeof setInterval> | null = null;
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
@@ -87,7 +90,7 @@ export function runProcess(options: RunOptions): Promise<RunResult> {
       });
     }
 
-    const killChild = (reason: 'TLE' | 'MLE' | 'ABORTED') => {
+    const killChild = (reason: 'TLE' | 'MLE' | 'OLE' | 'ABORTED') => {
       if (!killed) {
         killed = true;
         killReason = reason;
@@ -125,8 +128,23 @@ export function runProcess(options: RunOptions): Promise<RunResult> {
       }, 5);
     }
 
-    child.stdout!.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
-    child.stderr!.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
+    child.stdout!.on('data', (chunk: Buffer) => {
+      if (killed) return;
+      stdoutChunks.push(chunk);
+      stdoutLen += chunk.length;
+      if (stdoutLen > MAX_OUTPUT_BYTES) {
+        killChild('OLE');
+      }
+    });
+    
+    child.stderr!.on('data', (chunk: Buffer) => {
+      if (killed) return;
+      stderrChunks.push(chunk);
+      stderrLen += chunk.length;
+      if (stderrLen > MAX_OUTPUT_BYTES) {
+        killChild('OLE');
+      }
+    });
 
     try {
       child.stdin!.write(input);

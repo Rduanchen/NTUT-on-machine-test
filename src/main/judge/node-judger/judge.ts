@@ -205,6 +205,10 @@ export class Judge {
         case 'MLE':
           statusCode = 'MLE';
           break;
+        case 'OLE':
+          statusCode = 'RE';
+          runResult.stderr = 'Output Limit Exceeded (> 16MB)';
+          break;
         case 'ABORTED':
           statusCode = 'ABORTED';
           break;
@@ -254,11 +258,28 @@ export class Judge {
     error?: string,
     memoryBytes?: number,
   ): TestCaseResult {
+    const TRUNCATE_LEN = 50000;
+    
+    let safeUserOutput = userOutput;
+    if (safeUserOutput.length > TRUNCATE_LEN) {
+      safeUserOutput = safeUserOutput.substring(0, TRUNCATE_LEN) + '\n... [Output Truncated]';
+    }
+
+    let safeExpectedOutput = testCase.output;
+    if (safeExpectedOutput.length > TRUNCATE_LEN) {
+      safeExpectedOutput = safeExpectedOutput.substring(0, TRUNCATE_LEN) + '\n... [Expected Output Truncated]';
+    }
+
+    let safeInput = testCase.input;
+    if (safeInput.length > TRUNCATE_LEN) {
+      safeInput = safeInput.substring(0, TRUNCATE_LEN) + '\n... [Input Truncated]';
+    }
+
     const result: TestCaseResult = {
       statusCode,
-      input: testCase.input,
-      expectingOutput: testCase.output,
-      userOutput,
+      input: safeInput,
+      expectingOutput: safeExpectedOutput,
+      userOutput: safeUserOutput,
       time: `${Math.round(timeMs)}ms`,
     };
     if (memoryBytes !== undefined && memoryBytes > 0) {

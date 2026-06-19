@@ -6,6 +6,20 @@
         <v-spacer />
         <v-btn icon variant="text" @click="close"><v-icon>mdi-close</v-icon></v-btn>
       </v-card-title>
+      
+      <div class="px-4 py-3 border-b bg-surface d-flex justify-center">
+        <v-btn-toggle
+          v-model="selectedVersion"
+          mandatory
+          color="primary"
+          density="compact"
+          variant="outlined"
+          divided
+        >
+          <v-btn value="current" min-width="120">{{ t('examSystem.puzzles.finisheTheExam.versionCurrentShort') || 'Current' }}</v-btn>
+          <v-btn value="highest" min-width="120">{{ t('examSystem.puzzles.finisheTheExam.versionHighestShort') || 'Highest' }}</v-btn>
+        </v-btn-toggle>
+      </div>
       <v-card-text class="pa-0 bg-background overflow-hidden d-flex flex-column">
         <div class="pa-4 overflow-y-auto custom-scrollbar">
           <ResultTableCard
@@ -26,7 +40,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import ResultTableCard from './TestCaseResult.vue';
 
@@ -37,19 +51,41 @@ const props = defineProps<{
   modelValue: boolean;
   item: Puzzle | null;
   testResult: Record<string, any>;
+  highestTestResult?: Record<string, any>;
   effectiveSpecialRules?: Record<string, SpecialRule[]>;
   specialRuleResults?: Record<string, SpecialRuleResultRecord[]>;
+  highestSpecialRuleResults?: Record<string, SpecialRuleResultRecord[]>;
 }>();
 const emit = defineEmits(['update:modelValue']);
 
 const { t } = useI18n();
-const resultForItem = computed(() => (props.item ? props.testResult[String(props.item.id)] : null));
+const selectedVersion = ref<'current' | 'highest'>('current');
+
+watch(() => props.item, () => {
+  selectedVersion.value = 'current';
+});
+
+const resultForItem = computed(() => {
+  if (!props.item) return null;
+  const id = String(props.item.id);
+  if (selectedVersion.value === 'highest' && props.highestTestResult) {
+    return props.highestTestResult[id];
+  }
+  return props.testResult[id];
+});
+
 const effectiveSpecialRulesForItem = computed(() =>
   props.item ? props.effectiveSpecialRules?.[String(props.item.id)] ?? [] : [],
 );
-const specialRuleResultsForItem = computed(() =>
-  props.item ? props.specialRuleResults?.[String(props.item.id)] ?? [] : [],
-);
+
+const specialRuleResultsForItem = computed(() => {
+  if (!props.item) return [];
+  const id = String(props.item.id);
+  if (selectedVersion.value === 'highest' && props.highestSpecialRuleResults) {
+    return props.highestSpecialRuleResults[id] ?? [];
+  }
+  return props.specialRuleResults?.[id] ?? [];
+});
 const dialogModel = computed({
   get: () => props.modelValue,
   set: (value: boolean) => emit('update:modelValue', value)

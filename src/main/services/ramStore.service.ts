@@ -8,7 +8,8 @@ import type {
   ServerMessage,
   SocketConnectionStatus,
   SpecialRuleResultRecord,
-  ExamState
+  ExamState,
+  UploadVersionPreference
 } from '../../common/types';
 import * as os from 'os';
 
@@ -30,7 +31,10 @@ class RamStoreService {
     cryptoState: null,
     testResults: {},
     hiddenTestResults: {},
+    highestTestResults: {},
+    highestHiddenTestResults: {},
     specialRuleResults: {},
+    highestSpecialRuleResults: {},
     isTestResultDirty: false,
     connectionStatus: 'disconnected',
     backendUrl: '',
@@ -40,7 +44,8 @@ class RamStoreService {
     socketStatus: 'disconnected',
     examStatus: 'UNINITIALIZED',
     isOfflineMode: false,
-    pendingLoginSync: false
+    pendingLoginSync: false,
+    uploadVersionPreference: 'current'
   };
 
   /** Event listeners for state changes */
@@ -81,7 +86,10 @@ class RamStoreService {
       cryptoState: null,
       testResults: {},
       hiddenTestResults: {},
+      highestTestResults: {},
+      highestHiddenTestResults: {},
       specialRuleResults: {},
+      highestSpecialRuleResults: {},
       isTestResultDirty: false,
       connectionStatus: 'disconnected',
       backendUrl: '',
@@ -91,7 +99,8 @@ class RamStoreService {
       socketStatus: 'disconnected',
       examStatus: 'UNINITIALIZED',
       isOfflineMode: false,
-      pendingLoginSync: false
+      pendingLoginSync: false,
+      uploadVersionPreference: 'current'
     };
   }
 
@@ -235,6 +244,23 @@ class RamStoreService {
     this.state.hiddenTestResults[puzzleId] = result;
   }
 
+  get highestTestResults(): Record<string, JudgeRunResult> {
+    return this.state.highestTestResults;
+  }
+
+  public setHighestTestResult(puzzleId: string, result: JudgeRunResult): void {
+    this.state.highestTestResults[puzzleId] = result;
+    this.emit('highestTestResults', this.state.highestTestResults);
+  }
+
+  get highestHiddenTestResults(): Record<string, JudgeRunResult> {
+    return this.state.highestHiddenTestResults;
+  }
+
+  public setHighestHiddenTestResult(puzzleId: string, result: JudgeRunResult): void {
+    this.state.highestHiddenTestResults[puzzleId] = result;
+  }
+
   // ─── Special Rule Results ─────────────────────────────────────
 
   get specialRuleResults(): Record<string, SpecialRuleResultRecord[]> {
@@ -247,6 +273,18 @@ class RamStoreService {
   ): void {
     this.state.specialRuleResults[puzzleId] = results;
     this.emit('specialRuleResults', this.state.specialRuleResults);
+  }
+
+  get highestSpecialRuleResults(): Record<string, SpecialRuleResultRecord[]> {
+    return this.state.highestSpecialRuleResults;
+  }
+
+  public setHighestSpecialRuleResults(
+    puzzleId: string,
+    results: SpecialRuleResultRecord[],
+  ): void {
+    this.state.highestSpecialRuleResults[puzzleId] = results;
+    this.emit('highestSpecialRuleResults', this.state.highestSpecialRuleResults);
   }
 
   get isTestResultDirty(): boolean {
@@ -297,6 +335,14 @@ class RamStoreService {
 
   get isConnected(): boolean {
     return this.state.connectionStatus === 'connected';
+  }
+
+  get uploadVersionPreference(): UploadVersionPreference {
+    return this.state.uploadVersionPreference;
+  }
+
+  set uploadVersionPreference(value: UploadVersionPreference) {
+    this.set('uploadVersionPreference', value);
   }
 
   // ─── Utilities ────────────────────────────────────────────────
