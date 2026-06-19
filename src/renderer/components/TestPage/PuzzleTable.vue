@@ -18,7 +18,8 @@
             <td colspan="7" class="py-2">
               <div class="d-flex align-center w-100">
                 <v-icon start size="small" class="text-primary mr-2">mdi-folder-outline</v-icon>
-                <span class="font-weight-bold text-primary text-subtitle-1">{{ group[0].sectionTitle || sectionId || t('examSystem.puzzles.defaultSection') }}</span>
+                <span class="font-weight-bold text-primary text-subtitle-1">{{ group[0].sectionTitle || sectionId ||
+                  t('examSystem.puzzles.defaultSection') }}</span>
                 <v-spacer></v-spacer>
                 <div v-if="group[0].sectionMaxScore" class="mr-4 text-caption text-grey-darken-1">
                   {{ t('examSystem.puzzles.maxScoreLabel') }} {{ group[0].sectionMaxScore }}
@@ -36,24 +37,15 @@
             </td>
           </tr>
           <!-- Puzzle Rows -->
-          <PuzzleRow
-            v-for="item in group"
-            :key="item.id"
-            :item="item"
-            :status="puzzleStatuses[String(item.id)]"
-            :pass-rate="puzzlePassRates[String(item.id)]"
-            :highest-pass-rate="highestPuzzlePassRates[String(item.id)]"
-            :result="testResult[String(item.id)]"
-            :highest-result="highestTestResult?.[String(item.id)]"
+          <PuzzleRow v-for="item in group" :key="item.id" :item="item" :status="puzzleStatuses[String(item.id)]"
+            :pass-rate="puzzlePassRates[String(item.id)]" :highest-pass-rate="highestPuzzlePassRates[String(item.id)]"
+            :result="testResult[String(item.id)]" :highest-result="highestTestResult?.[String(item.id)]"
             :effective-special-rules="effectiveSpecialRules?.[String(item.id)]"
             :special-rule-results="specialRuleResults?.[String(item.id)]"
             :highest-special-rule-results="highestSpecialRuleResults?.[String(item.id)]"
-            :loading="onSent[String(item.id)]"
-            :current-score="calculatePuzzleScore(item, false)"
-            :highest-score="calculatePuzzleScore(item, true)"
-            @open-result="$emit('open-result', item)"
-            @upload="$emit('upload', item)"
-          />
+            :loading="onSent[String(item.id)]" :current-score="calculatePuzzleScore(item, false)"
+            :highest-score="calculatePuzzleScore(item, true)" @open-result="$emit('open-result', item)"
+            @upload="$emit('upload', item)" />
         </tbody>
       </template>
       <!-- Total Score Footer -->
@@ -137,7 +129,7 @@ function calculatePuzzleScore(puzzle: PuzzleInfo, useHighest: boolean = false): 
     for (let i = 0; i < puzzle.subtasks.length; i++) {
       const subtaskResult = result.subtasks[i];
       const subtaskConfig = puzzle.subtasks[i];
-      
+
       if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.length > 0) {
         if (subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
           baseScore += (subtaskConfig.score || 0);
@@ -154,13 +146,13 @@ function calculatePuzzleScore(puzzle: PuzzleInfo, useHighest: boolean = false): 
       }
     }
   }
-  
+
   // Apply multiplier if special rules failed
   let multiplier = 1.0;
   const srrSource = useHighest ? props.highestSpecialRuleResults : props.specialRuleResults;
   const srr = srrSource?.[String(puzzle.id)];
   const esr = props.effectiveSpecialRules?.[String(puzzle.id)];
-  
+
   if (srr && esr) {
     for (const res of srr) {
       if (!res.passed) {
