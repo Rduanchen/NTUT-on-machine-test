@@ -140,6 +140,8 @@ class JudgeManagerService {
                   const subtaskResult = result?.subtasks?.[i];
                   const visibleResult = visibleResultsSource[puzzleId]?.subtasks?.[i] || [];
                   
+                  const visibleCount = subtaskConfig.visible ? subtaskConfig.visible.length : 0;
+                  
                   if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.length > 0) {
                     if (subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
                       puzzleScore += (subtaskConfig.score || 0);
@@ -149,13 +151,13 @@ class JudgeManagerService {
                   }
 
                   subtasksInfo.push({
-                    visible: visibleResult.map((c: any) => ({
+                    visible: visibleResult.slice(0, visibleCount).map((c: any) => ({
                       status: c?.statusCode || 'WA',
                       userOutput: c?.userOutput || '',
                       expectedOutput: c?.expectingOutput || '',
                       time: c?.time || '0'
                     })),
-                    hidden: (subtaskResult || []).map((c: any) => ({
+                    hidden: (subtaskResult || []).slice(visibleCount).map((c: any) => ({
                       status: c?.statusCode || 'WA',
                       userOutput: c?.userOutput || '',
                       expectedOutput: c?.expectingOutput || '',
@@ -219,6 +221,8 @@ class JudgeManagerService {
                 const subtaskResult = result?.subtasks?.[i];
                 const visibleResult = visibleResultsSource[puzzleId]?.subtasks?.[i] || [];
                 
+                const visibleCount = subtaskConfig.visible ? subtaskConfig.visible.length : 0;
+                
                 if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.length > 0) {
                   if (subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
                     puzzleScore += (subtaskConfig.score || 0);
@@ -228,13 +232,13 @@ class JudgeManagerService {
                 }
 
                 subtasksInfo.push({
-                  visible: visibleResult.map((c: any) => ({
+                  visible: visibleResult.slice(0, visibleCount).map((c: any) => ({
                     status: c?.statusCode || 'WA',
                     userOutput: c?.userOutput || '',
                     expectedOutput: c?.expectingOutput || '',
                     time: c?.time || '0'
                   })),
-                  hidden: (subtaskResult || []).map((c: any) => ({
+                  hidden: (subtaskResult || []).slice(visibleCount).map((c: any) => ({
                     status: c?.statusCode || 'WA',
                     userOutput: c?.userOutput || '',
                     expectedOutput: c?.expectingOutput || '',
