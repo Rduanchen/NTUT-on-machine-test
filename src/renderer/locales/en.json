@@ -82,7 +82,7 @@
       "caseFailed": "Failed (WA)",
       "hiddenOutput": "(Hidden test case)",
       "noResult": "There is no test result to display.",
-      "noOutput": "No output",
+      "noOutput": "(No output)",
       "passedLabel": "Passed:",
       "specialRules": "Special Rules",
       "subtaskLabel": "Subtask {id}",

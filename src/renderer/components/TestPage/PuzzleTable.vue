@@ -18,19 +18,26 @@
             <td colspan="7" class="py-2">
               <div class="d-flex align-center w-100">
                 <v-icon start size="small" class="text-primary mr-2">mdi-folder-outline</v-icon>
-                <span class="font-weight-bold text-primary text-subtitle-1">{{ group[0].sectionTitle || sectionId || t('examSystem.puzzles.defaultSection') }}</span>
+                <span class="font-weight-bold text-primary text-subtitle-1">{{
+                  group[0].sectionTitle || sectionId || t('examSystem.puzzles.defaultSection')
+                }}</span>
                 <v-spacer></v-spacer>
                 <div v-if="group[0].sectionMaxScore" class="mr-4 text-caption text-grey-darken-1">
                   {{ t('examSystem.puzzles.maxScoreLabel') }} {{ group[0].sectionMaxScore }}
                 </div>
                 <div class="font-weight-bold ml-4">
-                  Current: <span class="text-primary">{{ calculateSectionScore(group, false) }}</span>
+                  Current:
+                  <span class="text-primary">{{ calculateSectionScore(group, false) }}</span>
                 </div>
                 <div class="font-weight-bold ml-4">
-                  Highest: <span class="text-success">{{ calculateSectionScore(group, true) }}</span>
+                  Highest:
+                  <span class="text-success">{{ calculateSectionScore(group, true) }}</span>
                 </div>
               </div>
-              <div v-if="group[0].sectionDescription" class="mt-1 ml-6 text-caption text-grey-darken-1">
+              <div
+                v-if="group[0].sectionDescription"
+                class="mt-1 ml-6 text-caption text-grey-darken-1"
+              >
                 {{ group[0].sectionDescription }}
               </div>
             </td>
@@ -59,9 +66,11 @@
       <!-- Total Score Footer -->
       <tfoot>
         <tr class="bg-primary text-white font-weight-bold">
-          <td colspan="4" class="text-right">{{ t('examSystem.puzzles.totalEstimatedScoreLabel') }}</td>
+          <td colspan="4" class="text-right">
+            {{ t('examSystem.puzzles.totalEstimatedScoreLabel') }}
+          </td>
           <td class="text-center">{{ totalCurrentScore }}</td>
-          <td class="text-center text-success text-lighten-4">{{ totalHighestScore }}</td>
+          <td class="text-center">{{ totalHighestScore }}</td>
           <td></td>
         </tr>
       </tfoot>
@@ -137,10 +146,10 @@ function calculatePuzzleScore(puzzle: PuzzleInfo, useHighest: boolean = false): 
     for (let i = 0; i < puzzle.subtasks.length; i++) {
       const subtaskResult = result.subtasks[i];
       const subtaskConfig = puzzle.subtasks[i];
-      
+
       if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.length > 0) {
         if (subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
-          baseScore += (subtaskConfig.score || 0);
+          baseScore += subtaskConfig.score || 0;
         }
       }
     }
@@ -154,17 +163,17 @@ function calculatePuzzleScore(puzzle: PuzzleInfo, useHighest: boolean = false): 
       }
     }
   }
-  
+
   // Apply multiplier if special rules failed
   let multiplier = 1.0;
   const srrSource = useHighest ? props.highestSpecialRuleResults : props.specialRuleResults;
   const srr = srrSource?.[String(puzzle.id)];
   const esr = props.effectiveSpecialRules?.[String(puzzle.id)];
-  
+
   if (srr && esr) {
     for (const res of srr) {
       if (!res.passed) {
-        const rule = esr.find(r => r.id === res.ruleId);
+        const rule = esr.find((r) => r.id === res.ruleId);
         if (rule && rule.multiplier !== undefined) {
           multiplier *= rule.multiplier;
         }

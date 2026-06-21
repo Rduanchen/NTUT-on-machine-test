@@ -82,7 +82,7 @@
       "caseFailed": "失敗 (WA)",
       "hiddenOutput": "(測資隱藏)",
       "noResult": "目前沒有可顯示的測試結果。",
-      "noOutput": "沒有輸出",
+      "noOutput": "(沒有輸出)",
       "passedLabel": "通過：",
       "specialRules": "特殊規則",
       "subtaskLabel": "子任務 {id}",
