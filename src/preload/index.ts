@@ -46,6 +46,7 @@ const api = {
     getEffectiveSpecialRules: () => ipcRenderer.invoke('store:get-effective-special-rules'),
     getPuzzleInfo: () => ipcRenderer.invoke('store:get-puzzle-info'),
     getExamInfo: () => ipcRenderer.invoke('store:get-exam-info'),
+    forceConfigRefresh: () => ipcRenderer.invoke('store:force-config-refresh'),
 
     /** Get current exam status (UNINITIALIZED | NOT_STARTED | IN_PROGRESS | FINISHED) */
     getExamStatus: () => ipcRenderer.invoke('store:get-exam-status'),
@@ -69,6 +70,12 @@ const api = {
       return () => {
         ipcRenderer.removeListener('exam:status-changed', listener);
       };
+    },
+
+    onConfigUpdated: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on('store:config-updated', handler);
+      return () => ipcRenderer.removeListener('store:config-updated', handler);
     },
 
     /** Subscribe to test results pushed from main process (e.g. after config_update rejudge) */

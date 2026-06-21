@@ -29,6 +29,45 @@
         {{ t('examSystem.puzzles.forceStop') }}
       </v-btn>
 
+      <!-- Manual Config Update Dialog -->
+      <v-dialog v-model="isRefreshDialogActive" max-width="500" persistent>
+        <template #activator="{ props }">
+          <v-btn
+            v-bind="props"
+            color="info"
+            variant="tonal"
+            prepend-icon="mdi-refresh"
+            height="40"
+          >
+            {{ t('examSystem.puzzles.manualRefresh') || '更新設定' }}
+          </v-btn>
+        </template>
+
+        <v-card class="pa-4" elevation="2" rounded="lg">
+          <v-card-title class="font-weight-bold">
+            {{ t('examSystem.puzzles.manualRefreshTitle') || '手動更新設定' }}
+          </v-card-title>
+          
+          <v-card-text>
+            <div v-if="isRefreshingConfig" class="d-flex flex-column align-center justify-center py-6">
+              <v-progress-circular indeterminate color="primary" size="64" class="mb-6"></v-progress-circular>
+              <div class="text-h6 text-center">{{ t('examSystem.puzzles.refreshing') || '正在從伺服器取得最新設定與重新評測...' }}</div>
+            </div>
+            <div v-else>
+              <v-alert type="info" variant="tonal" icon="mdi-information">
+                {{ t('examSystem.puzzles.manualRefreshDesc') || '確定要手動取得最新設定並且重新評測本地程式碼嗎？這將會花費一點時間。' }}
+              </v-alert>
+            </div>
+          </v-card-text>
+
+          <v-card-actions v-if="!isRefreshingConfig">
+            <v-spacer />
+            <v-btn text @click="isRefreshDialogActive = false">{{ t('examSystem.common.cancel') || '取消' }}</v-btn>
+            <v-btn color="primary" variant="elevated" @click="confirmRefreshConfig">{{ t('examSystem.common.confirm') || '確定更新' }}</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
       <!-- Download Code Button (Always accessible) -->
       <v-btn
         color="primary"
@@ -173,6 +212,24 @@ defineProps<{
 }>();
 const emit = defineEmits(['force-stop', 'export-zip', 'finish-exam']);
 const { t } = useI18n();
+
+// ─── Manual Refresh Config Flow ───
+const isRefreshDialogActive = ref(false);
+const isRefreshingConfig = ref(false);
+
+async function confirmRefreshConfig() {
+  isRefreshingConfig.value = true;
+  try {
+    if (window.api?.store?.forceConfigRefresh) {
+      await window.api.store.forceConfigRefresh();
+    }
+  } catch (err) {
+    console.error('Failed to force config refresh', err);
+  } finally {
+    isRefreshingConfig.value = false;
+    isRefreshDialogActive.value = false;
+  }
+}
 
 // ─── Finish Exam Flow State ───
 const isDialogActive = ref(false);

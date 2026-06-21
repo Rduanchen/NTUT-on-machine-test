@@ -102,7 +102,8 @@
     },
     "common": {
       "close": "Close",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "confirm": "Confirm"
     },
     "notificationCenter": {
       "title": "Realtime Alerts",
@@ -131,6 +132,10 @@
       "earlyEndConfirm": "Are you sure you want to end the exam early?",
       "earlyEnd": "Early End",
       "bufferCountdown": "Exam ended. Navigating in {seconds}s...",
+      "manualRefresh": "Update Config",
+      "manualRefreshTitle": "Manual Config Update",
+      "refreshing": "Fetching latest config and re-evaluating...",
+      "manualRefreshDesc": "Are you sure you want to manually fetch the latest config and re-evaluate local code? This will take some time.",
       "defaultSection": "Default Section",
       "maxScoreLabel": "Max Score: ",
       "estimatedScoreLabel": "Estimated Score: ",

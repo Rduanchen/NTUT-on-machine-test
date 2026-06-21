@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import { ramStore } from '../services/ramStore.service';
 import { getMainWindow } from '../system/windowManager';
+import { messageSyncService } from '../services/message-sync.service';
 import type {
   PuzzleInfo,
   JudgeRunResult,
@@ -19,6 +20,7 @@ import { getEffectiveSpecialRules } from '../services/special-rules.service';
  * - store:get-test-results        → Get all test results
  * - store:get-puzzle-info         → Get puzzle list for display
  * - store:get-exam-info           → Get exam title & description
+ * - store:force-config-refresh    → Force manual fetch of config and re-eval
  */
 export function registerStoreIpc(): void {
   // Push test results to renderer whenever they change (e.g. after rejudge on config update)
@@ -60,8 +62,19 @@ export function registerStoreIpc(): void {
     },
   );
 
+  ramStore.on('examConfig', () => {
+    const win = getMainWindow();
+    if (!win || win.isDestroyed()) return;
+    win.webContents?.send('store:config-updated');
+  });
+
   ipcMain.handle('store:get-connection-status', () => {
     return ramStore.connectionStatus;
+  });
+
+  ipcMain.handle('store:force-config-refresh', async () => {
+    await messageSyncService.forceConfigRefresh();
+    return { success: true };
   });
 
   ipcMain.handle('store:get-exam-status', (): ExamState => {

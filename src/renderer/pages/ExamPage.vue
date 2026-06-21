@@ -225,12 +225,18 @@ let highestResultsUnsubscribe: (() => void) | null = null;
 let rulesUnsubscribe: (() => void) | null = null;
 let highestRulesUnsubscribe: (() => void) | null = null;
 let statusUnsubscribe: (() => void) | null = null;
+let configUnsubscribe: (() => void) | null = null;
 
 onMounted(async () => {
   if (!window.api?.store) return;
   puzzleInfo.value = await window.api.store.getPuzzleInfo();
   await refreshResults();
   await refreshEffectiveRules();
+
+  configUnsubscribe = window.api.store.onConfigUpdated?.(async () => {
+    puzzleInfo.value = await window.api.store.getPuzzleInfo();
+    await refreshEffectiveRules();
+  }) || null;
 
   // Listen for test results pushed from main process after config_update rejudge
   resultsUnsubscribe = window.api.store.onTestResultsUpdated?.((results) => {
@@ -273,5 +279,6 @@ onBeforeUnmount(() => {
   if (rulesUnsubscribe) rulesUnsubscribe();
   if (highestRulesUnsubscribe) highestRulesUnsubscribe();
   if (statusUnsubscribe) statusUnsubscribe();
+  if (configUnsubscribe) configUnsubscribe();
 });
 </script>

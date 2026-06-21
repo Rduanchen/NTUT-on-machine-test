@@ -81,6 +81,10 @@ class MessageSyncService {
     await this.syncVersionsAndMessages(true);
   }
 
+  public async forceConfigRefresh(): Promise<void> {
+    await this.refreshConfigFromServer();
+  }
+
   // ─── Socket Handling ──────────────────────────────────────────
 
   private initializeSocket(host: string): void {

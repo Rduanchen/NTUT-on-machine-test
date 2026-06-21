@@ -102,7 +102,8 @@
     },
     "common": {
       "close": "關閉",
-      "cancel": "取消"
+      "cancel": "取消",
+      "confirm": "確定"
     },
     "notificationCenter": {
       "title": "即時通知",
@@ -131,6 +132,10 @@
       "earlyEndConfirm": "您確定要提前結束考試嗎？",
       "earlyEnd": "提前結束",
       "bufferCountdown": "考試已結束，將在 {seconds} 秒後跳轉...",
+      "manualRefresh": "更新設定",
+      "manualRefreshTitle": "手動更新設定",
+      "refreshing": "正在從伺服器取得最新設定與重新評測...",
+      "manualRefreshDesc": "確定要手動取得最新設定並且重新評測本地程式碼嗎？這將會花費一點時間。",
       "defaultSection": "預設區段",
       "maxScoreLabel": "最高分數：",
       "estimatedScoreLabel": "預估分數：",
