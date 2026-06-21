@@ -300,8 +300,19 @@ onMounted(async () => {
 
   // Listen for force logout from server or local crypto failure
   window.api?.auth?.onForceLogout?.((message) => {
-    forceLogoutMessage.value = message || '您的連線已失效，請重新綁定裝置。';
-    forceLogoutDialog.value = true;
+    // During active exam, show the fatal force-logout dialog
+    // During login/waiting, just redirect back to login page to allow re-login
+    const currentPath = route.path;
+    const isInExam = currentPath === '/exam';
+    
+    if (isInExam) {
+      forceLogoutMessage.value = message || '您的連線已失效，請重新綁定裝置。';
+      forceLogoutDialog.value = true;
+    } else {
+      // Not in exam - just go back to login so user can re-login with a new ID
+      // Pass skipAutoLogin query so LoginPage shows the manual form
+      router.push({ path: '/login', query: { skipAutoLogin: '1' } });
+    }
   });
 });
 

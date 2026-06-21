@@ -10,6 +10,7 @@ import type {
   IpcResponse,
   ServerMessage
 } from '../../common/types';
+import { getMainWindow } from '../system/windowManager';
 
 const API_TIMEOUT = 5000;
 
@@ -287,13 +288,15 @@ function makeErrorResponse(context: string, error: unknown): IpcResponse<any> {
   }
   
   if (code === 'CRYPTO_VERIFICATION_FAILED' || 
-      code === 'HTTP_401' || 
-      code === 'HTTP_403' ||
+      code === 'HTTP_401' ||
       (typeof message === 'string' && (message.includes('not registered') || message.includes('Unauthorized')))) {
-    const { getMainWindow } = require('../system/windowManager');
-    const win = getMainWindow();
-    if (win && !win.isDestroyed()) {
-      win.webContents?.send('app:force-logout', message || '您的裝置已被登出或解除綁定。');
+    try {
+      const win = getMainWindow();
+      if (win && !win.isDestroyed()) {
+        win.webContents?.send('app:force-logout', message || '您的裝置已被登出或解除綁定。');
+      }
+    } catch (e) {
+      // Ignore if window not available
     }
   }
 

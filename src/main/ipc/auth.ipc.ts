@@ -175,11 +175,19 @@ export function registerAuthIpc(): void {
             return { success: true };
           }
 
-          ramStore.cryptoState = null;
+          // Login failed but not a network error
+          const errorCode = loginResponse.error?.code || ErrorCode.STUDENT_NOT_FOUND;
+          
+          // Only destroy crypto state for non-binding errors
+          // BINDING_LOCKED means the device is properly registered, just bound to another user
+          if (errorCode !== 'BINDING_LOCKED' && errorCode !== 'ALREADY_LOGGED_IN') {
+            ramStore.cryptoState = null;
+          }
+          
           return {
             success: false,
             error: {
-              code: ErrorCode.STUDENT_NOT_FOUND,
+              code: errorCode,
               message: loginResponse.error?.message || 'Login failed'
             }
           };

@@ -106,10 +106,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 
 const router = useRouter();
+const route = useRoute();
 const { t } = useI18n();
 
 const formRef = ref();
@@ -158,6 +159,11 @@ async function tryAutoLogin() {
     } else {
       if (res.error?.code === 'REGISTRATION_FAILED') {
         isBindingBlocked.value = true;
+        errorMessage.value = res.error.message;
+      } else if (res.error?.code === 'BINDING_LOCKED' || res.error?.code === 'ALREADY_LOGGED_IN') {
+        // Device is registered but bound to another student
+        // Show manual login form so user can enter a different student ID
+        autoLoginFailed.value = true;
         errorMessage.value = res.error.message;
       } else {
         autoLoginFailed.value = true;
@@ -221,7 +227,12 @@ onMounted(async () => {
     examInfo.value = await window.api.store.getExamInfo();
   }
 
-  await tryAutoLogin();
+  // Skip auto-login if redirected here from a force-logout (TA unbind)
+  if (route.query.skipAutoLogin !== '1') {
+    await tryAutoLogin();
+  } else {
+    autoLoginFailed.value = true;
+  }
   await checkExamStatus();
 
   pollTimer = setInterval(checkExamStatus, 5000);

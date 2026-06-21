@@ -255,6 +255,11 @@ class MessageSyncService {
     }
 
     if (message.type === 'force_logout') {
+      // Reset auth state so desktop doesn't think it's still logged in
+      ramStore.isStudentVerified = false;
+      ramStore.studentInfo = { id: '', name: '' };
+      ramStore.cryptoState = null;
+      
       const win = getMainWindow();
       if (win && !win.isDestroyed()) {
         win.webContents?.send('app:force-logout', message.message);
