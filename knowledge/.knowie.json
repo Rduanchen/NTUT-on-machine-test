@@ -1,0 +1,11 @@
+{
+  "version": "0.7.2",
+  "structureVersion": "2",
+  "language": "zh-TW",
+  "createdAt": "2026-08-05T03:51:39.900Z",
+  "tools": [
+    "claude-code",
+    "gemini"
+  ],
+  "updatedAt": "2026-08-05T03:52:28.672Z"
+}
