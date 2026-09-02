@@ -24,6 +24,35 @@
       "connected": "Connected",
       "disconnected": "Disconnected"
     },
+    "environmentCheck": {
+      "eyebrow": "Pre-exam safety check",
+      "title": "Program environment report",
+      "openReport": "View compiler and runtime-limit diagnostics",
+      "loginBlocked": "Login is locked until the execution environment passes.",
+      "fixHint": "Install or repair the tool shown in the failed item, then run the check again.",
+      "retry": "Run check again",
+      "tools": "Compiler and runtime tools",
+      "diagnostics": "Program diagnostics",
+      "languageCount": "{count} exam languages",
+      "noLanguages": "This exam does not require a programming language check",
+      "status": {
+        "IDLE": "Not checked",
+        "RUNNING": "Checking",
+        "PASSED": "Environment ready",
+        "FAILED": "Action required"
+      },
+      "itemStatus": {
+        "pending": "Pending",
+        "running": "Checking",
+        "passed": "Passed",
+        "failed": "Failed"
+      },
+      "check": {
+        "smoke": "Compile and run",
+        "tle": "Time limit (TLE)",
+        "mle": "Memory limit (MLE)"
+      }
+    },
     "secretLabel": "Click three times rapidly",
     "currentLanguage": "Language",
     "switchToLight": "Switch to Light Theme",

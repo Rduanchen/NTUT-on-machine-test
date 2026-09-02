@@ -24,6 +24,31 @@
       "connected": "已連線",
       "disconnected": "未連線"
     },
+    "environmentCheck": {
+      "eyebrow": "考前安全檢查",
+      "title": "程式執行環境報告",
+      "openReport": "查看編譯器與執行限制檢測結果",
+      "loginBlocked": "執行環境尚未通過，登入功能已鎖定。",
+      "fixHint": "請依失敗項目安裝或修復對應工具，然後重新檢查。",
+      "retry": "重新檢查",
+      "tools": "編譯器與執行工具",
+      "diagnostics": "實際程式檢測",
+      "languageCount": "{count} 種考試語言",
+      "noLanguages": "這份考試沒有需要檢查的程式語言",
+      "status": {
+        "IDLE": "尚未檢查",
+        "RUNNING": "檢查中",
+        "PASSED": "環境正常",
+        "FAILED": "需要修復"
+      },
+      "itemStatus": {
+        "pending": "等待中",
+        "running": "檢查中",
+        "passed": "通過",
+        "failed": "失敗"
+      },
+      "check": { "smoke": "編譯與執行", "tle": "逾時限制（TLE）", "mle": "記憶體限制（MLE）" }
+    },
     "secretLabel": "連續點擊三下",
     "currentLanguage": "目前語言",
     "switchToLight": "切換為亮色主題",

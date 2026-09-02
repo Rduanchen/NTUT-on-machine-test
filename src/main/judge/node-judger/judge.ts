@@ -10,7 +10,7 @@ import {
   TestCase,
   TestCaseResult,
   StatusCode,
-  LanguageConfig,
+  LanguageConfig
 } from './types';
 import { LANGUAGE_CONFIGS } from './languages';
 import { compareOutput } from './compare';
@@ -50,19 +50,20 @@ export class Judge {
     return {
       pid: sessionId,
       stop: () => abortController.abort(),
-      promise,
+      promise
     };
   }
 
   // ─── Core execution pipeline ──────────────────────────────────────
 
-  private async _execute(
-    request: JudgeRequest,
-    abortSignal: AbortSignal,
-  ): Promise<JudgeResult> {
+  private async _execute(request: JudgeRequest, abortSignal: AbortSignal): Promise<JudgeResult> {
     const config = LANGUAGE_CONFIGS[request.language];
     if (!config) {
-      return this._allSubtasksWithStatus(request, 'SE', `Unsupported language: ${request.language}`);
+      return this._allSubtasksWithStatus(
+        request,
+        'SE',
+        `Unsupported language: ${request.language}`
+      );
     }
 
     // 1. Create a temp working directory
@@ -76,7 +77,13 @@ export class Judge {
 
       // 3. Compile if needed
       if (config.needsCompilation) {
-        const compileResult = await this._compile(config, sourcePath, workDir, request.compilerPath);
+        const compileResult = await this._compile(
+          config,
+          sourcePath,
+          workDir,
+          request.compilerPath,
+          abortSignal
+        );
         if (!compileResult.success) {
           return this._allSubtasksWithStatus(request, 'CE', compileResult.stderr);
         }
@@ -110,7 +117,7 @@ export class Judge {
             workDir,
             request.compareMode,
             request.compilerPath,
-            abortSignal,
+            abortSignal
           );
           results.push(result);
         }
@@ -138,6 +145,7 @@ export class Judge {
     sourcePath: string,
     workDir: string,
     compilerPath?: string,
+    abortSignal?: AbortSignal
   ): Promise<{ success: boolean; stderr: string }> {
     return new Promise((resolve) => {
       const outputPath = path.join(workDir, 'main');
@@ -146,20 +154,55 @@ export class Judge {
       const proc = spawn(cmd, args, {
         cwd: workDir,
         stdio: ['ignore', 'pipe', 'pipe'],
-        timeout: 30000, // 30s compile timeout
+        ...(process.platform === 'win32' ? {} : { detached: true })
       });
 
       let stderr = '';
+      let settled = false;
+      let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+      const finish = (result: { success: boolean; stderr: string }): void => {
+        if (settled) return;
+        settled = true;
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+        abortSignal?.removeEventListener('abort', onAbort);
+        resolve(result);
+      };
+      const stopCompiler = (): void => {
+        if (!proc.pid) return;
+        if (process.platform === 'win32') {
+          try {
+            spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }).unref();
+          } catch {
+            proc.kill();
+          }
+        } else {
+          try {
+            process.kill(-proc.pid, 'SIGKILL');
+          } catch {
+            proc.kill('SIGKILL');
+          }
+        }
+      };
+      const onAbort = (): void => {
+        stopCompiler();
+        finish({ success: false, stderr: 'Compilation aborted' });
+      };
+      timeoutHandle = setTimeout(() => {
+        stopCompiler();
+        finish({ success: false, stderr: 'Compilation timed out after 10000ms' });
+      }, 10_000);
+      abortSignal?.addEventListener('abort', onAbort, { once: true });
+      if (abortSignal?.aborted) onAbort();
       proc.stderr.on('data', (chunk: Buffer) => {
         stderr += chunk.toString('utf-8');
       });
 
       proc.on('close', (code) => {
-        resolve({ success: code === 0, stderr });
+        finish({ success: code === 0, stderr });
       });
 
       proc.on('error', (err) => {
-        resolve({ success: false, stderr: err.message });
+        finish({ success: false, stderr: err.message });
       });
     });
   }
@@ -175,7 +218,7 @@ export class Judge {
     workDir: string,
     compareMode: 'strict' | 'loose',
     compilerPath?: string,
-    abortSignal?: AbortSignal,
+    abortSignal?: AbortSignal
   ): Promise<TestCaseResult> {
     const { cmd, args } = config.run(executablePath, compilerPath);
 
@@ -188,7 +231,7 @@ export class Judge {
         timeLimitMs,
         memoryLimitBytes,
         cwd: workDir,
-        abortSignal,
+        abortSignal
       });
     } catch (err: any) {
       return this._makeResult('SE', testCase, '', 0, err.message);
@@ -229,7 +272,7 @@ export class Judge {
       runResult.stdout,
       runResult.timeTakenMs,
       runResult.stderr || undefined,
-      runResult.peakMemoryBytes,
+      runResult.peakMemoryBytes
     );
   }
 
@@ -239,7 +282,7 @@ export class Judge {
     config: LanguageConfig,
     sourcePath: string,
     workDir: string,
-    language: string,
+    language: string
   ): string {
     if (!config.needsCompilation) {
       return sourcePath;
@@ -256,10 +299,10 @@ export class Judge {
     userOutput: string,
     timeMs: number,
     error?: string,
-    memoryBytes?: number,
+    memoryBytes?: number
   ): TestCaseResult {
     const TRUNCATE_LEN = 50000;
-    
+
     let safeUserOutput = userOutput;
     if (safeUserOutput.length > TRUNCATE_LEN) {
       safeUserOutput = safeUserOutput.substring(0, TRUNCATE_LEN) + '\n... [Output Truncated]';
@@ -267,7 +310,8 @@ export class Judge {
 
     let safeExpectedOutput = testCase.output;
     if (safeExpectedOutput.length > TRUNCATE_LEN) {
-      safeExpectedOutput = safeExpectedOutput.substring(0, TRUNCATE_LEN) + '\n... [Expected Output Truncated]';
+      safeExpectedOutput =
+        safeExpectedOutput.substring(0, TRUNCATE_LEN) + '\n... [Expected Output Truncated]';
     }
 
     let safeInput = testCase.input;
@@ -280,7 +324,7 @@ export class Judge {
       input: safeInput,
       expectingOutput: safeExpectedOutput,
       userOutput: safeUserOutput,
-      time: `${Math.round(timeMs)}ms`,
+      time: `${Math.round(timeMs)}ms`
     };
     if (memoryBytes !== undefined && memoryBytes > 0) {
       result.memory = `${Math.round(memoryBytes / 1024)}KB`;
@@ -294,12 +338,12 @@ export class Judge {
   private _allSubtasksWithStatus(
     request: JudgeRequest,
     statusCode: StatusCode,
-    errorMsg: string,
+    errorMsg: string
   ): JudgeResult {
     return {
       subtasks: request.subtasks.map((subtask) =>
-        subtask.map((tc) => this._makeResult(statusCode, tc, '', 0, errorMsg)),
-      ),
+        subtask.map((tc) => this._makeResult(statusCode, tc, '', 0, errorMsg))
+      )
     };
   }
 }

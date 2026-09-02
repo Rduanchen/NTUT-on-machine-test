@@ -9,9 +9,24 @@ import type {
   SocketConnectionStatus,
   SpecialRuleResultRecord,
   ExamState,
-  UploadVersionPreference
+  UploadVersionPreference,
+  EnvironmentCheckReport
 } from '../../common/types';
 import * as os from 'os';
+
+export function createIdleEnvironmentCheckReport(): EnvironmentCheckReport {
+  return {
+    status: 'IDLE',
+    configFingerprint: '',
+    platform: process.platform,
+    architecture: process.arch,
+    requiredLanguages: [],
+    languageResults: [],
+    startedAt: null,
+    completedAt: null,
+    message: '尚未進行執行環境檢查'
+  };
+}
 
 /**
  * RAM Store Service - In-memory key-value store
@@ -25,6 +40,7 @@ class RamStoreService {
 
   private state: RamStoreState = {
     examConfig: null,
+    environmentCheckReport: createIdleEnvironmentCheckReport(),
     isConfigured: false,
     studentInfo: { id: '', name: '' },
     isStudentVerified: false,
@@ -51,7 +67,7 @@ class RamStoreService {
   /** Event listeners for state changes */
   private listeners: Map<string, Array<(value: unknown) => void>> = new Map();
 
-  private constructor() { }
+  private constructor() {}
 
   public static getInstance(): RamStoreService {
     if (!RamStoreService.instance) {
@@ -80,6 +96,7 @@ class RamStoreService {
   public clear(): void {
     this.state = {
       examConfig: null,
+      environmentCheckReport: createIdleEnvironmentCheckReport(),
       isConfigured: false,
       studentInfo: { id: '', name: '' },
       isStudentVerified: false,
@@ -148,6 +165,14 @@ class RamStoreService {
     if (config) {
       this.set('isConfigured', true);
     }
+  }
+
+  get environmentCheckReport(): EnvironmentCheckReport {
+    return this.state.environmentCheckReport;
+  }
+
+  set environmentCheckReport(report: EnvironmentCheckReport) {
+    this.set('environmentCheckReport', report);
   }
 
   get isConfigured(): boolean {
@@ -267,10 +292,7 @@ class RamStoreService {
     return this.state.specialRuleResults;
   }
 
-  public setSpecialRuleResults(
-    puzzleId: string,
-    results: SpecialRuleResultRecord[],
-  ): void {
+  public setSpecialRuleResults(puzzleId: string, results: SpecialRuleResultRecord[]): void {
     this.state.specialRuleResults[puzzleId] = results;
     this.emit('specialRuleResults', this.state.specialRuleResults);
   }
@@ -279,10 +301,7 @@ class RamStoreService {
     return this.state.highestSpecialRuleResults;
   }
 
-  public setHighestSpecialRuleResults(
-    puzzleId: string,
-    results: SpecialRuleResultRecord[],
-  ): void {
+  public setHighestSpecialRuleResults(puzzleId: string, results: SpecialRuleResultRecord[]): void {
     this.state.highestSpecialRuleResults[puzzleId] = results;
     this.emit('highestSpecialRuleResults', this.state.highestSpecialRuleResults);
   }

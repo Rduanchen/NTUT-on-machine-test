@@ -1,5 +1,11 @@
 node_modules
 dist
 out
+build
+coverage
+.env*
+.vscode
+.idea
+*.tmp
 .DS_Store
 *.log*

@@ -6,6 +6,7 @@ import ExamPage from '../pages/ExamPage.vue';
 import NotInitializedPage from '../pages/NotInitializedPage.vue';
 import WaitingForExamPage from '../pages/WaitingForExamPage.vue';
 import ExamFinishedPage from '../pages/ExamFinishedPage.vue';
+import { getEnvironmentNavigationDecision } from './environment-check.guard';
 
 const routes = [
   { path: '/', name: 'settings', component: Settings },
@@ -43,6 +44,16 @@ router.beforeEach(async (to, from) => {
 
   const isVerified: boolean = (await api?.auth?.isVerified()) ?? false;
   const examStatus: string = (await api?.store?.getExamStatus?.()) ?? 'UNINITIALIZED';
+  const environmentResponse = await api?.environmentCheck?.getReport?.();
+  const environmentStatus = environmentResponse?.data?.status ?? 'IDLE';
+
+  const environmentDecision = getEnvironmentNavigationDecision({
+    targetName: to.name,
+    status: environmentStatus,
+    examStatus,
+    isVerified
+  });
+  if (environmentDecision !== true) return environmentDecision;
 
   // Always allow settings (needed for initial backend URL config)
   if (to.name === 'settings') {
@@ -51,7 +62,7 @@ router.beforeEach(async (to, from) => {
       const hasUrl = await api.config.hasBackendUrl();
       if (hasUrl) {
         const connStatus = await api.store.getConnectionStatus();
-        
+
         if (examStatus === 'UNINITIALIZED') {
           if (connStatus === 'connected') return { name: 'not-initialized' };
           else return true; // Stay on settings if disconnected

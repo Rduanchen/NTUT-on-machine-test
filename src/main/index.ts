@@ -10,6 +10,7 @@ import { connectionService } from './services/connection.service';
 import { localProgramStore } from './services/localProgram.service';
 import { ramStore } from './services/ramStore.service';
 import { messageSyncService } from './services/message-sync.service';
+import { environmentCheckService } from './services/environment-check.service';
 
 clearLogOnStartup();
 setupLogger();
@@ -35,7 +36,9 @@ function createWindow(): void {
 
   mainWindow.on('close', (e) => {
     logger.warn('User attempted to close the main window during an active test.');
-    logServerEvent('alert', 'User attempted to close the main window during an active test.', { type: 'APP_ON_QUIT' });
+    logServerEvent('alert', 'User attempted to close the main window during an active test.', {
+      type: 'APP_ON_QUIT'
+    });
     e.preventDefault();
 
     const choice = dialog.showMessageBoxSync(mainWindow, {
@@ -117,6 +120,7 @@ app.on('window-all-closed', () => {
   logger.info('Application On Quit');
   connectionService.stop();
   messageSyncService.stop();
+  environmentCheckService.stop();
   localProgramStore.deleteTempDir();
   ramStore.clear();
   if (process.platform !== 'darwin') {
