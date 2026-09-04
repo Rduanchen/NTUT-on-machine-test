@@ -68,9 +68,18 @@ vi.mock('../../src/main/services/judge-manager.service', () => ({
 }));
 
 vi.mock('fs', () => ({
+  /* localProgram.service builds its singleton at import time and calls
+   * mkdtempSync there, so a partial fs mock fails the whole file at collection
+   * rather than in a test — which is why this read as an unrelated suite
+   * error. */
   default: {
     writeFileSync: vi.fn(),
     unlinkSync: vi.fn(),
+    mkdtempSync: vi.fn(() => '/tmp/ntut-exam-test'),
+    existsSync: vi.fn(() => false),
+    rmSync: vi.fn(),
+    readdirSync: vi.fn(() => []),
+    copyFileSync: vi.fn(),
   }
 }));
 
@@ -204,9 +213,9 @@ describe('auth.ipc', () => {
       expect((ramStore.cryptoState as any).userSessionID).toBe('tok');
       expect(configService.fetchAndSaveConfig).toHaveBeenCalled();
       expect(messageSyncService.manualRefresh).toHaveBeenCalled();
-      expect(fs.default.writeFileSync).toHaveBeenCalledTimes(2);
+      expect(fs.writeFileSync).toHaveBeenCalledTimes(2);
       expect(judgeManager.runJudge).toHaveBeenCalledTimes(2);
-      expect(fs.default.unlinkSync).toHaveBeenCalledTimes(2);
+      expect(fs.unlinkSync).toHaveBeenCalledTimes(2);
       expect(result.success).toBe(true);
     });
 

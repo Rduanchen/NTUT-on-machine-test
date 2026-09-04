@@ -127,8 +127,12 @@ export function registerStoreIpc(): void {
     const config = ramStore.examConfig;
     if (!config) return {} as Record<string, SpecialRule[]>;
 
-    // Flatten puzzles from sections
-    const allPuzzles = config.sections?.flatMap(s => s.puzzles) ?? config.puzzles ?? [];
+    /* Flatten puzzles from sections, tolerating a section with no puzzle list.
+     * flatMap keeps the nullish entry rather than dropping it, so reading .id
+     * off it threw and took the whole rule map with it — one malformed section
+     * would leave every puzzle without its special rules. */
+    const allPuzzles = (config.sections?.flatMap((s) => s.puzzles ?? []) ?? config.puzzles ?? [])
+      .filter((puzzle): puzzle is NonNullable<typeof puzzle> => puzzle != null);
 
     const map: Record<string, SpecialRule[]> = {};
     for (let i = 0; i < allPuzzles.length; i += 1) {

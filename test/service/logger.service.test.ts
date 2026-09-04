@@ -19,6 +19,10 @@ vi.mock('fs', () => ({
 
 describe('LoggerService', () => {
   beforeEach(() => {
+    /* The server transport is attached by setupLogger, which the app calls at
+     * startup (main/index.ts). Without it logger.error reaches no transport,
+     * so these tests were asserting on a logger that had nothing wired to it. */
+    setupLogger();
     getAndClearLogQueue(); // Reset queue
     setLogSendFunction(null as any); // Remove external sender
     vi.clearAllMocks();

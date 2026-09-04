@@ -66,6 +66,11 @@ vi.mock('../../src/main/services/logger.service', () => {
             error: vi.fn(),
             silly: vi.fn(),
         },
+        /* judge-manager imports this too. Leaving it out made the call throw
+         * mid-sync, and runJudge's fire-and-forget .catch() swallowed it — so
+         * the upload that follows never ran and the test read as a gating
+         * failure rather than a missing mock. */
+        logServerEvent: vi.fn(),
     };
 });
 
