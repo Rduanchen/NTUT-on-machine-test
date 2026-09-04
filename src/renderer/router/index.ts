@@ -7,6 +7,7 @@ import NotInitializedPage from '../pages/NotInitializedPage.vue';
 import WaitingForExamPage from '../pages/WaitingForExamPage.vue';
 import ExamFinishedPage from '../pages/ExamFinishedPage.vue';
 import StandbyPage from '../pages/StandbyPage.vue';
+import PendingApprovalPage from '../pages/PendingApprovalPage.vue';
 import { getEnvironmentNavigationDecision } from './environment-check.guard';
 import { derivePage, isSettingsReachable } from './phase-derivation';
 import { readDeviceState, readExamStatus, resolvePage } from './navigate';
@@ -17,6 +18,7 @@ const routes = [
   { path: '/', name: 'settings', component: Settings },
   { path: '/not-initialized', name: 'not-initialized', component: NotInitializedPage },
   { path: '/standby', name: 'standby', component: StandbyPage },
+  { path: '/pending-approval', name: 'pending-approval', component: PendingApprovalPage },
   { path: '/login', name: 'login', component: LoginPage },
   { path: '/waiting', name: 'waiting', component: WaitingForExamPage },
   { path: '/exam', name: 'exam', component: ExamPage },

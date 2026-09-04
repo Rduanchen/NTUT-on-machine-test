@@ -9,6 +9,10 @@ export enum ErrorCode {
   // Auth errors
   STUDENT_NOT_FOUND = 'STUDENT_NOT_FOUND',
   REGISTRATION_FAILED = 'REGISTRATION_FAILED',
+  /* Not a failure: the machine is queued for the invigilator to approve. The
+   * normal path for anything arriving after the room has filled, a restarted
+   * machine included. */
+  ENTRY_PENDING = 'ENTRY_PENDING',
   TOKEN_INVALID = 'TOKEN_INVALID',
   CRYPTO_NOT_INITIALIZED = 'CRYPTO_NOT_INITIALIZED',
 

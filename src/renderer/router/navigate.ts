@@ -4,19 +4,13 @@ import { derivePage, type DeviceState, type DerivedPage } from './phase-derivati
 import type { ExamState } from '../../common/types';
 
 /**
- * Pages the derivation can ask for that do not exist yet.
+ * Every page the derivation can name now exists, so this is the identity.
  *
- * `pending-approval` arrives with the re-entry work. Until then it falls back
- * to the nearest existing page so every checkpoint stays runnable. Delete the
- * entry when its page lands — leaving one behind would quietly keep sending
- * students elsewhere.
+ * Kept as a function because the derivation is the thing worth reading — it
+ * returns a page, and routing is not its concern.
  */
-const NOT_YET_BUILT: Partial<Record<DerivedPage, DerivedPage>> = {
-  'pending-approval': 'login'
-};
-
 export function resolvePage(page: DerivedPage): string {
-  return NOT_YET_BUILT[page] ?? page;
+  return page;
 }
 
 /** What this machine has achieved locally, read across the IPC boundary. */

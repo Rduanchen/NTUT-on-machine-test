@@ -204,6 +204,63 @@ describe('auth.ipc', () => {
       expect(vi.mocked(registerDevice)).toHaveBeenCalledOnce();
     });
 
+    it('reports a closed gate as waiting, not as a failure', async () => {
+      /* A restart loses the in-memory key and arrives as an unregistered
+       * machine, which is the normal path once the room has filled. Reporting
+       * it as REGISTRATION_FAILED sent the student to an error instead of the
+       * queue. */
+      vi.mocked(registerDevice).mockResolvedValueOnce({
+        success: false,
+        error: { code: 'entry_pending', message: 'A request has been sent to the TA.' }
+      } as any);
+
+      const result = await invoke('auth:register');
+
+      expect(result.success).toBe(false);
+      expect(result.error?.code).toBe('ENTRY_PENDING');
+    });
+
+    it('does not claim to hold a key while waiting for approval', async () => {
+      /* The page derivation reads "holds a key". A machine that kept one after
+       * being refused would derive to the login screen and sit there. */
+      vi.mocked(registerDevice).mockResolvedValueOnce({
+        success: false,
+        error: { code: 'entry_pending', message: 'pending' }
+      } as any);
+
+      await invoke('auth:register');
+
+      expect(ramStore.cryptoState).toBeNull();
+      expect(await invoke('auth:is-registered')).toBe(false);
+    });
+
+    it('recovers submitted work when a re-entered machine logs back in', async () => {
+      /* The promise re-entry rests on. Clearing a machine's identity must not
+       * cost the student anything they had submitted — their work is keyed by
+       * test ID, not by the machine that typed it. */
+      ramStore.cryptoState = {} as any;
+      vi.mocked(getStudentIdByIp).mockResolvedValueOnce({
+        success: true,
+        data: { testId: 'test1' }
+      } as any);
+      vi.mocked(login).mockResolvedValueOnce({
+        success: true,
+        data: { session_token: 'tok' }
+      } as any);
+      vi.mocked(getSubmissions).mockResolvedValueOnce({
+        success: true,
+        data: [
+          { questionId: 'Q1', language: 'Python', codeContent: 'print(1)' },
+          { questionId: 'Q2', language: 'Cpp', codeContent: 'int main(){}' }
+        ]
+      } as any);
+
+      const result = await invoke('auth:login');
+
+      expect(result.success).toBe(true);
+      expect(vi.mocked(judgeManager.runJudge)).toHaveBeenCalledTimes(2);
+    });
+
     it('fails if getStudentIdByIp fails and no manual ID', async () => {
       ramStore.cryptoState = {} as any; // Skip registration
       vi.mocked(getStudentIdByIp).mockResolvedValueOnce({ success: false } as any);

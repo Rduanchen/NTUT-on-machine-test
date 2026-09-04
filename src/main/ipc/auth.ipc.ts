@@ -53,12 +53,29 @@ async function registerThisDevice(): Promise<IpcResponse<void>> {
     if (!registerResponse.success) {
       /* The key was written to memory before the request. Clearing it keeps
        * "holds a key" meaning "the backend knows this key", which is what the
-       * page derivation reads. */
+       * page derivation reads — so a machine waiting for approval derives to
+       * the approval screen rather than appearing registered. */
       ramStore.cryptoState = null;
+
+      const code = registerResponse.error?.code;
+      if (code === 'entry_pending') {
+        /* Not a failure to report to the student as an error. The machine has
+         * been queued for a TA, which is the normal path for anything arriving
+         * after the room has filled — including a restart. */
+        logger.info('[Auth] Registration is closed; waiting for TA approval.');
+        return {
+          success: false,
+          error: {
+            code: ErrorCode.ENTRY_PENDING,
+            message: registerResponse.error?.message ?? 'Waiting for the invigilator to approve this machine.'
+          }
+        };
+      }
+
       return {
         success: false,
         error: {
-          code: registerResponse.error?.code ?? ErrorCode.REGISTRATION_FAILED,
+          code: code ?? ErrorCode.REGISTRATION_FAILED,
           message: registerResponse.error?.message ?? 'Failed to register device'
         }
       };
