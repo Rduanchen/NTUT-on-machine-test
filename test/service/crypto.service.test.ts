@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { cryptoService } from '../../src/main/services/crypto.service';
+import {
+  cryptoService,
+  PASSWORD_KDF_ITERATIONS
+} from '../../src/main/services/crypto.service';
 import { ramStore } from '../../src/main/services/ramStore.service';
 import * as crypto from 'crypto';
 
@@ -106,5 +109,82 @@ describe('CryptoService', () => {
     expect(decryptedObj.session_token).toBe('mock-session-id');
     expect(decryptedObj.timestamp).toBeDefined();
     expect(decryptedObj.nonce).toBeDefined();
+  });
+});
+
+describe('opening the exam paper from the spoken password', () => {
+  /* Mirrors what the backend produces, so this side is exercised against the
+   * real derivation rather than its own idea of one. If the two ever disagree,
+   * the offline start silently stops working — and the moment it is needed is
+   * the moment nothing can be checked. */
+  const wrap = (examKeyHex: string, password: string) => {
+    const salt = crypto.randomBytes(16);
+    const derived = crypto.pbkdf2Sync(password, salt, PASSWORD_KDF_ITERATIONS, 32, 'sha256');
+    const payload = cryptoService.encryptAesPayload(
+      examKeyHex,
+      derived.toString('hex'),
+      'device-x'
+    );
+    return { salt: salt.toString('base64'), iv: payload.iv, ciphertext: payload.ciphertext, tag: payload.tag };
+  };
+
+  const EXAM_KEY = crypto.randomBytes(32).toString('hex');
+  const PASSWORD = 'lantern-42';
+
+  it('returns the exam key for the right password', () => {
+    const wrapped = wrap(EXAM_KEY, PASSWORD);
+
+    expect(cryptoService.unwrapExamKey(wrapped, PASSWORD)).toBe(EXAM_KEY);
+  });
+
+  it('refuses a wrong password rather than producing a wrong key', () => {
+    /* Authenticated encryption is what makes this safe to expose to guessing:
+     * a wrong password fails to authenticate, so there is no half-open paper
+     * and nothing to mark a student against. */
+    const wrapped = wrap(EXAM_KEY, PASSWORD);
+
+    expect(() => cryptoService.unwrapExamKey(wrapped, 'lantern-43')).toThrow();
+  });
+
+  it('refuses an empty password', () => {
+    const wrapped = wrap(EXAM_KEY, PASSWORD);
+
+    expect(() => cryptoService.unwrapExamKey(wrapped, '')).toThrow();
+  });
+
+  it('refuses a wrapped key whose salt has been altered', () => {
+    const wrapped = wrap(EXAM_KEY, PASSWORD);
+    const salt = Buffer.from(wrapped.salt, 'base64');
+    salt[0] ^= 0xff;
+
+    expect(() =>
+      cryptoService.unwrapExamKey({ ...wrapped, salt: salt.toString('base64') }, PASSWORD)
+    ).toThrow();
+  });
+
+  it('leaves the paper unreadable when the password is wrong', () => {
+    const paper = { puzzles: [{ id: 'P1', title: 'Two Sum' }] };
+    const sealed = cryptoService.encryptAesPayload(JSON.stringify(paper), EXAM_KEY, 'device-x');
+    const wrapped = wrap(EXAM_KEY, PASSWORD);
+
+    let opened: unknown = null;
+    try {
+      const key = cryptoService.unwrapExamKey(wrapped, 'not-the-password');
+      opened = cryptoService.decryptExamPaper(sealed, key);
+    } catch {
+      /* expected */
+    }
+
+    expect(opened).toBeNull();
+  });
+
+  it('opens the paper when the password is right', () => {
+    const paper = { puzzles: [{ id: 'P1', title: 'Two Sum' }] };
+    const sealed = cryptoService.encryptAesPayload(JSON.stringify(paper), EXAM_KEY, 'device-x');
+    const wrapped = wrap(EXAM_KEY, PASSWORD);
+
+    const key = cryptoService.unwrapExamKey(wrapped, PASSWORD);
+
+    expect(cryptoService.decryptExamPaper(sealed, key)).toEqual(paper);
   });
 });

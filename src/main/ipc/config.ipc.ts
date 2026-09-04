@@ -31,4 +31,10 @@ export function registerConfigIpc(): void {
   ipcMain.handle('config:has-backend-url', () => {
     return !!ramStore.backendUrl;
   });
+
+  /* Start the exam from the invigilator's spoken password. The unwrap happens
+   * here rather than in the renderer: the key must never reach a window. */
+  ipcMain.handle('config:start-with-password', async (_event, password: string) => {
+    return configService.startWithPassword(password);
+  });
 }

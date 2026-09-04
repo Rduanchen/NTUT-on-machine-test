@@ -50,10 +50,10 @@ vi.mock('../../src/main/services/localProgram.service', () => {
 vi.mock('../../src/main/services/connection.service', () => {
     return {
         connectionService: {
-            clearPendingTestResult: vi.fn(),
-            markPendingTestResult: vi.fn(),
-            clearPendingProgramFile: vi.fn(),
-            markPendingProgramFile: vi.fn(),
+            clearQueuedScore: vi.fn(),
+            queueScore: vi.fn(),
+            clearQueuedSubmission: vi.fn(),
+            queueSubmission: vi.fn(),
         },
     };
 });

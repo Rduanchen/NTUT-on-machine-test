@@ -31,6 +31,8 @@ const mocks = vi.hoisted(() => {
     mockSetLogSendFunction: vi.fn((fn) => { logSendFunction = fn; }),
     mockLogServerEvent: vi.fn(),
     mockLogAction: vi.fn(),
+    mockSubmitCode: vi.fn(async () => ({ success: true })),
+    mockSubmitScore: vi.fn(async () => ({ success: true })),
     mockLogin: vi.fn(),
     mockSend,
     mockWindowDestroyed,
@@ -49,7 +51,9 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('../../src/main/services/api.service', () => ({
   logAction: mocks.mockLogAction,
-  login: mocks.mockLogin
+  login: mocks.mockLogin,
+  submitCode: mocks.mockSubmitCode,
+  submitScore: mocks.mockSubmitScore
 }));
 
 vi.mock('../../src/main/services/logger.service', () => ({
@@ -118,9 +122,9 @@ describe('Connection Service', () => {
       markTestResultSynced: vi.fn()
     });
     
-    // Clear pending flags in the singleton
-    connectionService.clearPendingTestResult();
-    connectionService.clearPendingProgramFile();
+    // Empty the queues in the singleton
+    (connectionService as any).pendingSubmissions = new Map();
+    (connectionService as any).pendingScore = null;
     (connectionService as any).pendingConfigRefresh = false;
     (connectionService as any).isSyncing = false;
   });
@@ -342,29 +346,96 @@ describe('Connection Service', () => {
       });
     });
 
-    describe('Pending requests flags', () => {
-      it('retries pending test result', async () => {
-        connectionService.markPendingTestResult();
+    describe('work produced while disconnected', () => {
+      const submission = { puzzleId: 'Q1', language: 'Python', codeContent: 'print(1)' };
+
+      it('sends a queued submission when the connection comes back', async () => {
+        connectionService.queueSubmission(submission);
+
         triggerConnected();
-        await new Promise(r => setTimeout(r, 0));
-        
-        expect((connectionService as any).pendingTestResult).toBe(false);
-        expect(mocks.mockRamStoreState.markTestResultSynced).toHaveBeenCalled();
+        await new Promise((r) => setTimeout(r, 0));
+
+        expect(mocks.mockSubmitCode).toHaveBeenCalledWith('print(1)', 'Q1', 'Python');
+        expect(connectionService.getPendingCounts().submissions).toBe(0);
       });
 
-      it('retries pending program file', async () => {
-        connectionService.markPendingProgramFile();
+      it('sends a queued score and marks the results synced', async () => {
+        connectionService.queueScore({ score: 80 });
+
         triggerConnected();
-        await new Promise(r => setTimeout(r, 0));
-        
-        expect((connectionService as any).pendingProgramFile).toBe(false);
+        await new Promise((r) => setTimeout(r, 0));
+
+        expect(mocks.mockSubmitScore).toHaveBeenCalledWith({ score: 80 });
+        expect(mocks.mockRamStoreState.markTestResultSynced).toHaveBeenCalled();
+        expect(connectionService.getPendingCounts().score).toBe(false);
+      });
+
+      it('keeps work that fails to send rather than dropping it', async () => {
+        /* The connection has just come back and may go again. Losing the work
+         * on the second outage is no better than losing it on the first. */
+        mocks.mockSubmitCode.mockResolvedValueOnce({ success: false } as any);
+        connectionService.queueSubmission(submission);
+
+        triggerConnected();
+        await new Promise((r) => setTimeout(r, 0));
+
+        expect(connectionService.getPendingCounts().submissions).toBe(1);
+      });
+
+      it('keeps work when sending throws', async () => {
+        mocks.mockSubmitCode.mockRejectedValueOnce(new Error('socket closed'));
+        connectionService.queueSubmission(submission);
+
+        triggerConnected();
+        await new Promise((r) => setTimeout(r, 0));
+
+        expect(connectionService.getPendingCounts().submissions).toBe(1);
+      });
+
+      it('keeps one entry per puzzle however many times it is answered', async () => {
+        /* A student editing the same question offline should leave one entry,
+         * not a pile. The last version is the one they want sent. */
+        connectionService.queueSubmission({ ...submission, codeContent: 'v1' });
+        connectionService.queueSubmission({ ...submission, codeContent: 'v2' });
+        connectionService.queueSubmission({ ...submission, codeContent: 'v3' });
+
+        expect(connectionService.getPendingCounts().submissions).toBe(1);
+
+        triggerConnected();
+        await new Promise((r) => setTimeout(r, 0));
+
+        expect(mocks.mockSubmitCode).toHaveBeenCalledTimes(1);
+        expect(mocks.mockSubmitCode).toHaveBeenCalledWith('v3', 'Q1', 'Python');
+      });
+
+      it('keeps only the latest score', async () => {
+        connectionService.queueScore({ score: 10 });
+        connectionService.queueScore({ score: 90 });
+
+        triggerConnected();
+        await new Promise((r) => setTimeout(r, 0));
+
+        expect(mocks.mockSubmitScore).toHaveBeenCalledTimes(1);
+        expect(mocks.mockSubmitScore).toHaveBeenCalledWith({ score: 90 });
+      });
+
+      it('sends every queued puzzle, not just the first', async () => {
+        connectionService.queueSubmission(submission);
+        connectionService.queueSubmission({ puzzleId: 'Q2', language: 'Cpp', codeContent: 'int main(){}' });
+
+        triggerConnected();
+        await new Promise((r) => setTimeout(r, 0));
+
+        expect(mocks.mockSubmitCode).toHaveBeenCalledTimes(2);
+        expect(connectionService.getPendingCounts().submissions).toBe(0);
       });
 
       it('retries pending config refresh', async () => {
         connectionService.markPendingConfigRefresh();
+
         triggerConnected();
-        await new Promise(r => setTimeout(r, 0));
-        
+        await new Promise((r) => setTimeout(r, 0));
+
         expect((connectionService as any).pendingConfigRefresh).toBe(false);
       });
     });

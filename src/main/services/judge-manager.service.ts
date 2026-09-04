@@ -274,21 +274,24 @@ class JudgeManagerService {
         }
 
         const score = totalScore;
-        
-        const response = await submitScore({
+        const scorePayload = {
           score,
           puzzleResults,
           subtaskAmount,
           passedSubtaskAmount,
           puzzleAmount,
           passedPuzzleAmount
-        });
+        };
+
+        const response = await submitScore(scorePayload);
         if (response.success) {
           ramStore.markTestResultSynced();
-          connectionService.clearPendingTestResult();
+          connectionService.clearQueuedScore();
           logServerEvent('UPLOAD_SCORE', '成績上傳成功', { score });
         } else {
-          connectionService.markPendingTestResult();
+          /* Kept, not just noted. A student who answers during an outage and
+           * never runs another judge would otherwise lose that work entirely. */
+          connectionService.queueScore(scorePayload);
         }
       }
 
@@ -305,18 +308,24 @@ class JudgeManagerService {
           else if (ext === 'java') language = 'Java';
 
           const codeResponse = await submitCode(codeContent, entry.puzzleId, language);
-          if (!codeResponse.success) allSuccess = false;
+          if (codeResponse.success) {
+            connectionService.clearQueuedSubmission(entry.puzzleId);
+          } else {
+            allSuccess = false;
+            connectionService.queueSubmission({
+              puzzleId: entry.puzzleId,
+              language,
+              codeContent
+            });
+          }
         }
 
-        if (allSuccess) {
-          connectionService.clearPendingProgramFile();
-        } else {
-          connectionService.markPendingProgramFile();
+        if (!allSuccess) {
+          logger.warn('[Judger] Some submissions are queued for the next reconnect.');
         }
       }
     } catch (error) {
       logger.error('[Judger] Background sync failed:', error);
-      connectionService.markPendingTestResult();
     }
   }
 }

@@ -88,8 +88,16 @@
           />
         </v-card-text>
         <v-card-actions class="justify-center mb-2">
-          <v-btn color="grey" variant="text" @click="showPasswordDialog = false">Cancel</v-btn>
-          <v-btn color="primary" variant="flat" @click="submitPassword">Start</v-btn>
+          <v-btn color="grey" variant="text" :disabled="isSubmittingPassword" @click="showPasswordDialog = false">取消</v-btn>
+          <v-btn
+            color="primary"
+            variant="flat"
+            :loading="isSubmittingPassword"
+            data-test="submit-start-password"
+            @click="submitPassword"
+          >
+            開始考試
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -112,6 +120,7 @@ const autoLoginSuccess = ref(false);
 
 const showPasswordDialog = ref(false);
 const startPasswordInput = ref('');
+const isSubmittingPassword = ref(false);
 const passwordError = ref('');
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -141,27 +150,34 @@ async function checkExamStatus() {
   await goToDerivedPage(router);
 }
 
+/**
+ * Start the exam from the invigilator's spoken password.
+ *
+ * The password used to be compared against a copy of itself sitting in this
+ * machine's own config — a gate whose key was handed to the person being
+ * gated. It is now what unwraps the exam key: get it right and the paper
+ * opens, get it wrong and the paper stays shut, because there is nothing here
+ * to compare against.
+ *
+ * The unwrap happens in the main process; the key must never reach a window.
+ */
 async function submitPassword() {
   passwordError.value = '';
   if (!startPasswordInput.value) return;
 
-  const config = await window.api?.store?.getExamConfig?.();
-  if (!config) {
-    passwordError.value = 'Exam config not found';
-    return;
-  }
+  isSubmittingPassword.value = true;
+  try {
+    const res = await window.api?.config?.startWithPassword?.(startPasswordInput.value);
 
-  const expectedPassword = config.environmentVariables?.startPassword;
-  if (!expectedPassword) {
-    passwordError.value = 'Missing startPassword in environmentVariables';
-    return;
-  }
-  
-  if (startPasswordInput.value === expectedPassword) {
-    showPasswordDialog.value = false;
-    await window.api?.store?.setExamStatus?.('IN_PROGRESS');
-  } else {
-    passwordError.value = 'Invalid password';
+    if (res?.success) {
+      showPasswordDialog.value = false;
+      startPasswordInput.value = '';
+      await goToDerivedPage(router);
+    } else {
+      passwordError.value = res?.error?.message ?? '口令不正確';
+    }
+  } finally {
+    isSubmittingPassword.value = false;
   }
 }
 

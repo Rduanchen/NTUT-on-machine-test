@@ -81,6 +81,10 @@ async function registerThisDevice(): Promise<IpcResponse<void>> {
       };
     }
 
+    /* From here on this machine is an online one, whatever happens to the
+     * connection later. A drop is a drop; it is not a different kind of
+     * machine. */
+    ramStore.hasEverRegistered = true;
     messageSyncService.registerSocket();
     return { success: true };
   } catch (error) {

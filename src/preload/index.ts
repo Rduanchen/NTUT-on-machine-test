@@ -13,7 +13,9 @@ const api = {
     getFromServer: (host: string) => ipcRenderer.invoke('config:get-from-server', host),
     getServerStatus: (hostname: string) => ipcRenderer.invoke('config:server-status', hostname),
     isSetupComplete: () => ipcRenderer.invoke('config:setup-complete'),
-    hasBackendUrl: () => ipcRenderer.invoke('config:has-backend-url')
+    hasBackendUrl: () => ipcRenderer.invoke('config:has-backend-url'),
+    startWithPassword: (password: string) =>
+      ipcRenderer.invoke('config:start-with-password', password)
   },
 
   environmentCheck: {

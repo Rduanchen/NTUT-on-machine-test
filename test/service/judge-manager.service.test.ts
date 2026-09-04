@@ -178,17 +178,21 @@ describe('JudgeManagerService', () => {
 
       expect(submitScore).toHaveBeenCalled();
       expect(markSpy).toHaveBeenCalled();
-      expect(connectionService.clearPendingTestResult).toHaveBeenCalled();
+      expect(connectionService.clearQueuedScore).toHaveBeenCalled();
       expect(logServerEvent).toHaveBeenCalledWith('UPLOAD_SCORE', '成績上傳成功', expect.any(Object));
     });
 
-    it('should mark pending when sync fails', async () => {
+    it('keeps the score to send later when the upload fails', async () => {
+      /* Noting that it failed was not enough. A student who answers during an
+       * outage and never runs another judge used to lose that work entirely. */
       (submitScore as any).mockResolvedValue({ success: false });
       (localProgramStore.hasFiles as any).mockReturnValue(false);
 
       await judgeManager.syncResultsInBackground(true);
 
-      expect(connectionService.markPendingTestResult).toHaveBeenCalled();
+      expect(connectionService.queueScore).toHaveBeenCalledWith(
+        expect.objectContaining({ score: expect.any(Number) })
+      );
     });
 
     it('should use highest results when preference is highest', async () => {
@@ -218,7 +222,7 @@ describe('JudgeManagerService', () => {
       await judgeManager.syncResultsInBackground(true);
 
       expect(submitCode).toHaveBeenCalledTimes(5);
-      expect(connectionService.clearPendingProgramFile).toHaveBeenCalled();
+      expect(connectionService.clearQueuedSubmission).toHaveBeenCalledTimes(5);
     });
 
     it('should mark pending program file if any upload fails', async () => {
@@ -232,14 +236,15 @@ describe('JudgeManagerService', () => {
 
       await judgeManager.syncResultsInBackground(true);
 
-      expect(connectionService.markPendingProgramFile).toHaveBeenCalled();
+      expect(connectionService.queueSubmission).toHaveBeenCalledWith(
+        expect.objectContaining({ puzzleId: 'puz1' })
+      );
     });
 
-    it('should catch error and mark pending test result', async () => {
+    it('logs a thrown sync error without losing the run', async () => {
       (submitScore as any).mockRejectedValue(new Error('Network error'));
       await judgeManager.syncResultsInBackground(true);
       expect(logger.error).toHaveBeenCalledWith('[Judger] Background sync failed:', expect.any(Error));
-      expect(connectionService.markPendingTestResult).toHaveBeenCalled();
     });
 
     it('should sync successfully using fallback flat puzzles list', async () => {

@@ -260,6 +260,8 @@ export interface RamStoreState {
   socketStatus: SocketConnectionStatus;
   examStatus: ExamState;
   isOfflineMode: boolean;
+  /** Registration has succeeded at least once on this machine. */
+  hasEverRegistered: boolean;
   pendingLoginSync: boolean;
   uploadVersionPreference: UploadVersionPreference;
 }

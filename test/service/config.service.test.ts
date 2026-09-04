@@ -190,9 +190,11 @@ describe('ConfigService', () => {
     });
 
     describe('setConfigFromFile', () => {
-        it('returns error if config format is invalid', async () => {
+        it('rejects a file that is not an offline deployment bundle', async () => {
+            /* The plaintext config this replaced was both a second parsing path
+             * and a way for a student to hand themselves a paper. */
             (fs.readFileSync as any).mockReturnValue('{}');
-            (examConfigSchema.safeParse as any).mockReturnValue({
+            (examConfigPayloadSchema.safeParse as any).mockReturnValue({
                 success: false,
                 error: { issues: [{ path: ['someField'], message: 'is required' }] }
             });
@@ -206,18 +208,23 @@ describe('ConfigService', () => {
             }
         });
 
-        it('loads config, sets offline mode and updates examStatus', async () => {
+        it('loads a bundle, stays offline, and leaves the questions sealed', async () => {
             (fs.readFileSync as any).mockReturnValue('{}');
-            const mockConfig = { id: 'exam1' };
-            (examConfigSchema.safeParse as any).mockReturnValue({ success: true, data: mockConfig });
+            const bundle = {
+                meta: { testTitle: 'Offline' },
+                cipher: { iv: 'i', ciphertext: 'c', tag: 't' }
+            };
+            (examConfigPayloadSchema.safeParse as any).mockReturnValue({ success: true, data: bundle });
 
-            const res = await configService.setConfigFromFile('/path/config.json');
+            const res = await configService.setConfigFromFile('/path/bundle.json');
 
             expect(res.success).toBe(true);
-            expect(ramStore.examConfig).toEqual(mockConfig);
+            expect(ramStore.examConfigMeta).toEqual(bundle.meta);
+            expect(ramStore.examConfigCipher).toEqual(bundle.cipher);
+            // The exam starts on the invigilator's spoken password, not on load.
+            expect(ramStore.examConfig).toBeFalsy();
             expect(ramStore.isOfflineMode).toBe(true);
             expect(ramStore.examStatus).toBe('SETUP_FINISHED');
-            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Config loaded from uploaded file'));
         });
 
         it('returns error if fs.readFileSync throws an Error', async () => {

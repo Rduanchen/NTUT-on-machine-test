@@ -65,6 +65,7 @@ class RamStoreService {
     socketStatus: 'disconnected',
     examStatus: 'UNINITIALIZED',
     isOfflineMode: false,
+    hasEverRegistered: false,
     pendingLoginSync: false,
     uploadVersionPreference: 'current'
   };
@@ -124,6 +125,7 @@ class RamStoreService {
       socketStatus: 'disconnected',
       examStatus: 'UNINITIALIZED',
       isOfflineMode: false,
+      hasEverRegistered: false,
       pendingLoginSync: false,
       uploadVersionPreference: 'current'
     };
@@ -221,12 +223,33 @@ class RamStoreService {
     this.set('isConfigured', value);
   }
 
+  /**
+   * Whether this machine is running without a backend for the rest of the exam.
+   *
+   * Decided by whether registration ever succeeded, not by where the paper came
+   * from. The old rule keyed off the config's source: loading a paper from a
+   * file meant offline forever, which is how a student could take themselves
+   * out of every server-side control with two clicks.
+   *
+   * A dropped connection does not change this. Being offline for a while and
+   * being an offline machine are different things — one reconnects, the other
+   * never had anything to reconnect to.
+   */
   get isOfflineMode(): boolean {
-    return this.state.isOfflineMode;
+    return this.state.isOfflineMode && !this.state.hasEverRegistered;
   }
 
   set isOfflineMode(value: boolean) {
     this.set('isOfflineMode', value);
+  }
+
+  /** Set once registration succeeds; never unset short of a reset. */
+  get hasEverRegistered(): boolean {
+    return this.state.hasEverRegistered;
+  }
+
+  set hasEverRegistered(value: boolean) {
+    this.set('hasEverRegistered', value);
   }
 
   get pendingLoginSync(): boolean {

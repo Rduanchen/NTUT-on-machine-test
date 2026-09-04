@@ -8,7 +8,6 @@ import { cryptoService } from './crypto.service';
 import { connectionService } from './connection.service';
 import { messageSyncService } from './message-sync.service';
 import {
-  examConfigSchema,
   examConfigMetaSchema,
   examConfigPayloadSchema,
   examConfigSecretSchema,
@@ -94,13 +93,22 @@ class ConfigService {
 
   // ─── Manual Config Setup ──────────────────────────────────────
 
-  /** Set config from uploaded JSON file path */
+  /**
+   * Load an exam paper from a file, for a machine that cannot reach the
+   * backend.
+   *
+   * Takes the same `{ meta, cipher }` the delivery endpoint returns, so there
+   * is one parsing path rather than two — and so a lost memory stick is not a
+   * leaked exam. The plaintext config this replaces was both a second path to
+   * maintain and a way for a student to hand themselves a paper and detach
+   * from every server-side control in the same gesture.
+   */
   public async setConfigFromFile(jsonFilePath: string): Promise<IpcResponse<void>> {
     try {
       const fileContent = fs.readFileSync(jsonFilePath, 'utf-8');
       const json = JSON.parse(fileContent);
 
-      const validation = examConfigSchema.safeParse(json);
+      const validation = examConfigPayloadSchema.safeParse(json);
       if (!validation.success) {
         const errorMsg = validation.error.issues
           .map((e) => `${e.path.join('.')}: ${e.message}`)
@@ -109,21 +117,21 @@ class ConfigService {
           success: false,
           error: {
             code: ErrorCode.INVALID_CONFIG_FORMAT,
-            message: `Invalid config format: ${errorMsg}`
+            message: `不是有效的離線佈署檔：${errorMsg}`
           }
         };
       }
 
-      await environmentCheckService.applyConfig(validation.data as ExamConfig);
+      await this.applyPaper(validation.data.meta, validation.data.cipher);
 
-      // Manual config means we are in pure offline mode.
+      /* This machine has no backend to reach, so it stays offline for the run
+       * — unless it turns out to have registered successfully at some point,
+       * which is what actually decides the mode. The exam starts on the
+       * invigilator's spoken password. */
       ramStore.isOfflineMode = true;
-      /* A manually deployed machine behaves as if registration has closed and
-       * login is open — which is what the old NOT_STARTED meant here. The
-       * offline deployment path is reworked with the {meta, cipher} bundle. */
       ramStore.examStatus = 'SETUP_FINISHED';
 
-      logger.info('[Config] Config loaded from uploaded file (Offline Mode).');
+      logger.info('[Config] Offline deployment bundle loaded; questions remain sealed.');
       return { success: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -238,6 +246,53 @@ class ConfigService {
     if (ramStore.examKey) {
       this.unsealPaper(ramStore.examKey);
     }
+  }
+
+  /**
+   * Start the exam from the password the invigilator reads out.
+   *
+   * The path that needs no backend at all. A machine holding the ciphertext can
+   * begin on a spoken password, which is what stops a backend outage from
+   * preventing the exam starting — the one moment in the whole run that cannot
+   * absorb a delay.
+   *
+   * Not a fallback with a switch to flip. It is always available, because the
+   * moment it is needed is the moment nothing can be switched.
+   */
+  public async startWithPassword(password: string): Promise<IpcResponse<void>> {
+    const meta = ramStore.examConfigMeta;
+    if (!meta || !ramStore.examConfigCipher) {
+      return {
+        success: false,
+        error: { code: ErrorCode.INVALID_CONFIG_FORMAT, message: '本機尚未取得考卷' }
+      };
+    }
+
+    let examKey: string;
+    try {
+      examKey = cryptoService.unwrapExamKey(meta.wrappedExamKey, password);
+    } catch {
+      /* Authenticated encryption: a wrong password fails to authenticate rather
+       * than producing a wrong key, so this cannot half-open the paper. */
+      return {
+        success: false,
+        error: { code: ErrorCode.INVALID_CONFIG_FORMAT, message: '口令不正確' }
+      };
+    }
+
+    try {
+      this.unsealPaper(examKey);
+    } catch (error) {
+      logger.error('[Config] Password was correct but the paper would not open:', error);
+      return {
+        success: false,
+        error: { code: ErrorCode.INVALID_CONFIG_FORMAT, message: '考卷無法開啟，請通知監考人員' }
+      };
+    }
+
+    ramStore.examStatus = 'IN_PROGRESS';
+    logger.info('[Config] Exam started from the invigilator password.');
+    return { success: true };
   }
 
   /**
