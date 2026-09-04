@@ -67,7 +67,13 @@ const mocks = vi.hoisted(() => {
     },
     getWinNull: () => mockWinNull,
     getWinDestroyed: () => mockWinDestroyed,
-    getContentsDestroyed: () => mockContentsDestroyed
+    getContentsDestroyed: () => mockContentsDestroyed,
+    mockConfigService: {
+      applyPaper: vi.fn(async (meta: any) => {
+        mockRamStoreState.examConfig = meta;
+      }),
+      unsealPaper: vi.fn()
+    }
   };
 });
 
@@ -80,9 +86,14 @@ vi.mock('../../src/main/services/logger.service', () => ({ logger: mocks.mockLog
 vi.mock('../../src/main/services/judge-manager.service', () => ({ judgeManager: mocks.mockJudgeManager }));
 
 vi.mock('../../src/main/schemas/examConfig.schema', () => ({
-  examConfigSchema: {
+  /* Delivery returns the split paper now: meta in the clear, questions sealed. */
+  examConfigPayloadSchema: {
     safeParse: mocks.mockSafeParse
   }
+}));
+
+vi.mock('../../src/main/services/config.service', () => ({
+  configService: mocks.mockConfigService
 }));
 
 vi.mock('../../src/main/system/windowManager', () => ({
@@ -300,7 +311,7 @@ describe('Message Sync Service', () => {
 
       it('handles config_update type message', async () => {
         mocks.mockApi.fetchSecureExamConfig.mockResolvedValueOnce({
-          success: true, data: { name: 'New Config' }
+          success: true, data: { meta: { name: 'New Config' }, cipher: { iv: 'i', ciphertext: 'c', tag: 't' } }
         });
         
         socketHandlers['exam-message']({
@@ -428,7 +439,9 @@ describe('Message Sync Service', () => {
     });
 
     it('updates config and sets version if targetVersion provided', async () => {
-      mocks.mockApi.fetchSecureExamConfig.mockResolvedValueOnce({ success: true, data: { name: 'Test' } });
+      mocks.mockApi.fetchSecureExamConfig.mockResolvedValueOnce({
+        success: true, data: { meta: { name: 'Test' }, cipher: { iv: 'i', ciphertext: 'c', tag: 't' } }
+      });
       await (messageSyncService as any).refreshConfigFromServer(5);
       
       expect(mocks.mockRamStoreState.configVersion).toBe(5);

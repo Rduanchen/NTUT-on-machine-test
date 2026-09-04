@@ -147,6 +147,29 @@ export async function registerDevice(device_uuid: string, encrypted_aes_key: str
  * diagnostic stays on the machine, where its unbounded compiler output can do
  * no harm.
  */
+/**
+ * Ask for the key that opens the delivered paper.
+ *
+ * Only answered while the exam is running. It is never broadcast — a broadcast
+ * reaches every listener without establishing who any of them are — so this
+ * point-to-point request is the only way it travels.
+ */
+export async function fetchExamKey(): Promise<IpcResponse<{ examKey: string }>> {
+  try {
+    const response = await authClient.post(`${getBaseUrl()}/exam/key`, {});
+
+    const cryptoState = ramStore.cryptoState;
+    if (!cryptoState) {
+      throw new Error('Crypto credentials not initialized');
+    }
+
+    const decrypted = cryptoService.decryptAesPayload(response.data, cryptoState.aesKeyHex);
+    return { success: true, data: JSON.parse(decrypted) };
+  } catch (error) {
+    return makeErrorResponse('fetchExamKey', error);
+  }
+}
+
 export async function reportEnvironmentCheck(
   status: 'RUNNING' | 'PASSED' | 'FAILED',
   failedLanguages: string[]

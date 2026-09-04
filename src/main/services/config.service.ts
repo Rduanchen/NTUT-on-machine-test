@@ -4,9 +4,16 @@ import { app } from 'electron';
 import { ramStore } from './ramStore.service';
 import { logger } from './logger.service';
 import { fetchSecureExamConfig, healthCheck } from './api.service';
+import { cryptoService } from './crypto.service';
 import { connectionService } from './connection.service';
 import { messageSyncService } from './message-sync.service';
-import { examConfigSchema } from '../schemas/examConfig.schema';
+import {
+  examConfigSchema,
+  examConfigMetaSchema,
+  examConfigPayloadSchema,
+  examConfigSecretSchema,
+  mergeExamConfig
+} from '../schemas/examConfig.schema';
 import { preSettingsSchema } from '../schemas/presettings.schema';
 import type { ExamConfig, IpcResponse } from '../../common/types';
 import { ErrorCode } from '../../common/errorCodes';
@@ -169,6 +176,14 @@ class ConfigService {
 
   // ─── Internal Helpers ─────────────────────────────────────────
 
+  /**
+   * Fetch the split paper and keep both halves.
+   *
+   * Only the meta half is usable at this point, and that is enough: it names
+   * the languages and limits the environment check needs. The other half stays
+   * as ciphertext until the exam starts, so a machine can be fully prepared
+   * while the questions on it remain unreadable.
+   */
   public async fetchAndSaveConfig(host?: string): Promise<IpcResponse<void>> {
     const targetHost = host ?? ramStore.backendUrl;
     const response = await fetchSecureExamConfig();
@@ -181,7 +196,7 @@ class ConfigService {
       };
     }
 
-    const validation = examConfigSchema.safeParse(response.data);
+    const validation = examConfigPayloadSchema.safeParse(response.data);
     if (!validation.success) {
       ramStore.isConfigured = false;
       const errorMsg = validation.error.issues
@@ -196,10 +211,53 @@ class ConfigService {
       };
     }
 
-    await environmentCheckService.applyConfig(validation.data as ExamConfig);
     ramStore.backendUrl = targetHost;
-    logger.info('[Config] Config saved to RAM from server.');
+    await this.applyPaper(validation.data.meta, validation.data.cipher);
+    logger.info('[Config] Split exam paper stored; questions remain sealed.');
     return { success: true };
+  }
+
+  /**
+   * Store both halves and run the environment check off the meta half.
+   *
+   * If the exam key is already in hand — a paper refreshed mid-exam — the
+   * questions are reassembled straight away. Otherwise `examConfig` stays null,
+   * which is what keeps everything downstream from reading a paper early: not
+   * a check to remember, just nothing to read.
+   */
+  public async applyPaper(
+    meta: ReturnType<typeof examConfigMetaSchema.parse>,
+    cipher: { iv: string; ciphertext: string; tag: string }
+  ): Promise<void> {
+    ramStore.examConfigMeta = meta;
+    ramStore.examConfigCipher = cipher;
+    ramStore.isConfigured = true;
+
+    await environmentCheckService.applyMeta(meta);
+
+    if (ramStore.examKey) {
+      this.unsealPaper(ramStore.examKey);
+    }
+  }
+
+  /**
+   * Turn the delivered halves into the paper the rest of the app understands.
+   *
+   * The merged result must satisfy the existing config schema, so the judger,
+   * the screens and the rule engine carry on unchanged.
+   */
+  public unsealPaper(examKey: string): void {
+    const meta = ramStore.examConfigMeta;
+    const cipher = ramStore.examConfigCipher;
+    if (!meta || !cipher) throw new Error('No sealed exam paper to open');
+
+    const secret = examConfigSecretSchema.parse(
+      cryptoService.decryptExamPaper(cipher, examKey)
+    );
+
+    ramStore.examKey = examKey;
+    ramStore.examConfig = mergeExamConfig(meta, secret) as ExamConfig;
+    logger.info('[Config] Exam paper opened.');
   }
 }
 

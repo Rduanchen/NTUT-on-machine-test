@@ -1,4 +1,5 @@
 import type {
+  ExamConfigMetaShape,
   EnvironmentCheckReport,
   EnvironmentLanguageResult,
   ExamConfig,
@@ -20,7 +21,10 @@ export interface EnvironmentLanguageExecutor {
   ): Promise<EnvironmentLanguageResult>;
 }
 
-export function extractRequiredLanguages(config: ExamConfig): SupportedLanguage[] {
+/** Which languages a paper needs, from either half's puzzle list. */
+export function extractRequiredLanguages(
+  config: { sections?: Array<{ puzzles?: Array<{ language: SupportedLanguage }> }>; puzzles?: Array<{ language: SupportedLanguage }> }
+): SupportedLanguage[] {
   const found = new Set<SupportedLanguage>();
   for (const section of config.sections ?? []) {
     for (const puzzle of section.puzzles ?? []) found.add(puzzle.language);
@@ -49,6 +53,20 @@ export class EnvironmentCheckService {
     return ramStore.environmentCheckReport;
   }
 
+  /**
+   * Check this machine against the paper's meta half.
+   *
+   * All the check ever needed was the language list and the limits — never the
+   * questions. That is what makes it possible to run in an empty room, before
+   * anything readable has been delivered.
+   */
+  public async applyMeta(
+    meta: ExamConfigMetaShape,
+    force = false
+  ): Promise<EnvironmentCheckReport> {
+    return this.checkConfig(meta as any, force);
+  }
+
   public async applyConfig(config: ExamConfig, force = false): Promise<EnvironmentCheckReport> {
     ramStore.examConfig = config;
     // Keep this explicit for store adapters/proxies that do not implement the
@@ -68,7 +86,7 @@ export class EnvironmentCheckService {
     this.abortController = null;
   }
 
-  public async checkConfig(config: ExamConfig, force = false): Promise<EnvironmentCheckReport> {
+  public async checkConfig(config: any, force = false): Promise<EnvironmentCheckReport> {
     const requiredLanguages = extractRequiredLanguages(config);
     const configFingerprint = createEnvironmentFingerprint(requiredLanguages);
     const current = ramStore.environmentCheckReport;

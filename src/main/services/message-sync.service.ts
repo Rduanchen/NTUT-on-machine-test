@@ -1,11 +1,11 @@
 import { io, Socket } from 'socket.io-client';
 import { getMainWindow } from '../system/windowManager';
 import { ramStore } from './ramStore.service';
-import { getMessages, getExamStatus, fetchSecureExamConfig, getDeviceUuid } from './api.service';
+import { getMessages, getExamStatus, fetchSecureExamConfig, getDeviceUuid, fetchExamKey } from './api.service';
 import { logger } from './logger.service';
 import type { ServerMessage, ExamState } from '../../common/types';
-import { examConfigSchema } from '../schemas/examConfig.schema';
-import { environmentCheckService } from './environment-check.service';
+import { examConfigPayloadSchema } from '../schemas/examConfig.schema';
+import { configService } from './config.service';
 import { judgeManager } from './judge-manager.service';
 
 const POLL_INTERVAL_MS = 60_000;
@@ -197,6 +197,7 @@ class MessageSyncService {
         const newStatus = statusRes.data.status as ExamState;
         if (ramStore.examStatus !== newStatus) {
           ramStore.examStatus = newStatus;
+          void this.onPhaseChanged(newStatus);
           const win = getMainWindow();
           if (win && !win.isDestroyed()) {
             win.webContents?.send('exam:status-changed', newStatus);
@@ -243,6 +244,7 @@ class MessageSyncService {
     if (message.namespace === 'STATUS') {
       const newState = message.message as ExamState;
       ramStore.examStatus = newState;
+      void this.onPhaseChanged(newState);
       const win = getMainWindow();
       if (win && !win.isDestroyed()) {
         win.webContents?.send('exam:status-changed', newState);
@@ -274,6 +276,36 @@ class MessageSyncService {
     }
   }
 
+  /**
+   * The exam has started: fetch the key and open the paper.
+   *
+   * The broadcast says only that the exam began — it reaches every listener
+   * without establishing who any of them are, so it is not a channel a key can
+   * travel on. The key comes back over the same authenticated point-to-point
+   * request everything else uses.
+   *
+   * A machine that is already holding the key does nothing: the request is
+   * idempotent, but there is no reason to make it twice.
+   */
+  private async onPhaseChanged(phase: ExamState): Promise<void> {
+    if (phase !== 'IN_PROGRESS') return;
+    if (ramStore.isOfflineMode) return;
+    if (ramStore.examKey) return;
+    if (!ramStore.examConfigCipher) return;
+
+    try {
+      const response = await fetchExamKey();
+      if (!response.success || !response.data?.examKey) {
+        logger.warn('[MessageSync] Exam started but the key could not be fetched yet.');
+        return;
+      }
+      configService.unsealPaper(response.data.examKey);
+      await judgeManager.rejudgeAllStoredPrograms();
+    } catch (error) {
+      logger.error('[MessageSync] Failed to open the exam paper:', error);
+    }
+  }
+
   private async refreshConfigFromServer(targetVersion?: number): Promise<void> {
     if (this.isConfigRefreshing) return;
     if (!ramStore.cryptoState) {
@@ -287,12 +319,12 @@ class MessageSyncService {
         throw new Error('Unable to fetch secure exam config');
       }
 
-      const validation = examConfigSchema.safeParse(response.data);
+      const validation = examConfigPayloadSchema.safeParse(response.data);
       if (!validation.success) {
         throw new Error('Secure config validation failed');
       }
 
-      await environmentCheckService.applyConfig(validation.data);
+      await configService.applyPaper(validation.data.meta, validation.data.cipher);
       logger.info('[MessageSync] Exam config updated from secure endpoint.');
 
       if (typeof targetVersion === 'number') {

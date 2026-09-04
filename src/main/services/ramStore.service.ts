@@ -10,7 +10,9 @@ import type {
   SpecialRuleResultRecord,
   ExamState,
   UploadVersionPreference,
-  EnvironmentCheckReport
+  EnvironmentCheckReport,
+  EncryptedEnvelope,
+  ExamConfigMetaShape
 } from '../../common/types';
 import * as os from 'os';
 
@@ -40,6 +42,9 @@ class RamStoreService {
 
   private state: RamStoreState = {
     examConfig: null,
+    examConfigMeta: null,
+    examConfigCipher: null,
+    examKey: null,
     environmentCheckReport: createIdleEnvironmentCheckReport(),
     isConfigured: false,
     studentInfo: { id: '', name: '' },
@@ -96,6 +101,9 @@ class RamStoreService {
   public clear(): void {
     this.state = {
       examConfig: null,
+      examConfigMeta: null,
+      examConfigCipher: null,
+      examKey: null,
       environmentCheckReport: createIdleEnvironmentCheckReport(),
       isConfigured: false,
       studentInfo: { id: '', name: '' },
@@ -165,6 +173,36 @@ class RamStoreService {
     if (config) {
       this.set('isConfigured', true);
     }
+  }
+
+  /* The paper arrives in two halves and stays that way until the exam starts.
+   *
+   * `examConfig` is null until then, which is what stops anything downstream
+   * reading a paper early: no extra check to remember, just nothing to read.
+   * All three are memory-only, like the device key — a restart forgets them and
+   * the machine re-enters through the same gate. */
+  get examConfigMeta(): ExamConfigMetaShape | null {
+    return this.state.examConfigMeta;
+  }
+
+  set examConfigMeta(meta: ExamConfigMetaShape | null) {
+    this.set('examConfigMeta', meta);
+  }
+
+  get examConfigCipher(): EncryptedEnvelope | null {
+    return this.state.examConfigCipher;
+  }
+
+  set examConfigCipher(cipher: EncryptedEnvelope | null) {
+    this.set('examConfigCipher', cipher);
+  }
+
+  get examKey(): string | null {
+    return this.state.examKey;
+  }
+
+  set examKey(key: string | null) {
+    this.set('examKey', key);
   }
 
   get environmentCheckReport(): EnvironmentCheckReport {

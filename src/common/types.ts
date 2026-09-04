@@ -24,6 +24,54 @@ export interface Subtask {
  * login open" — which is why device registration used to stay open through the
  * window students walk into the room during.
  */
+/**
+ * The wire shapes of the split exam paper.
+ *
+ * Declared here rather than imported from the main process: the renderer's
+ * tsconfig does not include `main/`, and that boundary is worth keeping. The
+ * main-process zod schemas produce structurally identical types, and the
+ * contract fixture is what checks the two stay in step.
+ */
+export interface EncryptedEnvelope {
+  iv: string;
+  ciphertext: string;
+  tag: string;
+}
+
+export interface WrappedExamKeyShape extends EncryptedEnvelope {
+  salt: string;
+}
+
+/** Only what a machine may hold before the exam starts. */
+export interface ExamConfigMetaShape {
+  testTitle: string;
+  description: string;
+  accessibleUsers: AccessableUser[];
+  judgerSettings: {
+    timeLimit: number;
+    memoryLimit: number;
+    compareMode?: 'strict' | 'loose';
+    compileTimeout?: number;
+    compileMemoryLimit?: number;
+    maxConcurrentJobs?: number;
+    maxSystemRetries?: number;
+  };
+  submitGraceSeconds?: number;
+  sections: Array<{
+    id: string;
+    title: string;
+    description?: string;
+    maxScore: number;
+    puzzles: Array<{
+      id: string;
+      language: SupportedLanguage;
+      timeLimit?: number;
+      memoryLimit?: number;
+    }>;
+  }>;
+  wrappedExamKey: WrappedExamKeyShape;
+}
+
 export type ExamState =
   | 'UNINITIALIZED'
   | 'INITIALIZED'
@@ -187,6 +235,10 @@ export interface EnvironmentCheckReport {
 
 export interface RamStoreState {
   examConfig: ExamConfig | null;
+  /* Feature 007: the paper's two halves and the key that joins them. */
+  examConfigMeta: ExamConfigMetaShape | null;
+  examConfigCipher: EncryptedEnvelope | null;
+  examKey: string | null;
   environmentCheckReport: EnvironmentCheckReport;
   isConfigured: boolean;
   studentInfo: StudentInformation;

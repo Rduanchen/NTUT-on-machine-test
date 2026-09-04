@@ -1,6 +1,9 @@
 import * as crypto from 'crypto';
 import { ramStore } from './ramStore.service';
 
+/** Must match the backend's derivation exactly, or the offline path breaks. */
+export const PASSWORD_KDF_ITERATIONS = 600_000;
+
 /**
  * Crypto Service - Handles AES-GCM-256 and RSA encryption
  *
@@ -59,6 +62,33 @@ class CryptoService {
       tag: authTag.toString('base64'),
       device_uuid,
     };
+  }
+
+  /**
+   * Unwrap the exam key with the invigilator's spoken password.
+   *
+   * The path that does not need the backend. A machine holding the ciphertext
+   * can start on a password read aloud in the room, which is what keeps a
+   * backend outage from stopping the exam beginning at all.
+   *
+   * Must produce exactly what the backend hands out over the network — the two
+   * paths are the same key, so which one this machine used never matters.
+   */
+  public unwrapExamKey(
+    wrapped: { salt: string; iv: string; ciphertext: string; tag: string },
+    password: string
+  ): string {
+    const salt = Buffer.from(wrapped.salt, 'base64');
+    const derived = crypto.pbkdf2Sync(password, salt, PASSWORD_KDF_ITERATIONS, 32, 'sha256');
+    return this.decryptAesPayload(wrapped, derived.toString('hex'));
+  }
+
+  /** Open the ciphered half of the paper. */
+  public decryptExamPaper(
+    cipher: { iv: string; ciphertext: string; tag: string },
+    examKeyHex: string
+  ): unknown {
+    return JSON.parse(this.decryptAesPayload(cipher, examKeyHex));
   }
 
   /** Decrypt AES-GCM-256 data (Base64 encoded) */

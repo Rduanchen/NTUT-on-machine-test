@@ -8,7 +8,11 @@ import { logger } from '../../src/main/services/logger.service';
 import { fetchSecureExamConfig, healthCheck } from '../../src/main/services/api.service';
 import { connectionService } from '../../src/main/services/connection.service';
 import { messageSyncService } from '../../src/main/services/message-sync.service';
-import { examConfigSchema } from '../../src/main/schemas/examConfig.schema';
+import {
+    examConfigSchema,
+    examConfigPayloadSchema,
+    mergeExamConfig
+} from '../../src/main/schemas/examConfig.schema';
 import { preSettingsSchema } from '../../src/main/schemas/presettings.schema';
 import { ErrorCode } from '../../src/common/errorCodes';
 
@@ -54,6 +58,18 @@ vi.mock('../../src/main/schemas/examConfig.schema', () => ({
     examConfigSchema: {
         safeParse: vi.fn(),
     },
+    /* The paper now arrives split. This is the shape the delivery endpoint
+     * returns; the questions inside `cipher` stay sealed until the exam. */
+    examConfigPayloadSchema: {
+        safeParse: vi.fn(),
+    },
+    examConfigMetaSchema: {
+        parse: vi.fn((value: unknown) => value),
+    },
+    examConfigSecretSchema: {
+        parse: vi.fn((value: unknown) => value),
+    },
+    mergeExamConfig: vi.fn(),
 }));
 vi.mock('../../src/main/schemas/presettings.schema', () => ({
     preSettingsSchema: {
@@ -309,7 +325,7 @@ describe('ConfigService', () => {
 
         it('returns INVALID_CONFIG_FORMAT if fetched config validation fails', async () => {
             (fetchSecureExamConfig as any).mockResolvedValue({ success: true, data: { foo: 'bar' } });
-            (examConfigSchema.safeParse as any).mockReturnValue({
+            (examConfigPayloadSchema.safeParse as any).mockReturnValue({
                 success: false,
                 error: { issues: [{ path: ['field'], message: 'invalid' }] }
             });
@@ -324,24 +340,29 @@ describe('ConfigService', () => {
             }
         });
 
-        it('saves config and updates backendUrl on success', async () => {
-            (fetchSecureExamConfig as any).mockResolvedValue({ success: true, data: { valid: 'config' } });
-            const mockConfig = { valid: 'config' };
-            (examConfigSchema.safeParse as any).mockReturnValue({ success: true, data: mockConfig });
+        it('stores both halves and leaves the questions sealed', async () => {
+            /* The state a machine sits in for the whole of INITIALIZED and
+             * SETUP_FINISHED: fully prepared, holding a paper it cannot read. */
+            const payload = { meta: { testTitle: 'Sealed' }, cipher: { iv: 'i', ciphertext: 'c', tag: 't' } };
+            (fetchSecureExamConfig as any).mockResolvedValue({ success: true, data: payload });
+            (examConfigPayloadSchema.safeParse as any).mockReturnValue({ success: true, data: payload });
 
             const res = await configService.fetchAndSaveConfig('http://server.com');
 
-            expect(ramStore.examConfig).toEqual(mockConfig);
+            expect(ramStore.examConfigMeta).toEqual(payload.meta);
+            expect(ramStore.examConfigCipher).toEqual(payload.cipher);
+            // Nothing was assembled: without the key there is no paper to read.
+            expect(ramStore.examConfig).toBeFalsy();
+            expect(vi.mocked(mergeExamConfig)).not.toHaveBeenCalled();
             expect(ramStore.backendUrl).toBe('http://server.com');
-            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Config saved to RAM'));
             expect(res.success).toBe(true);
         });
 
         it('uses ramStore.backendUrl if host is not provided', async () => {
             ramStore.backendUrl = 'http://ramstore.com';
-            (fetchSecureExamConfig as any).mockResolvedValue({ success: true, data: { valid: 'config' } });
-            const mockConfig = { valid: 'config' };
-            (examConfigSchema.safeParse as any).mockReturnValue({ success: true, data: mockConfig });
+            const payload = { meta: { testTitle: 'Sealed' }, cipher: { iv: 'i', ciphertext: 'c', tag: 't' } };
+            (fetchSecureExamConfig as any).mockResolvedValue({ success: true, data: payload });
+            (examConfigPayloadSchema.safeParse as any).mockReturnValue({ success: true, data: payload });
 
             await configService.fetchAndSaveConfig();
 
