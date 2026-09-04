@@ -26,6 +26,19 @@
           >
             {{ t(`examSystem.serverStatus.${serverStatus}`) }}
           </v-chip>
+          <v-btn
+            class="ml-3 text-none"
+            size="small"
+            variant="tonal"
+            :color="environmentPresentation.color"
+            :prepend-icon="environmentPresentation.icon"
+            @click="showEnvironmentDialog = true"
+          >
+            {{ t(environmentPresentation.labelKey) }}
+            <v-tooltip activator="parent" location="bottom">{{
+              t('examSystem.environmentCheck.openReport')
+            }}</v-tooltip>
+          </v-btn>
         </div>
 
         <div class="d-flex align-center no-drag">
@@ -139,7 +152,9 @@
           {{ t('examSystem.easterEgg.title') }}
         </div>
 
-        <div class="text-h5 font-weight-bold mb-1">{{ t('examSystem.easterEgg.developerName') }}</div>
+        <div class="text-h5 font-weight-bold mb-1">
+          {{ t('examSystem.easterEgg.developerName') }}
+        </div>
 
         <div class="text-subtitle-1 text-medium-emphasis mb-6 font-weight-medium">
           {{ t('examSystem.easterEgg.class') }} <br />
@@ -169,14 +184,25 @@
       </v-card>
     </v-dialog>
     <NotificationCenter v-model="showNotifications" />
+    <EnvironmentCheckDialog
+      v-model="showEnvironmentDialog"
+      :report="environmentReport"
+      @retry="retryEnvironmentCheck"
+      @ignore="showEnvironmentDialog = false"
+    />
 
     <!-- Force Logout Dialog -->
     <v-dialog v-model="forceLogoutDialog" persistent width="auto">
-      <v-card class="pa-8 text-center rounded-xl" style="border: 2px solid #F44336;" elevation="24" min-width="320">
+      <v-card
+        class="pa-8 text-center rounded-xl"
+        style="border: 2px solid #f44336"
+        elevation="24"
+        min-width="320"
+      >
         <v-icon color="error" size="64" class="mb-4">mdi-alert-octagon</v-icon>
         <div class="text-h5 font-weight-bold text-error mb-2">安全連線錯誤或已被強制登出</div>
         <div class="text-body-1 mb-6 font-weight-medium">{{ forceLogoutMessage }}</div>
-        
+
         <v-btn color="error" variant="flat" block size="large" @click="handleAppQuit">
           關閉系統 [Quit Application]
         </v-btn>
@@ -212,12 +238,31 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useTheme } from 'vuetify';
 import NotificationCenter from './components/NotificationCenter.vue';
+import EnvironmentCheckDialog from './components/EnvironmentCheckDialog.vue';
+import { getEnvironmentPresentation } from './components/environment-check.presentation';
 
 const route = useRoute();
 const router = useRouter();
 const studentInfo = ref(null);
 const serverStatus = ref('disconnected');
 const showNotifications = ref(false);
+const showEnvironmentDialog = ref(false);
+const environmentReport = ref({
+  status: 'IDLE',
+  configFingerprint: '',
+  platform: '',
+  architecture: '',
+  requiredLanguages: [],
+  languageResults: [],
+  startedAt: null,
+  completedAt: null,
+  message: ''
+});
+const environmentPresentation = computed(() =>
+  getEnvironmentPresentation(environmentReport.value.status)
+);
+let stopEnvironmentUpdates = null;
+let stopConnectionUpdates = null;
 
 const forceLogoutDialog = ref(false);
 const forceLogoutMessage = ref('');
@@ -266,16 +311,32 @@ const handleAppQuit = () => {
   }
 };
 
+const applyEnvironmentReport = (report) => {
+  if (!report) return;
+  environmentReport.value = report;
+  if (report.status === 'FAILED') showEnvironmentDialog.value = true;
+};
+
+const retryEnvironmentCheck = async () => {
+  const response = await window.api?.environmentCheck?.retry?.();
+  if (response?.data) applyEnvironmentReport(response.data);
+};
+
 onMounted(async () => {
+  const initialEnvironment = await window.api?.environmentCheck?.getReport?.();
+  if (initialEnvironment?.data) applyEnvironmentReport(initialEnvironment.data);
+  stopEnvironmentUpdates =
+    window.api?.environmentCheck?.onUpdated?.(applyEnvironmentReport) ?? null;
+
   if (window.api?.store) {
     await updateServerAvailability();
 
-    window.api.store.onConnectionStatusChanged(async (status) => {
+    stopConnectionUpdates = window.api.store.onConnectionStatusChanged(async (status) => {
       serverStatus.value = status === 'connected' ? 'connected' : 'disconnected';
-      
+
       // Auto-redirect from settings if server connects successfully
       if (status === 'connected' && route.name === 'settings') {
-        const examStatus = await window.api.store.getExamStatus?.() ?? 'UNINITIALIZED';
+        const examStatus = (await window.api.store.getExamStatus?.()) ?? 'UNINITIALIZED';
         if (examStatus === 'UNINITIALIZED') router.push('/not-initialized');
         else if (examStatus === 'NOT_STARTED') router.push('/login');
         else if (examStatus === 'IN_PROGRESS') router.push('/exam');
@@ -304,7 +365,7 @@ onMounted(async () => {
     // During login/waiting, just redirect back to login page to allow re-login
     const currentPath = route.path;
     const isInExam = currentPath === '/exam';
-    
+
     if (isInExam) {
       forceLogoutMessage.value = message || '您的連線已失效，請重新綁定裝置。';
       forceLogoutDialog.value = true;
@@ -317,7 +378,8 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
-  // cleanup if needed
+  stopEnvironmentUpdates?.();
+  stopConnectionUpdates?.();
 });
 
 watch(

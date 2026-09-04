@@ -4,11 +4,18 @@ import type {
   SpecialRuleResultRecord,
   SpecialRule,
   ExamState,
+  EnvironmentCheckReport,
+  IpcResponse
 } from '../common/types';
 
 declare global {
   interface Window {
     api?: {
+      environmentCheck?: {
+        getReport: () => Promise<IpcResponse<EnvironmentCheckReport>>;
+        retry: () => Promise<IpcResponse<EnvironmentCheckReport>>;
+        onUpdated: (callback: (report: EnvironmentCheckReport) => void) => () => void;
+      };
       store?: {
         getConnectionStatus: () => Promise<string>;
         getTestResults: () => Promise<Record<string, JudgeRunResult>>;
@@ -19,16 +26,21 @@ declare global {
         getPuzzleInfo: () => Promise<PuzzleInfo[]>;
         getExamInfo: () => Promise<any>;
         getExamStatus: () => Promise<ExamState>;
-        onConnectionStatusChanged: (callback: (status: string) => void) => (() => void);
-        onExamStatusChanged?: (callback: (status: ExamState) => void) => (() => void);
-        onTestResultsUpdated?: (callback: (results: Record<string, JudgeRunResult>) => void) => (() => void);
+        onConnectionStatusChanged: (callback: (status: string) => void) => () => void;
+        onExamStatusChanged?: (callback: (status: ExamState) => void) => () => void;
+        onTestResultsUpdated?: (
+          callback: (results: Record<string, JudgeRunResult>) => void
+        ) => () => void;
         onSpecialRuleResultsUpdated?: (
-          callback: (results: Record<string, SpecialRuleResultRecord[]>) => void,
-        ) => (() => void);
+          callback: (results: Record<string, SpecialRuleResultRecord[]>) => void
+        ) => () => void;
       };
       judger?: {
         forceStop: () => void;
-        judge: (puzzleId: string, filePath: string) => Promise<{ success: boolean; error?: { code: string; message: string } }>;
+        judge: (
+          puzzleId: string,
+          filePath: string
+        ) => Promise<{ success: boolean; error?: { code: string; message: string } }>;
         getZip: () => Promise<ArrayBuffer | Uint8Array | null>;
         syncResults: () => Promise<{ success: boolean; error?: { code: string; message: string } }>;
         syncCode: () => Promise<{ success: boolean; error?: { code: string; message: string } }>;
@@ -36,7 +48,9 @@ declare global {
       auth?: {
         getStudentInfo: () => Promise<{ id: string; name: string }>;
         isVerified: () => Promise<boolean>;
-        login: (studentId?: string) => Promise<{ success: boolean; error?: { code: string; message: string } }>;
+        login: (
+          studentId?: string
+        ) => Promise<{ success: boolean; error?: { code: string; message: string } }>;
       };
       config?: {
         setJson: (jsonFilePath: string) => Promise<any>;
@@ -56,4 +70,4 @@ declare global {
   }
 }
 
-export { };
+export {};

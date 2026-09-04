@@ -4,6 +4,7 @@ import { registerStoreIpc } from './store.ipc';
 import { registerJudgerIpc } from './judger.ipc';
 import { registerNotificationIpc } from './notification.ipc';
 import { registerLogIpc } from './log.ipc';
+import { registerEnvironmentCheckIpc } from './environment-check.ipc';
 
 /**
  * Register all IPC handlers.
@@ -16,4 +17,5 @@ export function registerAllIpc(): void {
   registerJudgerIpc();
   registerNotificationIpc();
   registerLogIpc();
+  registerEnvironmentCheckIpc();
 }

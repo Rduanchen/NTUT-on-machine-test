@@ -1,15 +1,11 @@
 import { io, Socket } from 'socket.io-client';
 import { getMainWindow } from '../system/windowManager';
 import { ramStore } from './ramStore.service';
-import {
-  getMessages,
-  getExamStatus,
-  fetchSecureExamConfig,
-  getDeviceUuid
-} from './api.service';
+import { getMessages, getExamStatus, fetchSecureExamConfig, getDeviceUuid } from './api.service';
 import { logger } from './logger.service';
 import type { ServerMessage, ExamState } from '../../common/types';
 import { examConfigSchema } from '../schemas/examConfig.schema';
+import { environmentCheckService } from './environment-check.service';
 import { judgeManager } from './judge-manager.service';
 
 const POLL_INTERVAL_MS = 60_000;
@@ -194,7 +190,7 @@ class MessageSyncService {
       if (forceMessageFetch) {
         await this.fetchAllMessages();
       }
-      
+
       // Also fetch exam status to ensure we don't miss state changes if socket disconnects
       const statusRes = await getExamStatus();
       if (statusRes.success && statusRes.data?.status) {
@@ -259,7 +255,7 @@ class MessageSyncService {
       ramStore.isStudentVerified = false;
       ramStore.studentInfo = { id: '', name: '' };
       ramStore.cryptoState = null;
-      
+
       const win = getMainWindow();
       if (win && !win.isDestroyed()) {
         win.webContents?.send('app:force-logout', message.message);
@@ -296,7 +292,7 @@ class MessageSyncService {
         throw new Error('Secure config validation failed');
       }
 
-      ramStore.examConfig = validation.data;
+      await environmentCheckService.applyConfig(validation.data);
       logger.info('[MessageSync] Exam config updated from secure endpoint.');
 
       if (typeof targetVersion === 'number') {

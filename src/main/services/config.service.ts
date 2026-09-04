@@ -10,6 +10,7 @@ import { examConfigSchema } from '../schemas/examConfig.schema';
 import { preSettingsSchema } from '../schemas/presettings.schema';
 import type { ExamConfig, IpcResponse } from '../../common/types';
 import { ErrorCode } from '../../common/errorCodes';
+import { environmentCheckService } from './environment-check.service';
 
 /**
  * Config Service - Handles ExamConfig loading
@@ -27,7 +28,7 @@ import { ErrorCode } from '../../common/errorCodes';
 
 class ConfigService {
   private static instance: ConfigService;
-  private constructor() { }
+  private constructor() {}
 
   public static getInstance(): ConfigService {
     if (!ConfigService.instance) {
@@ -69,7 +70,9 @@ class ConfigService {
       // If remoteHost exists, set URL and start services
       if (remoteHost) {
         ramStore.backendUrl = remoteHost;
-        logger.info(`[Config] Backend URL set to ${remoteHost} via pre_settings. Starting services...`);
+        logger.info(
+          `[Config] Backend URL set to ${remoteHost} via pre_settings. Starting services...`
+        );
         connectionService.start();
         messageSyncService.start(remoteHost);
         return;
@@ -104,7 +107,7 @@ class ConfigService {
         };
       }
 
-      ramStore.examConfig = validation.data as ExamConfig;
+      await environmentCheckService.applyConfig(validation.data as ExamConfig);
 
       // Manual config means we are in pure offline mode.
       ramStore.isOfflineMode = true;
@@ -190,7 +193,7 @@ class ConfigService {
       };
     }
 
-    ramStore.examConfig = validation.data as ExamConfig;
+    await environmentCheckService.applyConfig(validation.data as ExamConfig);
     ramStore.backendUrl = targetHost;
     logger.info('[Config] Config saved to RAM from server.');
     return { success: true };

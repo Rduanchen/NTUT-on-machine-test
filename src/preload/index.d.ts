@@ -10,7 +10,8 @@ import type {
   SpecialRule,
   ExamConfig,
   ExamState,
-  UploadVersionPreference
+  UploadVersionPreference,
+  EnvironmentCheckReport
 } from '../common/types';
 
 interface ConfigAPI {
@@ -24,6 +25,12 @@ interface AuthAPI {
   login: (studentID?: string) => Promise<IpcResponse<void>>;
   isVerified: () => Promise<boolean>;
   getStudentInfo: () => Promise<StudentInformation>;
+}
+
+interface EnvironmentCheckAPI {
+  getReport: () => Promise<IpcResponse<EnvironmentCheckReport>>;
+  retry: () => Promise<IpcResponse<EnvironmentCheckReport>>;
+  onUpdated: (callback: (report: EnvironmentCheckReport) => void) => () => void;
 }
 
 interface StoreAPI {
@@ -44,9 +51,15 @@ interface StoreAPI {
   onConnectionStatusChanged: (callback: (status: string) => void) => () => void;
   onExamStatusChanged: (callback: (status: string) => void) => () => void;
   onTestResultsUpdated: (callback: (results: Record<string, JudgeRunResult>) => void) => () => void;
-  onSpecialRuleResultsUpdated: (callback: (results: Record<string, SpecialRuleResultRecord[]>) => void) => () => void;
-  onHighestTestResultsUpdated: (callback: (results: Record<string, JudgeRunResult>) => void) => () => void;
-  onHighestSpecialRuleResultsUpdated: (callback: (results: Record<string, SpecialRuleResultRecord[]>) => void) => () => void;
+  onSpecialRuleResultsUpdated: (
+    callback: (results: Record<string, SpecialRuleResultRecord[]>) => void
+  ) => () => void;
+  onHighestTestResultsUpdated: (
+    callback: (results: Record<string, JudgeRunResult>) => void
+  ) => () => void;
+  onHighestSpecialRuleResultsUpdated: (
+    callback: (results: Record<string, SpecialRuleResultRecord[]>) => void
+  ) => () => void;
 }
 
 interface JudgerAPI {
@@ -68,6 +81,7 @@ interface NotificationAPI {
 
 interface API {
   config: ConfigAPI;
+  environmentCheck: EnvironmentCheckAPI;
   auth: AuthAPI;
   store: StoreAPI;
   judger: JudgerAPI;
@@ -81,4 +95,4 @@ declare global {
   }
 }
 
-export { };
+export {};

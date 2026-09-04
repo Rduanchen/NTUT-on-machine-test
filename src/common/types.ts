@@ -130,8 +130,51 @@ export interface CryptoState {
   rsaPublicKey: string;
 }
 
+export type EnvironmentCheckStatus = 'IDLE' | 'RUNNING' | 'PASSED' | 'FAILED';
+export type EnvironmentLanguageCheckStatus = 'pending' | 'running' | 'passed' | 'failed';
+export type EnvironmentResultStatus = 'passed' | 'failed';
+export type EnvironmentDiagnosticKind = 'smoke' | 'tle' | 'mle';
+
+export interface EnvironmentToolResult {
+  tool: string;
+  status: EnvironmentResultStatus;
+  version: string | null;
+  summary: string;
+}
+
+export interface EnvironmentDiagnosticResult {
+  kind: EnvironmentDiagnosticKind;
+  status: EnvironmentResultStatus;
+  durationMs: number;
+  peakMemoryBytes: number | null;
+  summary: string;
+  technicalDetails: string | null;
+}
+
+export interface EnvironmentLanguageResult {
+  language: SupportedLanguage;
+  status: EnvironmentLanguageCheckStatus;
+  tools: EnvironmentToolResult[];
+  checks: EnvironmentDiagnosticResult[];
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+export interface EnvironmentCheckReport {
+  status: EnvironmentCheckStatus;
+  configFingerprint: string;
+  platform: NodeJS.Platform;
+  architecture: string;
+  requiredLanguages: SupportedLanguage[];
+  languageResults: EnvironmentLanguageResult[];
+  startedAt: string | null;
+  completedAt: string | null;
+  message: string;
+}
+
 export interface RamStoreState {
   examConfig: ExamConfig | null;
+  environmentCheckReport: EnvironmentCheckReport;
   isConfigured: boolean;
   studentInfo: StudentInformation;
   isStudentVerified: boolean;
