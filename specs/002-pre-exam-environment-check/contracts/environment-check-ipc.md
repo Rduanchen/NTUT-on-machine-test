@@ -34,11 +34,11 @@ Renderer 只能透過以下介面讀取或請求環境檢查；不得傳入任�
 
 登入導航在尚未驗證的使用者情境下，必須視目前 report 為：
 
-| Status | Login allowed |
-|---|---|
-| `PASSED` | yes |
-| `IDLE` | no |
-| `RUNNING` | no |
-| `FAILED` | no |
+| Status    | Login allowed                                                             |
+| --------- | ------------------------------------------------------------------------- |
+| `PASSED`  | yes                                                                       |
+| `IDLE`    | yes; authenticated login may be required before the config can be fetched |
+| `RUNNING` | no                                                                        |
+| `FAILED`  | yes, after the warning is presented and explicitly acknowledged           |
 
 已在進行中的考試不因 config update 的新 report 被強制導頁；但 UI 必須顯示其最新狀態。

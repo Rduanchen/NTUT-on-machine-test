@@ -15,6 +15,13 @@
 
 ## Manual acceptance scenarios
 
+### Authenticated config bootstrap
+
+1. 讓後端從 `UNINITIALIZED` 進入 `NOT_STARTED`，但尚未登入取得 secure config。
+2. 確認環境狀態顯示「等待考試設定」，且可以進入登入頁，不產生 settings/login redirect loop。
+3. 登入成功後確認 secure config 寫入 RAM，隨即執行環境檢查。
+4. 只有在已完成檢查且必要語言清單確實為空時，才顯示「沒有需要檢查的程式語言」。
+
 ### All required languages available
 
 1. 載入使用多種語言的 config。
@@ -25,14 +32,14 @@
 ### Missing or unusable tool
 
 1. 使用需要缺少或不可執行工具的 config。
-2. 確認 persistent failure dialog 出現且登入被封鎖。
-3. 嘗試以直接導航進入登入，確認仍被封鎖。
-4. 修復工具後選擇 retry，確認新 report 取代失敗 report 並開放登入。
+2. 確認 persistent failure dialog 自動出現，且只能明確選擇重新檢查或忽略風險。
+3. 選擇「忽略風險並繼續」，確認可進入登入，但 system bar 仍維持失敗狀態。
+4. 修復工具後選擇 retry，確認新 report 取代失敗 report。
 
 ### TLE/MLE protection failure
 
 1. 在 test double 或專用 integration fixture 中，使診斷不得到預期 TLE 或 MLE classification。
-2. 確認 report 清楚標示 check 類型與失敗原因，並封鎖登入。
+2. 確認 report 清楚標示 check 類型與失敗原因，並顯示風險警告。
 3. 確認測試完成後沒有遺留診斷程序，且學生作答與判題資料沒有變更。
 
 ### Config replacement

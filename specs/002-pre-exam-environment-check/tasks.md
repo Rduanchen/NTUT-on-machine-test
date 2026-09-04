@@ -56,9 +56,9 @@
 
 ---
 
-## Phase 4: User Story 2 - 阻擋不安全的登入並協助修復 (Priority: P1)
+## Phase 4: User Story 2 - 警告不安全的環境並允許現場決策 (Priority: P1)
 
-**Goal**: Expose trusted status/retry operations and enforce a non-bypassable login gate.
+**Goal**: Expose trusted status/retry operations, block while checks run, and require an explicit warning decision after failure.
 
 **Independent Test**: Force a missing-tool failure, attempt every login navigation path, repair/retry, and verify login becomes available without restart.
 
@@ -158,7 +158,7 @@ Task T016: Validate login-gate decisions in test/ui/environment-check-route.test
 
 1. Foundation provides typed, isolated reports.
 2. US1 adds automatic checks to every config source.
-3. US2 makes failure non-bypassable and retryable.
+3. US2 makes running checks non-bypassable and failed checks explicitly acknowledgeable or retryable.
 4. US3 makes the report continuously visible.
 5. Polish proves process safety and platform behavior.
 

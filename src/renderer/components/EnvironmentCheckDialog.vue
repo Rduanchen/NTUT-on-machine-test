@@ -20,7 +20,13 @@
               {{ t('examSystem.environmentCheck.eyebrow') }}
             </div>
             <div class="text-h5 font-weight-bold">{{ t('examSystem.environmentCheck.title') }}</div>
-            <div class="text-body-2 text-medium-emphasis mt-1">{{ report.message }}</div>
+            <div class="text-body-2 text-medium-emphasis mt-1">
+              {{
+                report.status === 'IDLE'
+                  ? t('examSystem.environmentCheck.awaitingConfigDetail')
+                  : report.message
+              }}
+            </div>
           </div>
           <v-chip :color="presentation.color" variant="flat" size="small">
             {{ t(presentation.labelKey) }}
@@ -32,13 +38,14 @@
       <v-card-text class="pa-6">
         <v-alert
           v-if="report.status === 'FAILED'"
-          color="error"
+          color="warning"
           variant="tonal"
-          icon="mdi-lock-alert-outline"
+          icon="mdi-alert-outline"
           class="mb-5"
         >
-          <div class="font-weight-bold">{{ t('examSystem.environmentCheck.loginBlocked') }}</div>
+          <div class="font-weight-bold">{{ t('examSystem.environmentCheck.failureWarning') }}</div>
           <div class="text-body-2">{{ t('examSystem.environmentCheck.fixHint') }}</div>
+          <div class="text-body-2 mt-2">{{ t('examSystem.environmentCheck.ignoreRisk') }}</div>
         </v-alert>
 
         <div class="d-flex flex-wrap ga-2 mb-5 text-caption text-medium-emphasis">
@@ -130,15 +137,20 @@
             </v-expansion-panel>
           </v-expansion-panels>
         </div>
-        <v-empty-state
-          v-else
-          icon="mdi-code-braces"
-          :title="t('examSystem.environmentCheck.noLanguages')"
-        />
+        <v-empty-state v-else :icon="emptyState.icon" :title="t(emptyState.titleKey)" />
       </v-card-text>
 
       <v-divider />
       <v-card-actions class="pa-4 px-6">
+        <v-btn
+          v-if="report.status === 'FAILED'"
+          color="warning"
+          variant="outlined"
+          prepend-icon="mdi-alert-circle-check-outline"
+          @click="$emit('ignore')"
+        >
+          {{ t('examSystem.environmentCheck.ignoreAndContinue') }}
+        </v-btn>
         <v-btn
           v-if="report.status !== 'FAILED'"
           variant="text"
@@ -166,14 +178,16 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { EnvironmentCheckReport } from '../../common/types';
 import {
+  getEnvironmentEmptyState,
   getEnvironmentPresentation,
   isEnvironmentDialogPersistent
 } from './environment-check.presentation';
 
 const props = defineProps<{ modelValue: boolean; report: EnvironmentCheckReport }>();
-defineEmits<{ 'update:modelValue': [value: boolean]; retry: [] }>();
+defineEmits<{ 'update:modelValue': [value: boolean]; retry: []; ignore: [] }>();
 const { t } = useI18n();
 const presentation = computed(() => getEnvironmentPresentation(props.report.status));
+const emptyState = computed(() => getEnvironmentEmptyState(props.report.status));
 </script>
 
 <style scoped>

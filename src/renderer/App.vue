@@ -188,6 +188,7 @@
       v-model="showEnvironmentDialog"
       :report="environmentReport"
       @retry="retryEnvironmentCheck"
+      @ignore="showEnvironmentDialog = false"
     />
 
     <!-- Force Logout Dialog -->

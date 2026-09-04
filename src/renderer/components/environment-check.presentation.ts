@@ -6,6 +6,11 @@ export interface EnvironmentPresentation {
   labelKey: string;
 }
 
+export interface EnvironmentEmptyState {
+  icon: string;
+  titleKey: string;
+}
+
 const presentations: Record<EnvironmentCheckStatus, EnvironmentPresentation> = {
   IDLE: {
     color: 'grey',
@@ -37,6 +42,31 @@ export function getEnvironmentPresentation(
 
 export function isEnvironmentDialogPersistent(status: EnvironmentCheckStatus): boolean {
   return status === 'FAILED';
+}
+
+export function getEnvironmentEmptyState(status: EnvironmentCheckStatus): EnvironmentEmptyState {
+  if (status === 'IDLE') {
+    return {
+      icon: 'mdi-cloud-download-outline',
+      titleKey: 'examSystem.environmentCheck.awaitingConfig'
+    };
+  }
+  if (status === 'RUNNING') {
+    return {
+      icon: 'mdi-progress-clock',
+      titleKey: 'examSystem.environmentCheck.preparingDiagnostics'
+    };
+  }
+  if (status === 'FAILED') {
+    return {
+      icon: 'mdi-alert-circle-outline',
+      titleKey: 'examSystem.environmentCheck.noDiagnosticResults'
+    };
+  }
+  return {
+    icon: 'mdi-code-braces',
+    titleKey: 'examSystem.environmentCheck.noLanguages'
+  };
 }
 
 export function summarizeEnvironmentFailures(results: EnvironmentLanguageResult[]): string[] {

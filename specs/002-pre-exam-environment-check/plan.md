@@ -8,7 +8,7 @@
 
 ## Summary
 
-在 config 成為目前考試設定後，建立一個獨立的主程序環境檢查服務。它從設定擷取並去重考試使用語言，依序以正式本機判題相同的命令和執行語意驗證工具可用性、正常執行、TLE 與 MLE；將結構化報告存於 RAM 並透過 IPC 推送給 renderer。路由以檢查狀態封鎖登入，根 App 顯示不可略過的失敗 dialog 與 system bar 報告入口。
+在 config 成為目前考試設定後，建立一個獨立的主程序環境檢查服務。它從設定擷取並去重考試使用語言，依序以正式本機判題相同的命令和執行語意驗證工具可用性、正常執行、TLE 與 MLE；將結構化報告存於 RAM 並透過 IPC 推送給 renderer。路由在檢查進行中封鎖登入；失敗時根 App 顯示需明確處置的 warning dialog，助教可重試或知情繼續，system bar 則持續保留失敗報告入口。
 
 服務使用低階 judge/runner 原語，而不是會保存學生程式與成績的 service。每一輪檢查都帶設定／語言指紋；新設定到達會使舊輪次結果失效。詳細取捨見 [research.md](./research.md)。
 
@@ -34,16 +34,16 @@
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-| 原則 | 設計回應 | Gate |
-|------|----------|------|
-| Type Safety | 共享型別描述 report、language profile、IPC 回應；不以 `any` 跨越主程序／renderer 邊界。 | PASS |
-| Async & High Concurrency | 單一 coordinator、設定版本 token、同語言去重與序列化檢查，避免重試或 socket 更新競爭。 | PASS |
-| Strict Branching Strategy | 實作在 `feat/pre-exam-environment-check`。 | PASS |
-| Absolute Security & Stability | 固定診斷程式、無 shell、固定資源上限、程序樹清理、輸出截斷及登入封鎖。 | PASS |
-| Comprehensive Testing | service、config source、IPC、route decision、UI mapping 皆有 Vitest 覆蓋；真實 runtime integration suite 於發版／平台矩陣執行。 | PASS |
-| Offline Support | file config 和 server/socket config 皆經同一 coordinator；結果只存 RAM，不依賴網路。 | PASS |
+| 原則                          | 設計回應                                                                                                                        | Gate |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| Type Safety                   | 共享型別描述 report、language profile、IPC 回應；不以 `any` 跨越主程序／renderer 邊界。                                         | PASS |
+| Async & High Concurrency      | 單一 coordinator、設定版本 token、同語言去重與序列化檢查，避免重試或 socket 更新競爭。                                          | PASS |
+| Strict Branching Strategy     | 實作在 `feat/pre-exam-environment-check`。                                                                                      | PASS |
+| Absolute Security & Stability | 固定診斷程式、無 shell、固定資源上限、程序樹清理、輸出截斷、檢查中登入封鎖及失敗風險確認。                                      | PASS |
+| Comprehensive Testing         | service、config source、IPC、route decision、UI mapping 皆有 Vitest 覆蓋；真實 runtime integration suite 於發版／平台矩陣執行。 | PASS |
+| Offline Support               | file config 和 server/socket config 皆經同一 coordinator；結果只存 RAM，不依賴網路。                                            | PASS |
 
 **Post-design re-check**: PASS。沒有為此功能新增不必要的資料庫、外部服務或第二套判題命令。
 

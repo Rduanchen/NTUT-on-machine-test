@@ -14,7 +14,7 @@
 
 ## 2. Config 寫入與非同步閘門
 
-**Decision**: 建立 shared async config orchestration；每一個已驗證 config 來源都呼叫它。流程先將 config 寫入 RAM、立即標記 report 為 RUNNING，再等待當前檢查完成後才釋放登入流程；router 同時以 report status 作最後防線。
+**Decision**: 建立 shared async config orchestration；每一個已驗證 config 來源都呼叫它。流程先將 config 寫入 RAM、立即標記 report 為 RUNNING，再等待當前檢查完成後才釋放登入流程；FAILED 會顯示需明確處置的警告，但助教可知情繼續。
 
 **Rationale**: config 目前來自上傳檔、首次伺服器取得及 socket refresh。RAM listener 是同步且會吞掉 listener 例外，不能承擔可等待的控制流程。先寫入 RAM 保持「config 寫入時開始驗證」語意，亦讓 UI 可識別本次所需語言。
 
@@ -49,7 +49,7 @@
 
 ## 5. UI、IPC 與設定更新
 
-**Decision**: 主程序持有 latest report，透過專用 IPC 提供讀取、重跑與事件訂閱。App root 使用既有 persistent dialog 模式顯示失敗，system bar 在 server status 附近顯示狀態並開啟 report。socket config update 比較語言集合：未變則保留通過結果；改變才跑新檢查，且不將已進行考試的學生導離頁面。
+**Decision**: 主程序持有 latest report，透過專用 IPC 提供讀取、重跑與事件訂閱。App root 使用 persistent dialog 顯示失敗，提供重新檢查與明確忽略風險兩種處置；system bar 在 server status 附近顯示真實狀態並開啟 report。socket config update 比較語言集合：未變則保留通過結果；改變才跑新檢查，且不將已進行考試的學生導離頁面。
 
 **Rationale**: renderer 不能安全地起 child process；App 是跨頁可見 system bar 及 force-dialog 的自然位置。socket refresh 現在會 rejudge stored programs，重跑壓力診斷會競爭資源，需以語言集合避免無效重跑。
 
@@ -68,4 +68,4 @@
 **Alternatives considered**:
 
 - 只測 UI：拒絕，無法驗證判題語意及競爭條件。
-- 只測 service 而省略 IPC／route：拒絕，登入封鎖可被導航繞過。
+- 只測 service 而省略 IPC／route：拒絕，無法保證檢查中仍會等待，或失敗後能按設計知情繼續。

@@ -11,6 +11,6 @@ export function getEnvironmentNavigationDecision(
   context: EnvironmentNavigationContext
 ): true | { name: 'settings' } {
   if (context.targetName !== 'login') return true;
-  if (context.status === 'PASSED') return true;
+  if (context.status !== 'RUNNING') return true;
   return { name: 'settings' };
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getEnvironmentPresentation,
+  getEnvironmentEmptyState,
   isEnvironmentDialogPersistent,
   summarizeEnvironmentFailures
 } from '../../src/renderer/components/environment-check.presentation';
@@ -33,5 +34,14 @@ describe('environment check presentation', () => {
         { language: 'Java', status: 'passed' }
       ] as any)
     ).toEqual(['C']);
+  });
+
+  it('distinguishes a missing config from a checked config with no languages', () => {
+    expect(getEnvironmentEmptyState('IDLE').titleKey).toBe(
+      'examSystem.environmentCheck.awaitingConfig'
+    );
+    expect(getEnvironmentEmptyState('PASSED').titleKey).toBe(
+      'examSystem.environmentCheck.noLanguages'
+    );
   });
 });
