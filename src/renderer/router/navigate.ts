@@ -6,13 +6,12 @@ import type { ExamState } from '../../common/types';
 /**
  * Pages the derivation can ask for that do not exist yet.
  *
- * `standby` arrives with the INITIALIZED-phase work and `pending-approval`
- * with the re-entry work. Until then they fall back to the nearest existing
- * page so every checkpoint stays runnable. Delete an entry when its page
- * lands — leaving one behind would quietly keep sending students elsewhere.
+ * `pending-approval` arrives with the re-entry work. Until then it falls back
+ * to the nearest existing page so every checkpoint stays runnable. Delete the
+ * entry when its page lands — leaving one behind would quietly keep sending
+ * students elsewhere.
  */
 const NOT_YET_BUILT: Partial<Record<DerivedPage, DerivedPage>> = {
-  standby: 'not-initialized',
   'pending-approval': 'login'
 };
 

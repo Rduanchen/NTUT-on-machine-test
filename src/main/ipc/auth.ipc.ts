@@ -21,6 +21,61 @@ import fs from 'fs';
  * - auth:is-verified         → Check if student is verified
  * - auth:get-student-info    → Get current student information
  */
+/**
+ * Register this machine with the backend and keep the key in memory.
+ *
+ * Its own step, not a side effect of logging in.
+ *
+ * Registration used to happen lazily inside `auth:login`, which tied it to a
+ * phase where login is open. Machines are meant to register in INITIALIZED —
+ * in an empty room, before any student can log in — so the two had to come
+ * apart. It also means a machine that is refused registration says so, instead
+ * of surfacing as a failed login.
+ */
+async function registerThisDevice(): Promise<IpcResponse<void>> {
+  logger.info('[Auth] Device registration attempt');
+  try {
+    const keyResponse = await getPublicKey();
+    if (!keyResponse.success || !keyResponse.data?.publicKey) {
+      return {
+        success: false,
+        error: { code: ErrorCode.REGISTRATION_FAILED, message: 'Failed to get RSA public key' }
+      };
+    }
+
+    const deviceUuid = await getDeviceUuid();
+    const { encrypted_aes_key } = cryptoService.buildRegistrationPayload(
+      keyResponse.data.publicKey,
+      deviceUuid
+    );
+    const registerResponse = await registerDevice(deviceUuid, encrypted_aes_key);
+
+    if (!registerResponse.success) {
+      /* The key was written to memory before the request. Clearing it keeps
+       * "holds a key" meaning "the backend knows this key", which is what the
+       * page derivation reads. */
+      ramStore.cryptoState = null;
+      return {
+        success: false,
+        error: {
+          code: registerResponse.error?.code ?? ErrorCode.REGISTRATION_FAILED,
+          message: registerResponse.error?.message ?? 'Failed to register device'
+        }
+      };
+    }
+
+    messageSyncService.registerSocket();
+    return { success: true };
+  } catch (error) {
+    logger.error('[Auth] Error during registration:', error);
+    ramStore.cryptoState = null;
+    return {
+      success: false,
+      error: { code: ErrorCode.REGISTRATION_FAILED, message: 'Server unreachable' }
+    };
+  }
+}
+
 export function registerAuthIpc(): void {
   /**
    * Device Registration Flow:
@@ -28,28 +83,8 @@ export function registerAuthIpc(): void {
    * 2. Generate AES key + session ID
    * 3. Encrypt and register with server
    */
-  ipcMain.handle('auth:register', async (_event): Promise<IpcResponse<void>> => {
-    logger.info(`[Auth] Manual device registration attempt`);
-    try {
-      const keyResponse = await getPublicKey();
-      if (!keyResponse.success || !keyResponse.data?.publicKey) {
-        return { success: false, error: { code: ErrorCode.REGISTRATION_FAILED, message: 'Failed to get RSA public key' } };
-      }
-
-      const deviceUuid = await getDeviceUuid();
-      const { encrypted_aes_key } = cryptoService.buildRegistrationPayload(keyResponse.data.publicKey, deviceUuid);
-      const registerResponse = await registerDevice(deviceUuid, encrypted_aes_key);
-
-      if (!registerResponse.success) {
-        return { success: false, error: { code: ErrorCode.REGISTRATION_FAILED, message: 'Failed to register device' } };
-      }
-
-      messageSyncService.registerSocket();
-      return { success: true };
-    } catch (error) {
-      logger.error('[Auth] Error during registration:', error);
-      return { success: false, error: { code: ErrorCode.REGISTRATION_FAILED, message: 'Server unreachable' } };
-    }
+  ipcMain.handle('auth:register', async (): Promise<IpcResponse<void>> => {
+    return registerThisDevice();
   });
 
   /**
@@ -82,20 +117,20 @@ export function registerAuthIpc(): void {
         return { success: true };
       }
 
-      // 1. Ensure device is registered
+      /* 1. Registration is a prerequisite, not a step of logging in.
+       *
+       * Doing it here used to mean a machine could register at any phase where
+       * login is open — including during the exam, with students in the room.
+       * Registration belongs to INITIALIZED; after that it goes through TA
+       * approval, and this reports that plainly rather than as a login failure. */
       if (!ramStore.cryptoState) {
-        const keyResponse = await getPublicKey();
-        if (!keyResponse.success || !keyResponse.data?.publicKey) {
-          return { success: false, error: { code: ErrorCode.REGISTRATION_FAILED, message: 'Failed to get RSA public key' } };
-        }
-        const deviceUuid = await getDeviceUuid();
-        const { encrypted_aes_key } = cryptoService.buildRegistrationPayload(keyResponse.data.publicKey, deviceUuid);
-        const registerResponse = await registerDevice(deviceUuid, encrypted_aes_key);
-        if (!registerResponse.success) {
-          ramStore.cryptoState = null;
-          return { success: false, error: { code: ErrorCode.REGISTRATION_FAILED, message: 'Failed to register device with server' } };
-        }
-        messageSyncService.registerSocket();
+        return {
+          success: false,
+          error: {
+            code: ErrorCode.REGISTRATION_FAILED,
+            message: 'This machine is not registered yet.'
+          }
+        };
       }
 
       // 2. Determine student ID (manual vs IP)

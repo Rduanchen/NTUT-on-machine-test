@@ -11,6 +11,7 @@ import {
 } from '../judge/node-judger/environment-profiles';
 import { EnvironmentCheckRunner } from '../judge/node-judger/environment-check-runner';
 import { ramStore } from './ramStore.service';
+import { reportEnvironmentCheck } from './api.service';
 
 export interface EnvironmentLanguageExecutor {
   runLanguage(
@@ -158,7 +159,35 @@ export class EnvironmentCheckService {
   }
 
   private publish(runId: number, report: EnvironmentCheckReport): void {
-    if (runId === this.runId) ramStore.environmentCheckReport = report;
+    if (runId !== this.runId) return;
+    ramStore.environmentCheckReport = report;
+    void this.reportToBackend(report);
+  }
+
+  /**
+   * Tell the backend whether this seat can run the exam.
+   *
+   * Fire-and-forget on purpose. The verdict is for the invigilator's console,
+   * not for this machine — a backend that cannot be reached must not stop the
+   * check itself, and the report is resent on the next run anyway.
+   *
+   * Only terminal verdicts are sent. RUNNING would arrive once per language and
+   * tell the console nothing it can act on.
+   */
+  private async reportToBackend(report: EnvironmentCheckReport): Promise<void> {
+    if (report.status !== 'PASSED' && report.status !== 'FAILED') return;
+    if (ramStore.isOfflineMode) return;
+    if (!ramStore.cryptoState) return;
+
+    const failed = report.languageResults
+      .filter((result) => result.status === 'failed')
+      .map((result) => result.language);
+
+    try {
+      await reportEnvironmentCheck(report.status, failed);
+    } catch {
+      /* Reported again on the next check. */
+    }
   }
 }
 

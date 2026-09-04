@@ -138,6 +138,30 @@ export async function registerDevice(device_uuid: string, encrypted_aes_key: str
   }
 }
 
+/**
+ * Report this machine's environment-check verdict.
+ *
+ * Goes over the authenticated client, which encrypts with the device key — but
+ * carries no session token, because the check runs before any student has
+ * logged in. Sends the verdict and the failing language names only; the full
+ * diagnostic stays on the machine, where its unbounded compiler output can do
+ * no harm.
+ */
+export async function reportEnvironmentCheck(
+  status: 'RUNNING' | 'PASSED' | 'FAILED',
+  failedLanguages: string[]
+): Promise<IpcResponse<void>> {
+  try {
+    const response = await authClient.post(`${getBaseUrl()}/exam/environment-report`, {
+      status,
+      failedLanguages
+    });
+    return { success: true, data: response.data };
+  } catch (error) {
+    return makeErrorResponse('reportEnvironmentCheck', error);
+  }
+}
+
 export async function login(payload: { testId: string; password?: string }): Promise<IpcResponse<{ session_token: string }>> {
   try {
     const response = await authClient.post(`${getBaseUrl()}/auth/login`, payload);

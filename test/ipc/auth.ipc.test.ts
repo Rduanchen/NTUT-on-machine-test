@@ -179,12 +179,29 @@ describe('auth.ipc', () => {
       vi.mocked(registerDevice).mockResolvedValue({ success: true } as any);
     });
 
-    it('fails if inline registration fails', async () => {
-      vi.mocked(registerDevice).mockResolvedValueOnce({ success: false } as any);
+    it('refuses to log in a machine that has not registered', async () => {
+      /* Registration used to happen inline here, which tied it to a phase
+       * where login is open — including during the exam, with students in the
+       * room. It is its own step now, so this reports the real situation
+       * instead of quietly registering. */
       const result = await invoke('auth:login', 'test1');
+
       expect(result.success).toBe(false);
       expect(result.error?.code).toBe('REGISTRATION_FAILED');
+    });
+
+    it('never registers as a side effect of logging in', async () => {
+      await invoke('auth:login', 'test1');
+
+      expect(vi.mocked(registerDevice)).not.toHaveBeenCalled();
       expect(ramStore.cryptoState).toBeNull();
+    });
+
+    it('registers on its own when asked directly', async () => {
+      const result = await invoke('auth:register');
+
+      expect(result.success).toBe(true);
+      expect(vi.mocked(registerDevice)).toHaveBeenCalledOnce();
     });
 
     it('fails if getStudentIdByIp fails and no manual ID', async () => {
