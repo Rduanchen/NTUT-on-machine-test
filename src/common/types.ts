@@ -16,7 +16,20 @@ export interface Subtask {
   hidden: TestCase[];
 }
 
-export type ExamState = 'UNINITIALIZED' | 'NOT_STARTED' | 'IN_PROGRESS' | 'FINISHED';
+/**
+ * The global exam phase, held by the backend and mirrored here.
+ *
+ * Five values with disjoint meanings. The retired `NOT_STARTED` carried two of
+ * them at once — "initialised, registration open" and "registration closed,
+ * login open" — which is why device registration used to stay open through the
+ * window students walk into the room during.
+ */
+export type ExamState =
+  | 'UNINITIALIZED'
+  | 'INITIALIZED'
+  | 'SETUP_FINISHED'
+  | 'IN_PROGRESS'
+  | 'FINISHED';
 
 export type SupportedLanguage = 'C' | 'Cpp' | 'Python' | 'JavaScript' | 'Java';
 

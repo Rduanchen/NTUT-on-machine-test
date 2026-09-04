@@ -216,6 +216,16 @@ export function registerAuthIpc(): void {
     return ramStore.isStudentVerified;
   });
 
+  /* Whether this machine currently holds a device key.
+   *
+   * The key lives in memory only, so a restart loses it and this reports false
+   * again — which is the honest answer: to the backend that machine is now
+   * indistinguishable from an unregistered one, and it has to re-enter through
+   * the same gate. The router derives the page from this. */
+  ipcMain.handle('auth:is-registered', () => {
+    return ramStore.cryptoState !== null;
+  });
+
   ipcMain.handle('auth:get-student-info', () => {
     return ramStore.studentInfo;
   });

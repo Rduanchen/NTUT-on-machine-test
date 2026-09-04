@@ -31,6 +31,7 @@ const api = {
     register: () => ipcRenderer.invoke('auth:register'),
     login: (studentId?: string) => ipcRenderer.invoke('auth:login', studentId),
     isVerified: () => ipcRenderer.invoke('auth:is-verified'),
+    isRegistered: () => ipcRenderer.invoke('auth:is-registered'),
     getStudentInfo: () => ipcRenderer.invoke('auth:get-student-info'),
     onForceLogout: (callback: (message: string) => void) => {
       const listener = (_event: any, message: string) => callback(message);

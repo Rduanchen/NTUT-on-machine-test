@@ -235,6 +235,7 @@
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { goToDerivedPage } from './router/navigate';
 import { useI18n } from 'vue-i18n';
 import { useTheme } from 'vuetify';
 import NotificationCenter from './components/NotificationCenter.vue';
@@ -336,11 +337,7 @@ onMounted(async () => {
 
       // Auto-redirect from settings if server connects successfully
       if (status === 'connected' && route.name === 'settings') {
-        const examStatus = (await window.api.store.getExamStatus?.()) ?? 'UNINITIALIZED';
-        if (examStatus === 'UNINITIALIZED') router.push('/not-initialized');
-        else if (examStatus === 'NOT_STARTED') router.push('/login');
-        else if (examStatus === 'IN_PROGRESS') router.push('/exam');
-        else if (examStatus === 'FINISHED') router.push('/finished');
+        await goToDerivedPage(router);
       }
     });
   }

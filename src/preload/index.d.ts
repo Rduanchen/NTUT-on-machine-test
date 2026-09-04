@@ -23,7 +23,9 @@ interface ConfigAPI {
 
 interface AuthAPI {
   login: (studentID?: string) => Promise<IpcResponse<void>>;
+  register: () => Promise<IpcResponse<void>>;
   isVerified: () => Promise<boolean>;
+  isRegistered: () => Promise<boolean>;
   getStudentInfo: () => Promise<StudentInformation>;
 }
 

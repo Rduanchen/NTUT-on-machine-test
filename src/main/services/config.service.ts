@@ -111,7 +111,10 @@ class ConfigService {
 
       // Manual config means we are in pure offline mode.
       ramStore.isOfflineMode = true;
-      ramStore.examStatus = 'NOT_STARTED'; // Push router to login page
+      /* A manually deployed machine behaves as if registration has closed and
+       * login is open — which is what the old NOT_STARTED meant here. The
+       * offline deployment path is reworked with the {meta, cipher} bundle. */
+      ramStore.examStatus = 'SETUP_FINISHED';
 
       logger.info('[Config] Config loaded from uploaded file (Offline Mode).');
       return { success: true };

@@ -200,7 +200,7 @@ describe('ConfigService', () => {
             expect(res.success).toBe(true);
             expect(ramStore.examConfig).toEqual(mockConfig);
             expect(ramStore.isOfflineMode).toBe(true);
-            expect(ramStore.examStatus).toBe('NOT_STARTED');
+            expect(ramStore.examStatus).toBe('SETUP_FINISHED');
             expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Config loaded from uploaded file'));
         });
 

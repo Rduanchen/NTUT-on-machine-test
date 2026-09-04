@@ -168,6 +168,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
+import { goToDerivedPage } from '../router/navigate';
 import type { JudgeRunResult, ExamConfig } from '../../common/types';
 
 const { t } = useI18n();
@@ -383,14 +384,8 @@ onMounted(async () => {
     
     effectiveSpecialRules.value = await window.api.store.getEffectiveSpecialRules?.() || {};
 
-    statusUnsubscribe = window.api.store.onExamStatusChanged?.((status: string) => {
-      if (status === 'IN_PROGRESS') {
-        router.push('/exam');
-      } else if (status === 'NOT_STARTED') {
-        router.push('/login');
-      } else if (status === 'UNINITIALIZED') {
-        router.push('/not-initialized');
-      }
+    statusUnsubscribe = window.api.store.onExamStatusChanged?.(() => {
+      void goToDerivedPage(router);
     }) || null;
   }
 

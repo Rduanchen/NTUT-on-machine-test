@@ -145,6 +145,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { VFileUpload } from 'vuetify/labs/VFileUpload';
 import { router } from '../router/index';
+import { goToDerivedPage } from '../router/navigate';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -159,7 +160,7 @@ onMounted(async () => {
   if (window.api?.config) {
     const isSetupComplete = await window.api.config.isSetupComplete();
     if (isSetupComplete) {
-      router.push('/login');
+      await goToDerivedPage(router);
     }
   }
 });
@@ -177,7 +178,7 @@ const uploadConfigFile = async (file: File) => {
   if (!window.api?.config) return;
   const re = await window.api.config.setJson(file.path);
   if (re.success) {
-    router.push('/login');
+    await goToDerivedPage(router);
   } else {
     alert(
       t('examSystem.config.upload.failed') +
@@ -218,15 +219,9 @@ const getConfigFileFromServer = async () => {
   // Actually try to fetch it, which sets backendUrl and starts services.
   const re = await window.api.config.getFromServer(serverHost.value);
   
-  // We navigate regardless of whether fetching config succeeded or failed.
-  // If it failed because of Crypto state (UNINITIALIZED/NOT_STARTED), 
-  // the router guard will still catch it and route us properly since hasBackendUrl is now true.
-  const status = await window.api.store?.getExamStatus?.() ?? 'UNINITIALIZED';
-  if (status === 'UNINITIALIZED') {
-    router.push('/not-initialized');
-  } else {
-    router.push('/login');
-  }
+  /* Navigate regardless of whether fetching the config succeeded: the backend
+   * URL is set either way, so the derivation now has something to work from. */
+  await goToDerivedPage(router);
 };
 
 const saveSettings = () => {

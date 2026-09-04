@@ -99,6 +99,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
+import { goToDerivedPage } from '../router/navigate';
 import { useI18n } from 'vue-i18n';
 
 const router = useRouter();
@@ -137,14 +138,7 @@ async function tryAutoLogin() {
 }
 
 async function checkExamStatus() {
-  const status = await window.api?.store?.getExamStatus?.();
-  if (status === 'IN_PROGRESS') {
-    router.push('/exam');
-  } else if (status === 'FINISHED') {
-    router.push('/finished');
-  } else if (status === 'UNINITIALIZED') {
-    router.push('/not-initialized');
-  }
+  await goToDerivedPage(router);
 }
 
 async function submitPassword() {
@@ -183,10 +177,8 @@ onMounted(async () => {
 
   pollTimer = setInterval(checkExamStatus, 5000);
 
-  statusUnsubscribe = window.api?.store?.onExamStatusChanged?.((status: string) => {
-    if (status === 'IN_PROGRESS') router.push('/exam');
-    else if (status === 'FINISHED') router.push('/finished');
-    else if (status === 'UNINITIALIZED') router.push('/not-initialized');
+  statusUnsubscribe = window.api?.store?.onExamStatusChanged?.(() => {
+    void goToDerivedPage(router);
   }) || null;
 });
 

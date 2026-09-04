@@ -107,6 +107,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { goToDerivedPage } from '../router/navigate';
 import { useI18n } from 'vue-i18n';
 
 const router = useRouter();
@@ -124,9 +125,6 @@ const isAutoLoginSuccess = ref(false);
 const autoLoginFailed = ref(false);
 const isBindingBlocked = ref(false);
 
-// 1 minute buffer before redirect to /exam when IN_PROGRESS
-const BUFFER_MS = 60_000;
-let redirectTimer: ReturnType<typeof setTimeout> | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 const studentIdRules = [
@@ -179,19 +177,11 @@ async function tryAutoLogin() {
 }
 
 async function redirectToWaiting() {
-  const status = await window.api?.store?.getExamStatus?.();
-  if (status === 'IN_PROGRESS') {
-    router.push('/exam');
-  } else {
-    router.push('/waiting');
-  }
+  await goToDerivedPage(router);
 }
 
 async function checkExamStatus() {
-  const status = await window.api?.store?.getExamStatus?.();
-  if (status === 'UNINITIALIZED') router.push('/not-initialized');
-  else if (status === 'IN_PROGRESS') router.push('/exam');
-  else if (status === 'FINISHED') router.push('/finished');
+  await goToDerivedPage(router);
 }
 
 async function handleLogin() {
@@ -237,20 +227,19 @@ onMounted(async () => {
 
   pollTimer = setInterval(checkExamStatus, 5000);
 
-  statusUnsubscribe = window.api?.store?.onExamStatusChanged?.((status: string) => {
-    if (status === 'UNINITIALIZED') router.push('/not-initialized');
-    else if (status === 'IN_PROGRESS') {
-      // Buffer before redirecting
-      if (!redirectTimer) {
-        redirectTimer = setTimeout(() => router.push('/exam'), BUFFER_MS);
-      }
-    } else if (status === 'FINISHED') router.push('/finished');
+  /* One derivation, not a second copy of the phase table. The delayed
+   * redirect this replaced was already dead: a 5-second poll in the same file
+   * pushed to /exam immediately, so the 60-second buffer never elapsed. It also
+   * sent students who had not logged in to the exam page and relied on the
+   * guard to bounce them back — under the derivation an unverified machine in
+   * IN_PROGRESS simply stays on login. */
+  statusUnsubscribe = window.api?.store?.onExamStatusChanged?.(() => {
+    void goToDerivedPage(router);
   }) || null;
 });
 
 onBeforeUnmount(() => {
   if (pollTimer) clearInterval(pollTimer);
-  if (redirectTimer) clearTimeout(redirectTimer);
   if (statusUnsubscribe) statusUnsubscribe();
 });
 </script>
