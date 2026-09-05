@@ -7,6 +7,7 @@ import type { ServerMessage, ExamState } from '../../common/types';
 import { examConfigPayloadSchema } from '../schemas/examConfig.schema';
 import { configService } from './config.service';
 import { judgeManager } from './judge-manager.service';
+import { localProgramStore } from './localProgram.service';
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -125,6 +126,14 @@ class MessageSyncService {
         const message = this.normalizeSocketPayload(payload);
         if (!message) return;
         this.ingestMessage(message);
+      });
+
+      /* Its own event, not a status message. What this asks of the machine —
+       * forget your identity, your key and your paper — is nothing like a
+       * phase change, and handling it beside ordinary messages would put a
+       * destructive operation one flag away from being triggered by accident. */
+      this.socket.on('exam-reset', () => {
+        this.handleExamReset();
       });
     } catch (error) {
       logger.error('[MessageSync] Failed to initialize socket:', error);
@@ -303,6 +312,29 @@ class MessageSyncService {
       await judgeManager.rejudgeAllStoredPrograms();
     } catch (error) {
       logger.error('[MessageSync] Failed to open the exam paper:', error);
+    }
+  }
+
+  /**
+   * The exam has been wiped. Forget everything it left here.
+   *
+   * The backend has already deleted this machine's registration and key, so
+   * keeping them would mean every request afterwards is refused with no path
+   * back. Before this, only the phase was updated and the machine went on
+   * believing it was logged in — which is what made reset unusable.
+   *
+   * The socket stays up: the same machine can be used for the next exam
+   * without a restart.
+   */
+  private handleExamReset(): void {
+    logger.info('[MessageSync] Exam reset received; clearing local state.');
+
+    localProgramStore.reset();
+    ramStore.clearForReset();
+
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) {
+      win.webContents?.send('exam:status-changed', 'UNINITIALIZED');
     }
   }
 

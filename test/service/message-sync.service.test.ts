@@ -16,8 +16,10 @@ const mocks = vi.hoisted(() => {
   };
   
   const mockIo = vi.fn(() => mockSocket);
+  const mockClearForReset = vi.fn();
 
   let mockRamStoreState: any = {
+    clearForReset: mockClearForReset,
     isOfflineMode: false,
     backendUrl: 'http://test-url',
     socketStatus: 'disconnected',
@@ -45,6 +47,7 @@ const mocks = vi.hoisted(() => {
     },
     mockSafeParse: vi.fn((data) => ({ success: true, data })),
     mockRamStoreState,
+    mockClearForReset,
     setWinState: (winNull: boolean, winDest: boolean, contDest: boolean) => {
       mockWinNull = winNull;
       mockWinDestroyed = winDest;
@@ -68,6 +71,9 @@ const mocks = vi.hoisted(() => {
     getWinNull: () => mockWinNull,
     getWinDestroyed: () => mockWinDestroyed,
     getContentsDestroyed: () => mockContentsDestroyed,
+    mockLocalProgramStore: {
+      reset: vi.fn()
+    },
     mockConfigService: {
       applyPaper: vi.fn(async (meta: any) => {
         mockRamStoreState.examConfig = meta;
@@ -94,6 +100,12 @@ vi.mock('../../src/main/schemas/examConfig.schema', () => ({
 
 vi.mock('../../src/main/services/config.service', () => ({
   configService: mocks.mockConfigService
+}));
+
+/* Builds its singleton at import time and touches the filesystem there, so it
+ * has to be mocked rather than merely unused. */
+vi.mock('../../src/main/services/localProgram.service', () => ({
+  localProgramStore: mocks.mockLocalProgramStore
 }));
 
 vi.mock('../../src/main/system/windowManager', () => ({
@@ -307,6 +319,41 @@ describe('Message Sync Service', () => {
         expect(mocks.mockRamStoreState.studentInfo.id).toBe('');
         expect(mocks.mockRamStoreState.cryptoState).toBeNull();
         expect(mocks.mockSend).toHaveBeenCalledWith('app:force-logout', 'kicked');
+      });
+
+      describe('exam-reset', () => {
+        /* The event that made reset usable. Before it, only the phase was
+         * updated: the machine kept a key the server had just deleted, every
+         * request afterwards was refused, and there was no path back. */
+        it('is a separate event from ordinary messages', () => {
+          expect(socketHandlers['exam-reset']).toBeTypeOf('function');
+        });
+
+        it('clears the local store', () => {
+          socketHandlers['exam-reset']({ resetAt: new Date().toISOString() });
+
+          expect(mocks.mockClearForReset).toHaveBeenCalledOnce();
+        });
+
+        it('discards the previous exam\'s answer files', () => {
+          socketHandlers['exam-reset']({ resetAt: new Date().toISOString() });
+
+          expect(mocks.mockLocalProgramStore.reset).toHaveBeenCalledOnce();
+        });
+
+        it('tells the window the exam is gone', () => {
+          socketHandlers['exam-reset']({ resetAt: new Date().toISOString() });
+
+          expect(mocks.mockSend).toHaveBeenCalledWith('exam:status-changed', 'UNINITIALIZED');
+        });
+
+        it('keeps the socket up so the machine can be reused', () => {
+          /* Not a shutdown. The same machine should be able to run the next
+           * exam without someone walking over to restart it. */
+          socketHandlers['exam-reset']({ resetAt: new Date().toISOString() });
+
+          expect(mocks.mockSocket.disconnect).not.toHaveBeenCalled();
+        });
       });
 
       it('handles config_update type message', async () => {

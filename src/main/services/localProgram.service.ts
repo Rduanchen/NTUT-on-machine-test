@@ -83,6 +83,24 @@ class LocalProgramStoreService {
     }
   }
 
+  /**
+   * Discard the previous exam's files and start a fresh directory.
+   *
+   * Unlike `deleteTempDir`, which runs at shutdown, this leaves the store
+   * usable: the same machine can be used for the next exam without a restart.
+   * The old answers must not survive into it.
+   */
+  public reset(): void {
+    this.deleteTempDir();
+    try {
+      const tempRoot = app.getPath('temp');
+      this.tempDir = fs.mkdtempSync(path.join(tempRoot, 'ntut-exam-'));
+      logger.info(`[LocalProgram] Store reset; new directory: ${this.tempDir}`);
+    } catch (error) {
+      logger.error('[LocalProgram] Error recreating temp directory:', error);
+    }
+  }
+
   /** Package files in temp directory as a zip according to preference, returns Buffer */
   public zipTempDir(preference: UploadVersionPreference = 'current'): Buffer {
     const zip = new admzip();

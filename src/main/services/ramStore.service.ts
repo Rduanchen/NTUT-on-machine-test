@@ -131,6 +131,58 @@ class RamStoreService {
     };
   }
 
+  /**
+   * Forget everything the wiped exam left behind.
+   *
+   * The backend has just deleted this machine's registration, its key and the
+   * paper. Keeping any of it would leave the client holding credentials the
+   * server no longer knows: every request afterwards refused, with no path back
+   * — which is why reset was unusable before this existed. Only the phase was
+   * updated, and the machine went on believing it was logged in.
+   *
+   * Deliberately not a `clear()`: the connection to the backend survives, so
+   * the machine can watch for the next exam rather than needing a restart.
+   */
+  public clearForReset(): void {
+    // Identity — the server has forgotten these, so must this machine.
+    this.set('cryptoState', null);
+    this.set('studentInfo', { id: '', name: '' });
+    this.set('isStudentVerified', false);
+    this.set('hasEverRegistered', false);
+    this.set('pendingLoginSync', false);
+
+    // The paper, in both halves and opened.
+    this.set('examConfigMeta', null);
+    this.set('examConfigCipher', null);
+    this.set('examKey', null);
+    this.set('examConfig', null);
+    this.set('isConfigured', false);
+
+    // Work and verdicts from an exam that no longer exists.
+    this.state.testResults = {};
+    this.state.hiddenTestResults = {};
+    this.state.highestTestResults = {};
+    this.state.highestHiddenTestResults = {};
+    this.state.specialRuleResults = {};
+    this.state.highestSpecialRuleResults = {};
+    this.state.isTestResultDirty = false;
+    this.emit('testResults', this.state.testResults);
+    this.emit('highestTestResults', this.state.highestTestResults);
+    this.emit('specialRuleResults', this.state.specialRuleResults);
+
+    this.set('environmentCheckReport', createIdleEnvironmentCheckReport());
+
+    // Sync bookkeeping, so the next exam is not read as a continuation.
+    this.set('notifications', []);
+    this.set('messageVersion', 0);
+    this.set('configVersion', 0);
+    this.set('isOfflineMode', false);
+    this.set('uploadVersionPreference', 'current');
+
+    // Last, so anything watching the phase re-derives against a cleared store.
+    this.set('examStatus', 'UNINITIALIZED');
+  }
+
   // ─── Event System ─────────────────────────────────────────────
 
   public on<K extends keyof RamStoreState>(
