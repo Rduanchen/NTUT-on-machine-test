@@ -46,6 +46,13 @@ class LocalProgramStoreService {
    * Replaces any existing file for the same puzzle.
    */
   public addFile(puzzleId: string, extension: string, sourcePath: string): string {
+    /* A missing path used to reach `path.resolve` and throw about `paths[0]`,
+     * which names the argument position and nothing else. Refusing it here at
+     * least says which file was expected. */
+    if (typeof sourcePath !== 'string' || sourcePath.length === 0) {
+      throw new Error(`No source file path was given for puzzle ${puzzleId}`);
+    }
+
     const destPath = path.join(this.tempDir, `${puzzleId}.${extension}`);
     const resolvedSource = path.resolve(sourcePath);
     const resolvedDest = path.resolve(destPath);

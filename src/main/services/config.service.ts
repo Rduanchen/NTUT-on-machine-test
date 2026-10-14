@@ -3,7 +3,7 @@ import * as path from 'path';
 import { app } from 'electron';
 import { ramStore } from './ramStore.service';
 import { logger } from './logger.service';
-import { fetchSecureExamConfig, healthCheck } from './api.service';
+import { fetchExamKey, fetchSecureExamConfig, healthCheck } from './api.service';
 import { cryptoService } from './crypto.service';
 import { connectionService } from './connection.service';
 import { messageSyncService } from './message-sync.service';
@@ -76,6 +76,15 @@ class ConfigService {
       // If remoteHost exists, set URL and start services
       if (remoteHost) {
         ramStore.backendUrl = remoteHost;
+        /* Deployed, and therefore never to be asked for a backend address.
+         *
+         * This flag used to stay false until a paper had actually been
+         * fetched, and the settings page is the startup route — so a machine
+         * with a perfectly good `pre_settings.json` sat on a form asking for
+         * the address it had already been given. Worse, the one thing that
+         * would have moved it on, a connection-status event, is emitted from
+         * here: before `createWindow()`, with no renderer to receive it. */
+        ramStore.isPreDeployed = true;
         logger.info(
           `[Config] Backend URL set to ${remoteHost} via pre_settings. Starting services...`
         );
@@ -245,7 +254,72 @@ class ConfigService {
 
     if (ramStore.examKey) {
       this.unsealPaper(ramStore.examKey);
+      return;
     }
+
+    /* A paper that arrives while the exam is already running is opened now,
+     * not on the next phase change — there may not be another one. */
+    await this.ensureExamPaperReadable();
+  }
+
+  /**
+   * Make sure this machine can read the paper it is holding, if it is allowed to.
+   *
+   * Idempotent, and safe to call from anywhere: it does nothing when there is
+   * no sealed paper, when the key is already in hand, when the machine is
+   * offline, or when the exam has not started.
+   *
+   * The exam key used to be fetched only from the phase-change handler, which
+   * fires on a *transition* into IN_PROGRESS. A machine that re-enters mid-exam
+   * never sees that transition — `/user/exam/status` is public, so the phase
+   * was already IN_PROGRESS before it logged in — and so it kept both sealed
+   * halves and no key. `examConfig` stayed null and the exam page rendered
+   * empty with nothing to explain it.
+   */
+  public async ensureExamPaperReadable(): Promise<IpcResponse<void>> {
+    if (ramStore.examKey && ramStore.examConfig) return { success: true };
+    if (ramStore.isOfflineMode) {
+      return {
+        success: false,
+        error: { code: ErrorCode.NO_RESPONSE, message: '本機為離線模式，請以監考口令開考' }
+      };
+    }
+    if (ramStore.examStatus !== 'IN_PROGRESS') return { success: true };
+
+    if (!ramStore.examConfigMeta || !ramStore.examConfigCipher) {
+      const fetched = await this.fetchAndSaveConfig();
+      if (!fetched.success) return fetched;
+    }
+
+    if (ramStore.examKey) {
+      /* Halves refreshed under a key already in hand — reassemble and stop. */
+      this.unsealPaper(ramStore.examKey);
+      return { success: true };
+    }
+
+    const response = await fetchExamKey();
+    if (!response.success || !response.data?.examKey) {
+      logger.warn('[Config] The exam has started but the key could not be fetched.');
+      return {
+        success: false,
+        error: {
+          code: response.error?.code ?? ErrorCode.NO_RESPONSE,
+          message: response.error?.message ?? '無法向伺服器取得考卷金鑰'
+        }
+      };
+    }
+
+    try {
+      this.unsealPaper(response.data.examKey);
+    } catch (error) {
+      logger.error('[Config] The exam key was accepted but the paper would not open:', error);
+      return {
+        success: false,
+        error: { code: ErrorCode.INVALID_CONFIG_FORMAT, message: '考卷無法開啟，請通知監考人員' }
+      };
+    }
+
+    return { success: true };
   }
 
   /**

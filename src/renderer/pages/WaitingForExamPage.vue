@@ -181,8 +181,6 @@ async function submitPassword() {
   }
 }
 
-let statusUnsubscribe: (() => void) | null = null;
-
 onMounted(async () => {
   if (window.api?.store) {
     examInfo.value = await window.api.store.getExamInfo();
@@ -193,14 +191,11 @@ onMounted(async () => {
 
   pollTimer = setInterval(checkExamStatus, 5000);
 
-  statusUnsubscribe = window.api?.store?.onExamStatusChanged?.(() => {
-    void goToDerivedPage(router);
-  }) || null;
+  /* The phase is watched once, in App.vue. */
 });
 
 onBeforeUnmount(() => {
   if (pollTimer) clearInterval(pollTimer);
-  if (statusUnsubscribe) statusUnsubscribe();
 });
 </script>
 

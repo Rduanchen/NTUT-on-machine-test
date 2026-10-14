@@ -9,8 +9,12 @@ import ExamFinishedPage from '../pages/ExamFinishedPage.vue';
 import StandbyPage from '../pages/StandbyPage.vue';
 import PendingApprovalPage from '../pages/PendingApprovalPage.vue';
 import { getEnvironmentNavigationDecision } from './environment-check.guard';
-import { derivePage, isSettingsReachable } from './phase-derivation';
-import { readDeviceState, readExamStatus, resolvePage } from './navigate';
+import {
+  derivePage,
+  isSettingsReachable,
+  isSettingsTheLandingPage
+} from './phase-derivation';
+import { readDeviceState, readExamStatus, readOfflineMode, resolvePage } from './navigate';
 import { isBuffering, bufferEndTime } from '../constants/bufferState';
 import type { ExamState } from '../../common/types';
 
@@ -43,12 +47,13 @@ export const router = createRouter({
  * out-of-phase requests itself (`exam-phase.middleware.ts`); this only avoids
  * showing a student a page that cannot work.
  */
-router.beforeEach(async (to) => {
+router.beforeEach(async (to, from) => {
   const api = (window as any).api;
   if (!api) return true;
 
   const examStatus: ExamState = await readExamStatus(api);
   const device = await readDeviceState(api);
+  const isOffline = await readOfflineMode(api);
 
   const environmentResponse = await api?.environmentCheck?.getReport?.();
   const environmentStatus = environmentResponse?.data?.status ?? 'IDLE';
@@ -67,7 +72,19 @@ router.beforeEach(async (to) => {
      * violation reporting — while still answering questions, and from the
      * invigilator's console it looks exactly like a dropped connection. */
     if (!isSettingsReachable(examStatus)) {
-      return { name: resolvePage(derivePage(examStatus, device)) };
+      return { name: resolvePage(derivePage(examStatus, device, isOffline)) };
+    }
+
+    /* Reachable, but not somewhere to land. `/` is the startup route, and a
+     * machine deployed with `pre_settings.json` was stopping here to be asked
+     * for the address it had already been given — the connection event that
+     * would have moved it on is emitted before the window exists. A machine
+     * with no address at all still gets the form, which is the offline
+     * deployment's only way in. */
+    const hasBackendUrl = (await api?.config?.hasBackendUrl?.()) ?? false;
+    const isConfigured = (await api?.config?.isSetupComplete?.()) ?? false;
+    if (!isSettingsTheLandingPage(hasBackendUrl, isConfigured) && from.name === undefined) {
+      return { name: resolvePage(derivePage(examStatus, device, isOffline)) };
     }
     return true;
   }
@@ -83,6 +100,6 @@ router.beforeEach(async (to) => {
     return true;
   }
 
-  const target = resolvePage(derivePage(examStatus, device));
+  const target = resolvePage(derivePage(examStatus, device, isOffline));
   return to.name === target ? true : { name: target };
 });

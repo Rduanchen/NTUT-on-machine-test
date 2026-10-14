@@ -1,13 +1,14 @@
 import { io, Socket } from 'socket.io-client';
 import { getMainWindow } from '../system/windowManager';
 import { ramStore } from './ramStore.service';
-import { getMessages, getExamStatus, fetchSecureExamConfig, getDeviceUuid, fetchExamKey } from './api.service';
+import { getMessages, getExamStatus, fetchSecureExamConfig, getDeviceUuid } from './api.service';
 import { logger } from './logger.service';
 import type { ServerMessage, ExamState } from '../../common/types';
 import { examConfigPayloadSchema } from '../schemas/examConfig.schema';
 import { configService } from './config.service';
 import { judgeManager } from './judge-manager.service';
 import { localProgramStore } from './localProgram.service';
+import { connectionService } from './connection.service';
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -298,17 +299,21 @@ class MessageSyncService {
    */
   private async onPhaseChanged(phase: ExamState): Promise<void> {
     if (phase !== 'IN_PROGRESS') return;
-    if (ramStore.isOfflineMode) return;
     if (ramStore.examKey) return;
-    if (!ramStore.examConfigCipher) return;
 
     try {
-      const response = await fetchExamKey();
-      if (!response.success || !response.data?.examKey) {
-        logger.warn('[MessageSync] Exam started but the key could not be fetched yet.');
+      /* The same idempotent action the login path and the paper-refresh path
+       * use. Keeping the fetch here alone made it reachable only on a
+       * transition into IN_PROGRESS — which a machine re-entering mid-exam
+       * never observes, because the phase was already IN_PROGRESS when it
+       * arrived. */
+      const opened = await configService.ensureExamPaperReadable();
+      if (!opened.success) {
+        logger.warn(
+          `[MessageSync] Exam started but the paper could not be opened yet: ${opened.error?.message}`
+        );
         return;
       }
-      configService.unsealPaper(response.data.examKey);
       await judgeManager.rejudgeAllStoredPrograms();
     } catch (error) {
       logger.error('[MessageSync] Failed to open the exam paper:', error);
@@ -330,6 +335,7 @@ class MessageSyncService {
     logger.info('[MessageSync] Exam reset received; clearing local state.');
 
     localProgramStore.reset();
+    connectionService.clearQueues();
     ramStore.clearForReset();
 
     const win = getMainWindow();

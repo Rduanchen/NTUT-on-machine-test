@@ -25,6 +25,17 @@ export async function readExamStatus(api: any): Promise<ExamState> {
 }
 
 /**
+ * Whether this machine is running the exam with no backend at all.
+ *
+ * Not the same as "currently disconnected". A machine that never registered
+ * cannot be approved by a TA, so the derivation has to keep it off the
+ * approval screen.
+ */
+export async function readOfflineMode(api: any): Promise<boolean> {
+  return (await api?.config?.isOffline?.()) ?? false;
+}
+
+/**
  * Send this machine to wherever the current phase and device state put it.
  *
  * Every page that used to keep its own phase-to-route chain calls this
@@ -36,7 +47,13 @@ export async function goToDerivedPage(router: Router): Promise<void> {
   const api = (window as any).api;
   if (!api) return;
 
-  const target = resolvePage(derivePage(await readExamStatus(api), await readDeviceState(api)));
+  const target = resolvePage(
+    derivePage(
+      await readExamStatus(api),
+      await readDeviceState(api),
+      await readOfflineMode(api)
+    )
+  );
   if (router.currentRoute.value.name !== target) {
     await router.replace({ name: target });
   }

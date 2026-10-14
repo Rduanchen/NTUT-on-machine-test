@@ -54,6 +54,22 @@ describe('judger.ipc', () => {
     expect(result).toEqual({ success: true });
   });
 
+  /* Feature 007 bugfix BUG-07. `File.path` was removed in Electron 32 and this
+   * app runs 34, so the renderer sent `undefined` for months. It surfaced four
+   * frames away as `The "paths[0]" argument must be of type string` — a message
+   * about `path.resolve` that names nothing leading back to an upload. */
+  it.each([undefined, null, '', 123])(
+    'refuses a judge request with no usable file path (%s)',
+    async (badPath) => {
+      const result = await invoke('judger:judge', 'puzzle-1', badPath);
+
+      expect(judgeManager.runJudge).not.toHaveBeenCalled();
+      expect(result.success).toBe(false);
+      expect(result.error.code).toBe('JUDGE_FAILED');
+      expect(result.error.message).toContain('路徑');
+    }
+  );
+
   it('judger:force-stop', async () => {
     const result = await invoke('judger:force-stop');
     expect(nodeJudgerService.stop).toHaveBeenCalled();

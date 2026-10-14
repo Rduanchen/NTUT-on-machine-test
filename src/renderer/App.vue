@@ -236,6 +236,7 @@
 import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { goToDerivedPage } from './router/navigate';
+import { startBuffer, clearBuffer, FINISH_BUFFER_SECONDS } from './constants/bufferState';
 import { useI18n } from 'vue-i18n';
 import { useTheme } from 'vuetify';
 import NotificationCenter from './components/NotificationCenter.vue';
@@ -264,6 +265,7 @@ const environmentPresentation = computed(() =>
 );
 let stopEnvironmentUpdates = null;
 let stopConnectionUpdates = null;
+let stopExamStatusUpdates = null;
 
 const forceLogoutDialog = ref(false);
 const forceLogoutMessage = ref('');
@@ -340,6 +342,33 @@ onMounted(async () => {
         await goToDerivedPage(router);
       }
     });
+
+    /* The one place the global phase is watched.
+     *
+     * "The page is derived, never remembered" was written as seven separate
+     * subscriptions, one per page — so it only held on the pages that happened
+     * to have one, and only for the phase values that page thought to handle.
+     * The exam page listened for FINISHED and IN_PROGRESS and nothing else, so
+     * a global reset left a machine sitting on a live exam screen for an exam
+     * that had just been wiped. Settings and the approval screen listened for
+     * nothing at all.
+     *
+     * One subscription, above every page, cannot drift that way. */
+    stopExamStatusUpdates = window.api.store.onExamStatusChanged(async (status) => {
+      if (status === 'FINISHED') {
+        /* The collection window. A machine mid-upload when the exam is called
+         * keeps its page until the window closes; the exam page pushes on to
+         * /finished when it elapses. Every other phase — a reset included —
+         * re-derives immediately. */
+        if (route.name === 'exam') {
+          startBuffer(FINISH_BUFFER_SECONDS);
+          return;
+        }
+      } else {
+        clearBuffer();
+      }
+      await goToDerivedPage(router);
+    });
   }
 
   // Listen for new notifications and show a toast snackbar
@@ -377,6 +406,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   stopEnvironmentUpdates?.();
   stopConnectionUpdates?.();
+  stopExamStatusUpdates?.();
 });
 
 watch(

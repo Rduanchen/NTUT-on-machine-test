@@ -1,4 +1,4 @@
-import { ipcRenderer, contextBridge } from 'electron';
+import { ipcRenderer, contextBridge, webUtils } from 'electron';
 
 /**
  * Preload API - Exposed to renderer via contextBridge
@@ -14,6 +14,9 @@ const api = {
     getServerStatus: (hostname: string) => ipcRenderer.invoke('config:server-status', hostname),
     isSetupComplete: () => ipcRenderer.invoke('config:setup-complete'),
     hasBackendUrl: () => ipcRenderer.invoke('config:has-backend-url'),
+    isPreDeployed: () => ipcRenderer.invoke('config:is-pre-deployed'),
+    isOffline: () => ipcRenderer.invoke('config:is-offline'),
+    ensurePaper: () => ipcRenderer.invoke('config:ensure-paper'),
     startWithPassword: (password: string) =>
       ipcRenderer.invoke('config:start-with-password', password)
   },
@@ -170,6 +173,20 @@ const api = {
 
   app: {
     quit: () => ipcRenderer.invoke('app:quit')
+  },
+
+  /**
+   * The on-disk path of a file the student dropped or picked.
+   *
+   * `File.path` was an Electron extension to the DOM `File` object and was
+   * removed in Electron 32; this project runs 34, so every read of it has been
+   * returning `undefined` — which is how judging came to fail with a
+   * `paths[0]` type error several frames away from the cause. `webUtils` is
+   * the supported replacement and only exists in a preload script, so it has
+   * to be handed across the bridge rather than reached for in a page.
+   */
+  files: {
+    getPath: (file: File): string => webUtils.getPathForFile(file)
   }
 };
 

@@ -19,6 +19,11 @@ interface ConfigAPI {
   getFromServer: (host: string) => Promise<IpcResponse<void>>;
   getServerStatus: (hostname: string) => Promise<IpcResponse<void>>;
   isSetupComplete: () => Promise<boolean>;
+  hasBackendUrl: () => Promise<boolean>;
+  isPreDeployed: () => Promise<boolean>;
+  isOffline: () => Promise<boolean>;
+  ensurePaper: () => Promise<IpcResponse<void>>;
+  startWithPassword: (password: string) => Promise<IpcResponse<void>>;
 }
 
 interface AuthAPI {
@@ -81,6 +86,11 @@ interface NotificationAPI {
   onSocketStatusChanged: (callback: (status: SocketConnectionStatus) => void) => () => void;
 }
 
+/** The supported replacement for the `File.path` Electron removed in 32. */
+interface FilesAPI {
+  getPath: (file: File) => string;
+}
+
 interface API {
   config: ConfigAPI;
   environmentCheck: EnvironmentCheckAPI;
@@ -88,6 +98,7 @@ interface API {
   store: StoreAPI;
   judger: JudgerAPI;
   notifications: NotificationAPI;
+  files: FilesAPI;
 }
 
 declare global {

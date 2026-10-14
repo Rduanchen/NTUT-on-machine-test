@@ -233,6 +233,26 @@ class ConnectionService {
   }
 
   /**
+   * Drop everything still waiting to be sent.
+   *
+   * Called on a global reset, and only there. Keeping work queued across a
+   * reset would post the previous exam's answers, scores and action log into
+   * the next one the moment the socket came back — an exam the backend has
+   * just created, with different students in the same seats. Losing work is
+   * the point here: the exam it belonged to no longer exists.
+   */
+  public clearQueues(): void {
+    const dropped = this.pendingSubmissions.size + (this.pendingScore ? 1 : 0);
+    this.pendingSubmissions.clear();
+    this.pendingScore = null;
+    this.pendingConfigRefresh = false;
+    getAndClearLogQueue();
+    if (dropped > 0) {
+      logger.info(`[Connection] Reset dropped ${dropped} queued item(s) from the wiped exam.`);
+    }
+  }
+
+  /**
    * Send everything that has been waiting.
    *
    * Anything that fails goes back in the queue rather than being dropped. The

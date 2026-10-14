@@ -3,6 +3,7 @@ import { nodeJudgerService } from '../services/node-judger.service';
 import { localProgramStore } from '../services/localProgram.service';
 import { submitCode } from '../services/api.service';
 import type { IpcResponse, JudgeRunResult } from '../../common/types';
+import { ErrorCode } from '../../common/errorCodes';
 import { judgeManager } from '../services/judge-manager.service';
 import * as fs from 'fs';
 
@@ -24,6 +25,23 @@ export function registerJudgerIpc(): void {
       puzzleId: string,
       codeFilePath: string
     ): Promise<IpcResponse<JudgeRunResult>> => {
+      /* Say what is actually wrong, here, where the caller can act on it.
+       *
+       * `File.path` was removed in Electron 32 and this app runs 34, so the
+       * renderer was sending `undefined` for months. It surfaced four frames
+       * away as `The "paths[0]" argument must be of type string` — a message
+       * about `path.resolve`, naming nothing that would lead anyone back to an
+       * upload. The renderer no longer reads that property, and this refuses
+       * the call if anything else ever does. */
+      if (typeof codeFilePath !== 'string' || codeFilePath.length === 0) {
+        return {
+          success: false,
+          error: {
+            code: ErrorCode.JUDGE_FAILED,
+            message: '評測失敗：沒有收到程式碼檔案的路徑'
+          }
+        };
+      }
       return judgeManager.runJudge(puzzleId, codeFilePath);
     }
   );

@@ -210,8 +210,6 @@ async function handleLogin() {
   }
 }
 
-let statusUnsubscribe: (() => void) | null = null;
-
 onMounted(async () => {
   if (window.api?.store) {
     examInfo.value = await window.api.store.getExamInfo();
@@ -227,19 +225,11 @@ onMounted(async () => {
 
   pollTimer = setInterval(checkExamStatus, 5000);
 
-  /* One derivation, not a second copy of the phase table. The delayed
-   * redirect this replaced was already dead: a 5-second poll in the same file
-   * pushed to /exam immediately, so the 60-second buffer never elapsed. It also
-   * sent students who had not logged in to the exam page and relied on the
-   * guard to bounce them back — under the derivation an unverified machine in
-   * IN_PROGRESS simply stays on login. */
-  statusUnsubscribe = window.api?.store?.onExamStatusChanged?.(() => {
-    void goToDerivedPage(router);
-  }) || null;
+  /* The phase itself is watched once, in App.vue. This page only polls for the
+   * local device state, which no broadcast announces. */
 });
 
 onBeforeUnmount(() => {
   if (pollTimer) clearInterval(pollTimer);
-  if (statusUnsubscribe) statusUnsubscribe();
 });
 </script>

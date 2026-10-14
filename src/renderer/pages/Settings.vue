@@ -146,6 +146,7 @@ import { ref, computed, onMounted } from 'vue';
 import { VFileUpload } from 'vuetify/labs/VFileUpload';
 import { router } from '../router/index';
 import { goToDerivedPage } from '../router/navigate';
+import { resolveFilePath } from '../utils/file-path';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -157,11 +158,20 @@ const isServerConnected = ref(false);
 const verifying = ref(false);
 
 onMounted(async () => {
-  if (window.api?.config) {
-    const isSetupComplete = await window.api.config.isSetupComplete();
-    if (isSetupComplete) {
-      await goToDerivedPage(router);
-    }
+  if (!window.api?.config) return;
+
+  /* A machine that already knows where its backend is has nothing to ask here.
+   *
+   * The only thing that used to move a pre-deployed machine off this page was
+   * a connection-status event, and `pre_settings.json` is read before the
+   * window exists — so the socket often connected with nobody listening and
+   * the machine sat on a settings form for an exam it was already configured
+   * for. The page still exists for the machine that genuinely has no backend
+   * (offline paper deployment); it is just no longer where anyone lands. */
+  const hasBackendUrl = await window.api.config.hasBackendUrl?.();
+  const isSetupComplete = await window.api.config.isSetupComplete();
+  if (hasBackendUrl || isSetupComplete) {
+    await goToDerivedPage(router);
   }
 });
 
@@ -176,7 +186,19 @@ const onFileSelected = async (files: File | File[] | undefined) => {
 
 const uploadConfigFile = async (file: File) => {
   if (!window.api?.config) return;
-  const re = await window.api.config.setJson(file.path);
+
+  /* Not `file.path` — that property was removed in Electron 32 and this app
+   * runs 34. It resolved to `undefined`, which travelled all the way to
+   * `path.resolve` before anything complained. */
+  let filePath: string;
+  try {
+    filePath = resolveFilePath(file);
+  } catch (error) {
+    alert(error instanceof Error ? error.message : String(error));
+    return;
+  }
+
+  const re = await window.api.config.setJson(filePath);
   if (re.success) {
     await goToDerivedPage(router);
   } else {

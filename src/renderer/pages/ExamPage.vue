@@ -1,5 +1,37 @@
 <template>
   <v-container fluid class="pa-4 pa-md-6 h-100">
+    <v-alert
+      v-if="pageError"
+      type="error"
+      variant="tonal"
+      density="comfortable"
+      class="mb-4"
+      closable
+      data-test="exam-page-error"
+      @click:close="pageError = ''"
+    >
+      {{ pageError }}
+    </v-alert>
+
+    <v-alert
+      v-else-if="puzzleInfo.length === 0"
+      type="warning"
+      variant="tonal"
+      density="comfortable"
+      class="mb-4"
+      data-test="exam-paper-missing"
+    >
+      <div class="font-weight-medium mb-1">尚未取得考卷內容</div>
+      <div class="text-body-2">
+        本機已入場，但考卷還沒開啟。請按「重新取得考卷」；若仍為空白，請通知監考人員。
+      </div>
+      <template #append>
+        <v-btn size="small" variant="tonal" :loading="isRecoveringPaper" @click="recoverPaper">
+          重新取得考卷
+        </v-btn>
+      </template>
+    </v-alert>
+
     <v-card class="h-100 d-flex flex-column" elevation="2" rounded="lg">
       <ExamToolbar
         :puzzle-count="puzzleInfo.length"
@@ -48,6 +80,7 @@ import PuzzleTable from '../components/TestPage/PuzzleTable.vue';
 import ResultDialog from '../components/TestPage/ResultDialog.vue';
 import UploadDialog from '../components/TestPage/UploadDialog.vue';
 import type { PuzzleInfo, JudgeRunResult, SpecialRule, SpecialRuleResultRecord } from '../../common/types';
+import { resolveFilePath } from '../utils/file-path';
 
 // ─── State ──────────────────────────────────────────────────────────
 
@@ -59,14 +92,19 @@ const specialRuleResults = ref<Record<string, SpecialRuleResultRecord[]>>({});
 const highestSpecialRuleResults = ref<Record<string, SpecialRuleResultRecord[]>>({});
 const effectiveSpecialRules = ref<Record<string, SpecialRule[]>>({});
 
+/* Anything that went wrong at page level. An empty question list used to be
+ * the only sign that the paper had not arrived — no message, no error, just a
+ * blank exam. */
+const pageError = ref('');
+
 const resultDialog = ref({ isOpen: false, item: null as PuzzleInfo | null });
 const uploadDialog = ref({ isOpen: false, item: null as PuzzleInfo | null });
 
-// Buffer settings
-const FINISH_BUFFER_SECONDS = 60; // 1 minute buffer constant
-const isBuffering = ref(false);
-const bufferTimeLeft = ref(FINISH_BUFFER_SECONDS);
-let bufferTimer: ReturnType<typeof setInterval> | null = null;
+/* The collection window lives in the shared module, not here. This page only
+ * displays it: whether a machine may stay on /exam after the exam is over is
+ * read by the router guard, and that answer cannot depend on which component
+ * happens to be mounted. */
+import { isBuffering, bufferTimeLeft } from '../constants/bufferState';
 import { useRouter } from 'vue-router';
 const router = useRouter();
 
@@ -144,6 +182,35 @@ async function refreshResults() {
   }
 }
 
+const isRecoveringPaper = ref(false);
+
+/**
+ * Ask the main process to fetch the exam key and open the paper again.
+ *
+ * The paper is normally opened when the phase turns to IN_PROGRESS. A machine
+ * that re-enters mid-exam never sees that turn — the phase was already
+ * IN_PROGRESS before it logged in — so it can end up holding the sealed halves
+ * and nothing to open them with. This is the same idempotent action, on
+ * demand.
+ */
+async function recoverPaper() {
+  if (!window.api?.config?.ensurePaper) return;
+  isRecoveringPaper.value = true;
+  pageError.value = '';
+  try {
+    const res = await window.api.config.ensurePaper();
+    if (!res?.success) {
+      pageError.value = res?.error?.message || '無法取得考卷，請通知監考人員';
+      return;
+    }
+    puzzleInfo.value = await window.api.store.getPuzzleInfo();
+    await refreshResults();
+    await refreshEffectiveRules();
+  } finally {
+    isRecoveringPaper.value = false;
+  }
+}
+
 async function refreshEffectiveRules() {
   if (!window.api?.store?.getEffectiveSpecialRules) {
     effectiveSpecialRules.value = {};
@@ -158,14 +225,29 @@ function stopTestCase() {
 }
 
 async function submitUpload({ file, puzzleId }: { file: File; puzzleId: string }) {
-  if (file instanceof File && window.api?.judger) {
-    onSent.value[String(puzzleId)] = true;
-    const result = await window.api.judger.judge(String(puzzleId), (file as any).path);
-    if (result.success) {
-      await refreshResults();
-    }
-    onSent.value[String(puzzleId)] = false;
+  if (!(file instanceof File) || !window.api?.judger) return;
+
+  pageError.value = '';
+
+  /* `file.path` is gone in this Electron — the path comes across the preload
+   * bridge now. Reading the old property handed the judger `undefined`, which
+   * surfaced as a `paths[0]` type error with nothing pointing back here. */
+  let filePath: string;
+  try {
+    filePath = resolveFilePath(file);
+  } catch (error) {
+    pageError.value = error instanceof Error ? error.message : String(error);
+    return;
   }
+
+  onSent.value[String(puzzleId)] = true;
+  const result = await window.api.judger.judge(String(puzzleId), filePath);
+  if (result.success) {
+    await refreshResults();
+  } else {
+    pageError.value = result.error?.message || '評測失敗，請通知監考人員';
+  }
+  onSent.value[String(puzzleId)] = false;
 }
 
 async function exportZip() {
@@ -201,22 +283,7 @@ function openUploadDialog(item: PuzzleInfo) {
   uploadDialog.value = { isOpen: true, item };
 }
 
-import { startBuffer, clearBuffer } from '../constants/bufferState';
-
-function startFinishBuffer() {
-  if (isBuffering.value) return;
-  isBuffering.value = true;
-  bufferTimeLeft.value = FINISH_BUFFER_SECONDS;
-  startBuffer(FINISH_BUFFER_SECONDS);
-  bufferTimer = setInterval(() => {
-    bufferTimeLeft.value--;
-    if (bufferTimeLeft.value <= 0) {
-      clearInterval(bufferTimer!);
-      clearBuffer();
-      router.push('/finished');
-    }
-  }, 1000);
-}
+import { onBufferElapsed } from '../constants/bufferState';
 
 // ─── Init ───────────────────────────────────────────────────────────
 
@@ -224,7 +291,6 @@ let resultsUnsubscribe: (() => void) | null = null;
 let highestResultsUnsubscribe: (() => void) | null = null;
 let rulesUnsubscribe: (() => void) | null = null;
 let highestRulesUnsubscribe: (() => void) | null = null;
-let statusUnsubscribe: (() => void) | null = null;
 let configUnsubscribe: (() => void) | null = null;
 
 onMounted(async () => {
@@ -255,30 +321,22 @@ onMounted(async () => {
     highestSpecialRuleResults.value = results as Record<string, SpecialRuleResultRecord[]>;
   }) || null;
 
-  statusUnsubscribe = window.api.store.onExamStatusChanged?.((status: string) => {
-    if (status === 'FINISHED') {
-      startFinishBuffer();
-    } else if (status === 'IN_PROGRESS') {
-      if (bufferTimer) {
-        clearInterval(bufferTimer);
-        bufferTimer = null;
-      }
-      clearBuffer();
-      isBuffering.value = false;
-      bufferTimeLeft.value = FINISH_BUFFER_SECONDS;
-    }
-  }) || null;
+  /* Where this page ends up when the window closes. The phase itself is
+   * watched once, in App.vue — a page that decides for itself which phases are
+   * worth reacting to is how a reset left a machine sitting on the exam screen
+   * with the exam already wiped. */
+  onBufferElapsed(() => {
+    void router.push('/finished');
+  });
 });
 
 import { onBeforeUnmount } from 'vue';
 onBeforeUnmount(() => {
-  if (bufferTimer) clearInterval(bufferTimer);
-  clearBuffer();
+  onBufferElapsed(null);
   if (resultsUnsubscribe) resultsUnsubscribe();
   if (highestResultsUnsubscribe) highestResultsUnsubscribe();
   if (rulesUnsubscribe) rulesUnsubscribe();
   if (highestRulesUnsubscribe) highestRulesUnsubscribe();
-  if (statusUnsubscribe) statusUnsubscribe();
   if (configUnsubscribe) configUnsubscribe();
 });
 </script>

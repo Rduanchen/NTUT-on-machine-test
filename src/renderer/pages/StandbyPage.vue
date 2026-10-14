@@ -21,7 +21,6 @@ const environment = ref<{ status: string; message?: string; failed: string[] }>(
 });
 
 let poll: ReturnType<typeof setInterval> | null = null;
-let statusUnsubscribe: (() => void) | null = null;
 
 const environmentLabel = computed(() => {
   switch (environment.value.status) {
@@ -92,15 +91,11 @@ async function tick(): Promise<void> {
 onMounted(async () => {
   await tick();
   poll = setInterval(tick, 5000);
-  statusUnsubscribe =
-    window.api?.store?.onExamStatusChanged?.(() => {
-      void goToDerivedPage(router);
-    }) || null;
+  /* The phase is watched once, in App.vue. */
 });
 
 onBeforeUnmount(() => {
   if (poll) clearInterval(poll);
-  if (statusUnsubscribe) statusUnsubscribe();
 });
 </script>
 

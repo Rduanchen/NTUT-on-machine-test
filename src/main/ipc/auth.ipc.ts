@@ -97,6 +97,28 @@ async function registerThisDevice(): Promise<IpcResponse<void>> {
   }
 }
 
+/**
+ * The roster entry for a student, from whichever half of the paper is in hand.
+ *
+ * The meta half carries the roster and arrives long before the exam starts;
+ * `examConfig` only exists once the paper has been opened. Looking only at the
+ * latter meant that before the exam started — and on an offline machine, at any
+ * point — there was no roster to check against, and `knownRoster` says so
+ * rather than pretending everyone is on it.
+ */
+function rosterFor(testId: string): {
+  knownRoster: boolean;
+  entry: { id: string; name: string } | undefined;
+} {
+  const users =
+    ramStore.examConfig?.accessibleUsers ?? ramStore.examConfigMeta?.accessibleUsers ?? [];
+  if (users.length === 0) return { knownRoster: false, entry: undefined };
+  return {
+    knownRoster: true,
+    entry: users.find((user) => String(user.id) === String(testId))
+  };
+}
+
 export function registerAuthIpc(): void {
   /**
    * Device Registration Flow:
@@ -122,16 +144,16 @@ export function registerAuthIpc(): void {
         if (!manualTestId) {
           return { success: false, error: { code: ErrorCode.STUDENT_NOT_FOUND, message: 'Offline mode requires manual student ID input' } };
         }
-        let studentName = manualTestId;
-        if (ramStore.examConfig?.accessibleUsers && ramStore.examConfig.accessibleUsers.length > 0) {
-          const user = ramStore.examConfig.accessibleUsers.find(u => String(u.id) === String(manualTestId));
-          if (!user) {
-            return { success: false, error: { code: ErrorCode.STUDENT_NOT_FOUND, message: '此學號不在本次考試的名單內' } };
-          }
-          if (user.name) {
-            studentName = user.name;
-          }
+        /* The roster comes from the meta half, which an offline machine has
+         * and can read. Reading it off `examConfig` meant reading it off the
+         * *opened* paper — which does not exist until the exam starts, so the
+         * check silently passed everyone through on exactly the path where it
+         * is the only check there is. */
+        const roster = rosterFor(manualTestId);
+        if (roster.knownRoster && !roster.entry) {
+          return { success: false, error: { code: ErrorCode.STUDENT_NOT_FOUND, message: '此學號不在本次考試的名單內' } };
         }
+        const studentName = roster.entry?.name || manualTestId;
         ramStore.studentInfo = { id: manualTestId, name: studentName };
         ramStore.isStudentVerified = true;
         logger.info(`[Auth] Student ${manualTestId} logged in successfully (Offline Mode Bypass)`);
@@ -180,13 +202,31 @@ export function registerAuthIpc(): void {
           logServerEvent('USER_LOGIN', `Student ${testId} logged in successfully`);
 
           // Fetch the config right away now that we have the session token
-          await configService.fetchAndSaveConfig();
-          
-          if (ramStore.examConfig?.accessibleUsers) {
-            const user = ramStore.examConfig.accessibleUsers.find(u => u.id === testId);
-            if (user && user.name) {
-              ramStore.studentInfo.name = user.name;
-            }
+          const configResult = await configService.fetchAndSaveConfig();
+          if (!configResult?.success) {
+            logger.error(
+              `[Auth] Logged in but the exam paper could not be fetched: ${configResult.error?.message}`
+            );
+          }
+
+          /* Open the paper if the exam is already running.
+           *
+           * A machine re-entering mid-exam never sees the phase turn to
+           * IN_PROGRESS — `/user/exam/status` is public, so it had already read
+           * that value before logging in — and the key used to be fetched only
+           * on that turn. The result was a machine holding both sealed halves,
+           * no key, and an exam page rendered from a null config: blank, with
+           * nothing to say why. */
+          const paperResult = await configService.ensureExamPaperReadable();
+          if (!paperResult?.success) {
+            logger.error(
+              `[Auth] Logged in but the exam paper is still sealed: ${paperResult.error?.message}`
+            );
+          }
+
+          const rosterEntry = rosterFor(testId).entry;
+          if (rosterEntry?.name) {
+            ramStore.studentInfo = { id: testId, name: rosterEntry.name };
           }
           
           // Refresh messages immediately since initial sync likely failed due to no crypto
@@ -214,16 +254,11 @@ export function registerAuthIpc(): void {
           // 5. Offline Fallback for registered devices
           if (loginResponse.error?.code === 'NETWORK_ERROR' && ramStore.cryptoState) {
             logger.warn(`[Auth] Network down, falling back to offline login for registered device`);
-            let studentName = testId;
-            if (ramStore.examConfig?.accessibleUsers && ramStore.examConfig.accessibleUsers.length > 0) {
-              const user = ramStore.examConfig.accessibleUsers.find(u => String(u.id) === String(testId));
-              if (!user) {
-                return { success: false, error: { code: ErrorCode.STUDENT_NOT_FOUND, message: '伺服器無法連線，且此學號不在離線名單內' } };
-              }
-              if (user.name) {
-                studentName = user.name;
-              }
+            const roster = rosterFor(testId);
+            if (roster.knownRoster && !roster.entry) {
+              return { success: false, error: { code: ErrorCode.STUDENT_NOT_FOUND, message: '伺服器無法連線，且此學號不在離線名單內' } };
             }
+            const studentName = roster.entry?.name || testId;
             ramStore.studentInfo = { id: testId, name: studentName };
             ramStore.isStudentVerified = true;
             ramStore.pendingLoginSync = true;
@@ -233,13 +268,19 @@ export function registerAuthIpc(): void {
 
           // Login failed but not a network error
           const errorCode = loginResponse.error?.code || ErrorCode.STUDENT_NOT_FOUND;
-          
-          // Only destroy crypto state for non-binding errors
-          // BINDING_LOCKED means the device is properly registered, just bound to another user
-          if (errorCode !== 'BINDING_LOCKED' && errorCode !== 'ALREADY_LOGGED_IN') {
-            ramStore.cryptoState = null;
-          }
-          
+
+          /* The registration survives the failed login.
+           *
+           * Registration and login are two independent layers: being refused
+           * as a student says nothing about whether this machine's key is
+           * known to the backend. Discarding the key here sent the machine
+           * back to the approval screen, which retries registration every five
+           * seconds — and with registration closed, every retry filed another
+           * request for a TA. One binding conflict became an unbounded queue.
+           *
+           * The device layer has its own signal for "this machine is not
+           * registered": the backend answers 401 and `makeErrorResponse` raises
+           * a force-logout, which clears the key on the way past. */
           return {
             success: false,
             error: {
@@ -256,12 +297,14 @@ export function registerAuthIpc(): void {
       };
 
     } catch (error) {
+      /* Same reasoning as the refusal above: an unreachable server is the least
+       * likely moment to throw away a working registration, since re-registering
+       * needs that same server. */
       logger.error('[Auth] Error during login:', error);
-      ramStore.cryptoState = null;
       return {
         success: false,
         error: {
-          code: ErrorCode.REGISTRATION_FAILED,
+          code: ErrorCode.NO_RESPONSE,
           message: 'Server unreachable or error during login'
         }
       };

@@ -49,6 +49,16 @@ describe('LocalProgramStoreService', () => {
     expect(result).toBe(dest);
   });
 
+  /* Feature 007 bugfix BUG-07. A missing path reached `path.resolve` and threw
+   * about `paths[0]`, which names an argument position and nothing else. */
+  it('names the missing file when no source path is given', () => {
+    const store = (localProgramStore as any).constructor.getInstance();
+    (fs.copyFileSync as any).mockClear();
+
+    expect(() => store.addFile('puz1', 'js', undefined)).toThrowError(/puz1/);
+    expect(fs.copyFileSync).not.toHaveBeenCalled();
+  });
+
   it('should save highest score file correctly', () => {
     const store = (localProgramStore as any).constructor.getInstance();
     (fs.copyFileSync as any).mockClear();

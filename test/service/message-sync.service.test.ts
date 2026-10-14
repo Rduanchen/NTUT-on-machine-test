@@ -74,6 +74,9 @@ const mocks = vi.hoisted(() => {
     mockLocalProgramStore: {
       reset: vi.fn()
     },
+    mockConnectionService: {
+      clearQueues: vi.fn()
+    },
     mockConfigService: {
       applyPaper: vi.fn(async (meta: any) => {
         mockRamStoreState.examConfig = meta;
@@ -106,6 +109,10 @@ vi.mock('../../src/main/services/config.service', () => ({
  * has to be mocked rather than merely unused. */
 vi.mock('../../src/main/services/localProgram.service', () => ({
   localProgramStore: mocks.mockLocalProgramStore
+}));
+
+vi.mock('../../src/main/services/connection.service', () => ({
+  connectionService: mocks.mockConnectionService
 }));
 
 vi.mock('../../src/main/system/windowManager', () => ({
@@ -345,6 +352,16 @@ describe('Message Sync Service', () => {
           socketHandlers['exam-reset']({ resetAt: new Date().toISOString() });
 
           expect(mocks.mockSend).toHaveBeenCalledWith('exam:status-changed', 'UNINITIALIZED');
+        });
+
+        it("drops work still queued from the exam that was wiped", () => {
+          /* Feature 007 bugfix BUG-06. Queued answers, scores and action logs
+           * survived a reset and were posted into the next exam the moment the
+           * socket came back — a different exam, with different students in
+           * the same seats. */
+          socketHandlers['exam-reset']({ resetAt: new Date().toISOString() });
+
+          expect(mocks.mockConnectionService.clearQueues).toHaveBeenCalledOnce();
         });
 
         it('keeps the socket up so the machine can be reused', () => {

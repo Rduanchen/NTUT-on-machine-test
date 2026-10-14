@@ -7,7 +7,7 @@ import {
   getStudentIdByIp, getPublicKey, registerDevice, login,
   getDeviceUuid, getSubmissions
 } from '../../src/main/services/api.service';
-import { logServerEvent } from '../../src/main/services/logger.service';
+import { logger, logServerEvent } from '../../src/main/services/logger.service';
 import { messageSyncService } from '../../src/main/services/message-sync.service';
 import { configService } from '../../src/main/services/config.service';
 import { judgeManager } from '../../src/main/services/judge-manager.service';
@@ -57,7 +57,8 @@ vi.mock('../../src/main/services/message-sync.service', () => ({
 
 vi.mock('../../src/main/services/config.service', () => ({
   configService: {
-    fetchAndSaveConfig: vi.fn(),
+    fetchAndSaveConfig: vi.fn().mockResolvedValue({ success: true }),
+    ensureExamPaperReadable: vi.fn().mockResolvedValue({ success: true }),
   }
 }));
 
@@ -322,12 +323,32 @@ describe('auth.ipc', () => {
       expect(result.success).toBe(false);
     });
 
-    it('login failed with normal error resets crypto state', async () => {
+    /* Feature 007 bugfix BUG-04. Registration and login are two independent
+     * layers: being refused as a student says nothing about whether this
+     * machine's key is known to the backend. Discarding the key here sent the
+     * machine to the approval screen, which retries registration every five
+     * seconds — and with registration closed, every retry filed another request
+     * for a TA. One binding conflict became an unbounded queue. */
+    it('preserves the registration when a login is refused for any reason', async () => {
       ramStore.cryptoState = {} as any;
       vi.mocked(login).mockResolvedValueOnce({ success: false, error: { code: 'INVALID_CREDENTIALS' } } as any);
       const result = await invoke('auth:login', 'test1');
       expect(result.success).toBe(false);
-      expect(ramStore.cryptoState).toBeNull();
+      expect(ramStore.cryptoState).not.toBeNull();
+    });
+
+    it('preserves the registration when the backend refuses with an unfamiliar code', async () => {
+      /* The reason this cannot be a list of known codes: the backend used to
+       * put the code in the message field, so every code arriving here was
+       * unfamiliar and every refusal cleared the key. */
+      ramStore.cryptoState = {} as any;
+      vi.mocked(login).mockResolvedValueOnce({
+        success: false,
+        error: { code: 'This student ID is currently logged in on another active device.' }
+      } as any);
+      const result = await invoke('auth:login', 'test1');
+      expect(result.success).toBe(false);
+      expect(ramStore.cryptoState).not.toBeNull();
     });
 
     it('login failed with BINDING_LOCKED preserves crypto state', async () => {
@@ -346,13 +367,64 @@ describe('auth.ipc', () => {
       expect(ramStore.cryptoState).not.toBeNull();
     });
 
-    it('handles unexpected errors', async () => {
+    it('handles unexpected errors without discarding the registration', async () => {
+      /* Feature 007 bugfix BUG-04. An unreachable server is the least likely
+       * moment to throw away a working registration: re-registering needs that
+       * same server, and the machine that does so lands in the TA queue. */
       ramStore.cryptoState = {} as any;
       vi.mocked(login).mockRejectedValueOnce(new Error('Unknown'));
       const result = await invoke('auth:login', 'test1');
       expect(result.success).toBe(false);
-      expect(result.error?.code).toBe('REGISTRATION_FAILED');
-      expect(ramStore.cryptoState).toBeNull();
+      expect(result.error?.code).toBe('NO_RESPONSE');
+      expect(ramStore.cryptoState).not.toBeNull();
+    });
+
+    /* Feature 007 bugfix BUG-05. The exam key was fetched only when the phase
+     * *changed* to IN_PROGRESS. A machine re-entering mid-exam had already read
+     * that phase from the public status endpoint before logging in, so it never
+     * saw a change — and sat on an exam page rendered from a null config. */
+    it('opens the paper when the exam is already running at login time', async () => {
+      ramStore.cryptoState = {} as any;
+      ramStore.examStatus = 'IN_PROGRESS';
+      vi.mocked(getStudentIdByIp).mockResolvedValueOnce({
+        success: true,
+        data: { testId: 'ip-test' }
+      } as any);
+      vi.mocked(login).mockResolvedValueOnce({
+        success: true,
+        data: { session_token: 'tok' }
+      } as any);
+      vi.mocked(getSubmissions).mockResolvedValueOnce({ success: true, data: [] } as any);
+
+      const result = await invoke('auth:login');
+
+      expect(result.success).toBe(true);
+      expect(configService.ensureExamPaperReadable).toHaveBeenCalled();
+    });
+
+    it('still reports success when the paper cannot be opened, and says so in the log', async () => {
+      ramStore.cryptoState = {} as any;
+      vi.mocked(getStudentIdByIp).mockResolvedValueOnce({
+        success: true,
+        data: { testId: 'ip-test' }
+      } as any);
+      vi.mocked(login).mockResolvedValueOnce({
+        success: true,
+        data: { session_token: 'tok' }
+      } as any);
+      vi.mocked(getSubmissions).mockResolvedValueOnce({ success: true, data: [] } as any);
+      vi.mocked(configService.ensureExamPaperReadable).mockResolvedValueOnce({
+        success: false,
+        error: { code: 'NO_RESPONSE', message: 'no key' }
+      } as any);
+
+      const result = await invoke('auth:login');
+
+      /* The login itself worked; the paper is a separate failure and the exam
+       * page surfaces it. Reporting a failed login here would send the machine
+       * back through the entry gate for something the gate cannot fix. */
+      expect(result.success).toBe(true);
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('still sealed'));
     });
   });
 

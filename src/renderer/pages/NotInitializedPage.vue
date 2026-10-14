@@ -116,8 +116,6 @@ async function handleRegisterDevice() {
   }
 }
 
-let statusUnsubscribe: (() => void) | null = null;
-
 onMounted(() => {
   checkStatus();
   pollTimer = setInterval(checkStatus, 5000);
@@ -126,15 +124,11 @@ onMounted(() => {
   // so that messageSyncService can successfully fetch exam status.
   handleRegisterDevice();
 
-  // Listen for status changes pushed from main process
-  statusUnsubscribe = window.api?.store?.onExamStatusChanged?.(() => {
-    void goToDerivedPage(router);
-  }) || null;
+  /* The phase is watched once, in App.vue — this page has no copy of it. */
 });
 
 onBeforeUnmount(() => {
   if (pollTimer) clearInterval(pollTimer);
-  if (statusUnsubscribe) statusUnsubscribe();
 });
 </script>
 

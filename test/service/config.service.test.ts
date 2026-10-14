@@ -165,6 +165,33 @@ describe('ConfigService', () => {
             expect(messageSyncService.start).toHaveBeenCalledWith('http://test.com');
         });
 
+        /* Feature 007 bugfix BUG-02. `isConfigured` only turns true once a
+         * paper has been fetched, and `/` is the startup route — so a machine
+         * with a perfectly good pre_settings.json sat on a settings form asking
+         * for the address it had already been given. The only thing that would
+         * have moved it on is a connection-status event emitted from here,
+         * before `createWindow()`, with no renderer listening. */
+        it('marks the machine as deployed so it is never shown the settings form', async () => {
+            (fs.existsSync as any).mockReturnValue(true);
+            (fs.readFileSync as any).mockReturnValue('{"remoteHost":"http://test.com"}');
+            (preSettingsSchema.safeParse as any).mockReturnValue({ success: true, data: { remoteHost: 'http://test.com' } });
+
+            await configService.initFromPreSettings();
+
+            expect(ramStore.isPreDeployed).toBe(true);
+        });
+
+        it('leaves a machine with no remoteHost free to use the settings form', async () => {
+            ramStore.isPreDeployed = false;
+            (fs.existsSync as any).mockReturnValue(true);
+            (fs.readFileSync as any).mockReturnValue('{}');
+            (preSettingsSchema.safeParse as any).mockReturnValue({ success: true, data: {} });
+
+            await configService.initFromPreSettings();
+
+            expect(ramStore.isPreDeployed).toBe(false);
+        });
+
         it('does not start services if remoteHost is missing', async () => {
             (fs.existsSync as any).mockReturnValue(true);
             (fs.readFileSync as any).mockReturnValue('{}');

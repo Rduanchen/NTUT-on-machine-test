@@ -183,12 +183,16 @@ export function registerStoreIpc(): void {
   });
 
   ipcMain.handle('store:get-exam-info', () => {
-    const config = ramStore.examConfig;
-    if (!config) return null;
+    /* The title and description live in the meta half, which arrives long
+     * before the paper is opened. Reading them only off the opened paper left
+     * every pre-exam screen — standby, login, waiting, and every offline
+     * machine — with a blank heading for an exam it had already been handed. */
+    const source = ramStore.examConfig ?? ramStore.examConfigMeta;
+    if (!source) return null;
 
     return {
-      testTitle: config.testTitle,
-      description: config.description
+      testTitle: source.testTitle,
+      description: source.description
     };
   });
 }

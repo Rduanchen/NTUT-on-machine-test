@@ -28,8 +28,20 @@ export type DerivedPage =
  * re-deriving lands in the right place on its own.
  *
  * Mirrors EXAM-LIFECYCLE.md §4.2.
+ *
+ * The third input is whether this machine is running the exam without a
+ * backend at all. An offline machine can never be `REGISTERED` — registration
+ * is the thing it could not do — so it derived to the approval screen, which
+ * waits for a TA action delivered over the connection it does not have. That
+ * left the offline path with no way to reach the invigilator's password, which
+ * is the whole point of the offline path. It goes to `login` instead, where the
+ * roster is checked locally, and on to `waiting`, where the password lives.
  */
-export function derivePage(examStatus: ExamState, device: DeviceState): DerivedPage {
+export function derivePage(
+  examStatus: ExamState,
+  device: DeviceState,
+  isOffline: boolean = false
+): DerivedPage {
   switch (examStatus) {
     case 'UNINITIALIZED':
       // Nothing exists to register against yet, whatever this machine has done.
@@ -42,12 +54,12 @@ export function derivePage(examStatus: ExamState, device: DeviceState): DerivedP
 
     case 'SETUP_FINISHED':
       if (device === 'LOGGED_IN') return 'waiting';
-      if (device === 'REGISTERED') return 'login';
+      if (device === 'REGISTERED' || isOffline) return 'login';
       return 'pending-approval';
 
     case 'IN_PROGRESS':
       if (device === 'LOGGED_IN') return 'exam';
-      if (device === 'REGISTERED') return 'login';
+      if (device === 'REGISTERED' || isOffline) return 'login';
       return 'pending-approval';
 
     case 'FINISHED':
@@ -71,4 +83,17 @@ export function derivePage(examStatus: ExamState, device: DeviceState): DerivedP
  */
 export function isSettingsReachable(examStatus: ExamState): boolean {
   return examStatus === 'UNINITIALIZED' || examStatus === 'INITIALIZED';
+}
+
+/**
+ * Whether the settings page is where this machine should *land* on startup.
+ *
+ * Reachable and landed-on are different questions, and conflating them is what
+ * left a machine with a perfectly good `pre_settings.json` sitting on a form
+ * asking for the address it already had. A machine that knows where its backend
+ * is has nothing to fill in; one that does not is the only reason this page
+ * exists, because loading a paper from a file is the offline path's only entry.
+ */
+export function isSettingsTheLandingPage(hasBackendUrl: boolean, isConfigured: boolean): boolean {
+  return !hasBackendUrl && !isConfigured;
 }

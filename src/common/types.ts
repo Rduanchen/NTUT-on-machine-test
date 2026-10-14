@@ -260,6 +260,14 @@ export interface RamStoreState {
   socketStatus: SocketConnectionStatus;
   examStatus: ExamState;
   isOfflineMode: boolean;
+  /**
+   * A backend address was supplied by `pre_settings.json` at startup.
+   *
+   * Distinct from `isConfigured`, which only becomes true once a paper has
+   * actually been fetched. A deployed machine must never be shown the settings
+   * form, and that has to be answerable before the first successful fetch.
+   */
+  isPreDeployed: boolean;
   /** Registration has succeeded at least once on this machine. */
   hasEverRegistered: boolean;
   pendingLoginSync: boolean;

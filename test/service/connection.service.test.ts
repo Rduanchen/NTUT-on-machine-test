@@ -439,5 +439,42 @@ describe('Connection Service', () => {
         expect((connectionService as any).pendingConfigRefresh).toBe(false);
       });
     });
+
+    /* Feature 007 bugfix BUG-06. Queued work survived a global reset and was
+     * posted into the next exam as soon as the socket came back — a different
+     * exam, created by the backend after the wipe, with different students in
+     * the same seats. Losing it is the point: the exam it belonged to no longer
+     * exists. */
+    describe('clearQueues on a global reset', () => {
+      const submission = { puzzleId: 'Q1', language: 'Python', codeContent: 'print(1)' };
+
+      it('drops queued submissions and the queued score', () => {
+        connectionService.queueSubmission(submission);
+        connectionService.queueScore({ score: 42 });
+
+        connectionService.clearQueues();
+
+        expect(connectionService.getPendingCounts()).toEqual({ submissions: 0, score: false });
+      });
+
+      it('drops the action log waiting to be sent', () => {
+        connectionService.clearQueues();
+
+        expect(mocks.mockGetAndClearLogQueue).toHaveBeenCalled();
+      });
+
+      it('sends nothing from the wiped exam when the connection returns', async () => {
+        connectionService.queueSubmission(submission);
+        connectionService.queueScore({ score: 42 });
+
+        connectionService.clearQueues();
+
+        triggerConnected();
+        await new Promise((r) => setTimeout(r, 0));
+
+        expect(mocks.mockSubmitCode).not.toHaveBeenCalled();
+        expect(mocks.mockSubmitScore).not.toHaveBeenCalled();
+      });
+    });
   });
 });

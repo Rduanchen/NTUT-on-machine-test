@@ -65,6 +65,7 @@ class RamStoreService {
     socketStatus: 'disconnected',
     examStatus: 'UNINITIALIZED',
     isOfflineMode: false,
+    isPreDeployed: false,
     hasEverRegistered: false,
     pendingLoginSync: false,
     uploadVersionPreference: 'current'
@@ -125,6 +126,7 @@ class RamStoreService {
       socketStatus: 'disconnected',
       examStatus: 'UNINITIALIZED',
       isOfflineMode: false,
+      isPreDeployed: false,
       hasEverRegistered: false,
       pendingLoginSync: false,
       uploadVersionPreference: 'current'
@@ -293,6 +295,20 @@ class RamStoreService {
 
   set isOfflineMode(value: boolean) {
     this.set('isOfflineMode', value);
+  }
+
+  /**
+   * Whether a backend address was baked in before the machine ever started.
+   *
+   * Survives a reset: the deployment is a property of the machine, not of the
+   * exam that was just wiped.
+   */
+  get isPreDeployed(): boolean {
+    return this.state.isPreDeployed;
+  }
+
+  set isPreDeployed(value: boolean) {
+    this.set('isPreDeployed', value);
   }
 
   /** Set once registration succeeds; never unset short of a reset. */

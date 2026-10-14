@@ -182,7 +182,6 @@ const syncMsg = ref('');
 const syncSuccess = ref(false);
 const testResults = ref<Record<string, JudgeRunResult>>({});
 const examConfig = ref<ExamConfig | null>(null);
-let statusUnsubscribe: (() => void) | null = null;
 
 // ─── Computed: sections summary ───────────────────────────────────────
 interface SectionSummary {
@@ -384,9 +383,8 @@ onMounted(async () => {
     
     effectiveSpecialRules.value = await window.api.store.getEffectiveSpecialRules?.() || {};
 
-    statusUnsubscribe = window.api.store.onExamStatusChanged?.(() => {
-      void goToDerivedPage(router);
-    }) || null;
+    /* The phase is watched once, in App.vue — a reset from here has to land
+     * on the waiting screen like everywhere else. */
   }
 
   // Auto push on mount
@@ -395,7 +393,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
-  if (statusUnsubscribe) statusUnsubscribe();
+  /* Nothing to unsubscribe: the phase is watched above every page. */
 });
 </script>
 

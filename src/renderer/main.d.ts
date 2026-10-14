@@ -57,6 +57,19 @@ declare global {
         getFromServer: (host: string) => Promise<any>;
         getServerStatus: (hostname: string) => Promise<any>;
         isSetupComplete: () => Promise<boolean>;
+        hasBackendUrl?: () => Promise<boolean>;
+        isPreDeployed?: () => Promise<boolean>;
+        isOffline?: () => Promise<boolean>;
+        ensurePaper?: () => Promise<{
+          success: boolean;
+          error?: { code: string; message: string };
+        }>;
+        startWithPassword?: (
+          password: string
+        ) => Promise<{ success: boolean; error?: { code: string; message: string } }>;
+      };
+      files?: {
+        getPath: (file: File) => string;
       };
       notifications?: {
         getAll: () => Promise<any[]>;

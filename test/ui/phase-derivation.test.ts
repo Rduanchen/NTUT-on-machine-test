@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   derivePage,
   isSettingsReachable,
+  isSettingsTheLandingPage,
   type DerivedPage,
   type DeviceState
 } from '../../src/renderer/router/phase-derivation';
@@ -91,6 +92,61 @@ describe('derivePage', () => {
       const pages = DEVICE_STATES.map((device) => derivePage('FINISHED', device));
       expect(new Set(pages)).toEqual(new Set(['finished']));
     });
+  });
+});
+
+/**
+ * Feature 007 bugfix BUG-03.
+ *
+ * An offline machine can never be `REGISTERED` — registration is precisely the
+ * thing it could not do — so it derived to the approval screen, which waits for
+ * a TA action delivered over the connection it does not have. That left the
+ * offline path with no route to the invigilator's password, which is the whole
+ * reason the offline path exists.
+ */
+describe('derivePage for a machine with no backend', () => {
+  it('sends it to login rather than to an approval it can never receive', () => {
+    expect(derivePage('SETUP_FINISHED', 'UNREGISTERED', true)).toBe('login');
+    expect(derivePage('IN_PROGRESS', 'UNREGISTERED', true)).toBe('login');
+  });
+
+  it('never parks it on the approval screen in any phase', () => {
+    for (const phase of PHASES) {
+      for (const device of DEVICE_STATES) {
+        expect(derivePage(phase, device, true)).not.toBe('pending-approval');
+      }
+    }
+  });
+
+  it('lets it reach the waiting screen, where the password is entered', () => {
+    expect(derivePage('SETUP_FINISHED', 'LOGGED_IN', true)).toBe('waiting');
+  });
+
+  it('leaves an online machine exactly where it was', () => {
+    for (const phase of PHASES) {
+      for (const device of DEVICE_STATES) {
+        expect(derivePage(phase, device, false)).toBe(derivePage(phase, device));
+      }
+    }
+  });
+});
+
+/**
+ * Feature 007 bugfix BUG-02. Reachable and landed-on are different questions.
+ * `/` is the startup route, so a machine deployed with `pre_settings.json` sat
+ * on a form asking for the address it had already been given.
+ */
+describe('isSettingsTheLandingPage', () => {
+  it('is the landing page only for a machine that knows nothing', () => {
+    expect(isSettingsTheLandingPage(false, false)).toBe(true);
+  });
+
+  it('is not the landing page once a backend address is known', () => {
+    expect(isSettingsTheLandingPage(true, false)).toBe(false);
+  });
+
+  it('is not the landing page once a paper has been loaded', () => {
+    expect(isSettingsTheLandingPage(false, true)).toBe(false);
   });
 });
 
