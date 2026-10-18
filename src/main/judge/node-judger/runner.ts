@@ -1,5 +1,5 @@
-import { spawn, ChildProcess } from 'child_process';
-import pidusage, { Stat as PidUsageStat } from 'pidusage';
+import { spawn, execFile, ChildProcess } from 'child_process';
+import pidusage from 'pidusage';
 
 export interface RunResult {
   stdout: string;
@@ -67,6 +67,9 @@ export function runProcess(options: RunOptions): Promise<RunResult> {
     let peakMemoryBytes = 0;
     let memoryMonitorInterval: ReturnType<typeof setInterval> | null = null;
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    let memorySamplePending = false;
+    let cancelMemoryQuery: (() => void) | null = null;
+    let finished = false;
 
     let child: ChildProcess;
 
@@ -90,10 +93,19 @@ export function runProcess(options: RunOptions): Promise<RunResult> {
       });
     }
 
+    const stopMemoryMonitoring = () => {
+      if (memoryMonitorInterval) clearInterval(memoryMonitorInterval);
+      if (cancelMemoryQuery) {
+        cancelMemoryQuery();
+        cancelMemoryQuery = null;
+      }
+    };
+
     const killChild = (reason: 'TLE' | 'MLE' | 'OLE' | 'ABORTED') => {
       if (!killed) {
         killed = true;
         killReason = reason;
+        stopMemoryMonitoring();
         killProcessTree(child);
       }
     };
@@ -114,18 +126,42 @@ export function runProcess(options: RunOptions): Promise<RunResult> {
     // Memory monitoring
     if (memoryLimitBytes && child.pid) {
       memoryMonitorInterval = setInterval(() => {
-        if (!child.pid || killed) return;
-        pidusage(child.pid)
-          .then((stats: PidUsageStat) => {
-            if (stats.memory > peakMemoryBytes) {
-              peakMemoryBytes = stats.memory;
+        if (!child.pid || killed || finished || memorySamplePending) return;
+        memorySamplePending = true;
+
+        // Loading a PowerShell profile can launch conda on every sample.
+        // Query directly without a shell/profile, and bound each query's lifetime.
+        const memorySample = isWindows
+          ? new Promise<number>((resolveSample, rejectSample) => {
+            const query = execFile('powershell.exe', [
+              '-NoLogo', '-NoProfile', '-NonInteractive', '-Command',
+              `(Get-Process -Id ${child.pid} -ErrorAction Stop).WorkingSet64`,
+            ], { windowsHide: true, timeout: 1000, maxBuffer: 1024 }, (error, stdout) => {
+              cancelMemoryQuery = null;
+              if (error) return rejectSample(error);
+              const memory = Number(stdout.trim());
+              if (!stdout.trim() || !Number.isFinite(memory) || memory < 0) {
+                return rejectSample(new Error('Invalid process memory sample'));
+              }
+              resolveSample(memory);
+            });
+            cancelMemoryQuery = () => { query.kill(); };
+          })
+          : pidusage(child.pid).then((stats) => stats.memory);
+
+        memorySample
+          .then((memory) => {
+            if (finished || killed) return;
+            if (memory > peakMemoryBytes) {
+              peakMemoryBytes = memory;
             }
-            if (memoryLimitBytes && stats.memory > memoryLimitBytes) {
+            if (memory > memoryLimitBytes) {
               killChild('MLE');
             }
           })
-          .catch(() => { });
-      }, 5);
+          .catch(() => { })
+          .finally(() => { memorySamplePending = false; });
+      }, 200);
     }
 
     child.stdout!.on('data', (chunk: Buffer) => {
@@ -152,41 +188,27 @@ export function runProcess(options: RunOptions): Promise<RunResult> {
     } catch { /* stdin may already be closed */ }
 
     child.on('close', (exitCode, signal) => {
+      finished = true;
       const timeTakenMs = Date.now() - startTime;
       if (timeoutHandle) clearTimeout(timeoutHandle);
-      if (memoryMonitorInterval) clearInterval(memoryMonitorInterval);
-
-      if (child.pid && !killed) {
-        pidusage(child.pid)
-          .then((stats: PidUsageStat) => {
-            if (stats.memory > peakMemoryBytes) peakMemoryBytes = stats.memory;
-          })
-          .catch(() => { })
-          .finally(() => {
-            pidusage.clear();
-            resolve({
-              stdout: Buffer.concat(stdoutChunks).toString('utf-8'),
-              stderr: Buffer.concat(stderrChunks).toString('utf-8'),
-              exitCode, signal: signal as string | null,
-              timeTakenMs, peakMemoryBytes, killed, killReason,
-            });
-          });
-      } else {
-        pidusage.clear();
-        resolve({
-          stdout: Buffer.concat(stdoutChunks).toString('utf-8'),
-          stderr: Buffer.concat(stderrChunks).toString('utf-8'),
-          exitCode, signal: signal as string | null,
-          timeTakenMs, peakMemoryBytes, killed, killReason,
-        });
-      }
+      stopMemoryMonitoring();
+      if (!isWindows) pidusage.clear();
+      // The process is already gone: return completed samples instead of
+      // waiting for another OS query outside the execution time limit.
+      resolve({
+        stdout: Buffer.concat(stdoutChunks).toString('utf-8'),
+        stderr: Buffer.concat(stderrChunks).toString('utf-8'),
+        exitCode, signal: signal as string | null,
+        timeTakenMs, peakMemoryBytes, killed, killReason,
+      });
     });
 
     child.on('error', (err) => {
+      finished = true;
       const timeTakenMs = Date.now() - startTime;
       if (timeoutHandle) clearTimeout(timeoutHandle);
-      if (memoryMonitorInterval) clearInterval(memoryMonitorInterval);
-      pidusage.clear();
+      stopMemoryMonitoring();
+      if (!isWindows) pidusage.clear();
       resolve({
         stdout: Buffer.concat(stdoutChunks).toString('utf-8'),
         stderr: err.message, exitCode: -1, signal: null,
