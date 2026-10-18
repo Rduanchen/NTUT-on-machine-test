@@ -44,11 +44,11 @@ describe('special-rules.service', () => {
             ],
         };
 
-        const effective = getEffectiveSpecialRules({ examConfig: config, puzzleIndex: 0 });
+        const effective = getEffectiveSpecialRules({ examConfig: config, puzzleId: '0' });
         expect(effective.map((r) => r.id)).toEqual(['g1', 'p1']);
     });
 
-    it('evaluates rules and returns SpecialRuleResultRecord[] with checkedAt', () => {
+    it('evaluates rules and returns SpecialRuleResultRecord[] with checkedAt', async () => {
         const rules = [
             {
                 id: 'r1',
@@ -66,7 +66,7 @@ describe('special-rules.service', () => {
             },
         ];
 
-        const results = evaluateSpecialRules({
+        const results = await evaluateSpecialRules({
             rules,
             language: 'Cpp',
             sourceText: 'int main(){return 0;}',

@@ -13,10 +13,15 @@
 1. You need to install [Node.js](https://nodejs.org/en/) with npm.
 2. Clone this repository to your local machine.
 3. Run `npm install` to install the dependencies.
-4. Run `npm start` to start the development server.
-5. Run `npm run copy-python:win` or `npm run copy-python:unix` to copy the python environment to the output folder.
+4. Run `npm run dev` to start the development server.
 
-## Note:
+## Windows Build
 
-1. for mac user, you must install python3 environment first.
-2. for windows user, you must install python3 and git bash environment first. (python3 embedded version is comming soon)
+Run `npm run build:win` on Windows to create the installer in `dist/`.
+Python is not bundled with the application and is not required to package the application.
+
+## Local Judging Requirements
+
+To judge Python submissions, install Python on each exam computer and ensure
+`python` (Windows) or `python3` (macOS/Linux) is available on PATH.
+Other languages also require their corresponding compilers or runtimes on PATH.
