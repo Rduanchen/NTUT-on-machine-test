@@ -59,6 +59,16 @@ describe('LocalProgramStoreService', () => {
     expect(fs.copyFileSync).not.toHaveBeenCalled();
   });
 
+  it('rejects path components that could escape the temporary directory', () => {
+    const store = (localProgramStore as any).constructor.getInstance();
+    (fs.copyFileSync as any).mockClear();
+
+    expect(() => store.addFile('../outside', 'py', '/mock/source/code.py')).toThrow(/puzzle ID/);
+    expect(() => store.addFile('puz1', '../py', '/mock/source/code.py')).toThrow(/extension/);
+    expect(() => store.saveHighestScoreFile('..\\outside', 'py', '/mock/source/code.py')).toThrow(/puzzle ID/);
+    expect(fs.copyFileSync).not.toHaveBeenCalled();
+  });
+
   it('should save highest score file correctly', () => {
     const store = (localProgramStore as any).constructor.getInstance();
     (fs.copyFileSync as any).mockClear();

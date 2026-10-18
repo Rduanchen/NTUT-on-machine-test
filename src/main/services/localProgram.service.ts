@@ -5,6 +5,12 @@ import admzip from 'adm-zip';
 import { logger } from './logger.service';
 import type { UploadVersionPreference } from '../../common/types';
 
+function validateFileComponent(value: string, label: string): void {
+  if (typeof value !== 'string' || !/^[\p{L}\p{N}._-]+$/u.test(value) || value === '.' || value === '..') {
+    throw new Error(`Invalid ${label} for local program storage`);
+  }
+}
+
 /**
  * Local Program Store - Manages student code files in a temp directory
  *
@@ -52,6 +58,8 @@ class LocalProgramStoreService {
     if (typeof sourcePath !== 'string' || sourcePath.length === 0) {
       throw new Error(`No source file path was given for puzzle ${puzzleId}`);
     }
+    validateFileComponent(puzzleId, 'puzzle ID');
+    validateFileComponent(extension, 'extension');
 
     const destPath = path.join(this.tempDir, `${puzzleId}.${extension}`);
     const resolvedSource = path.resolve(sourcePath);
@@ -68,6 +76,11 @@ class LocalProgramStoreService {
    * Copies the source file and renames to {puzzleId}.highest.{extension}.
    */
   public saveHighestScoreFile(puzzleId: string, extension: string, sourcePath: string): string {
+    if (typeof sourcePath !== 'string' || sourcePath.length === 0) {
+      throw new Error(`No source file path was given for puzzle ${puzzleId}`);
+    }
+    validateFileComponent(puzzleId, 'puzzle ID');
+    validateFileComponent(extension, 'extension');
     const destPath = path.join(this.tempDir, `${puzzleId}.highest.${extension}`);
     const resolvedSource = path.resolve(sourcePath);
     const resolvedDest = path.resolve(destPath);
