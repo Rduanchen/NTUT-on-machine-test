@@ -27,7 +27,7 @@ describe('NodeJudgerService', () => {
     ramStore.clear();
     // mock special rules
     vi.spyOn(specialRulesService, 'getEffectiveSpecialRules').mockReturnValue([]);
-    vi.spyOn(specialRulesService, 'evaluateSpecialRules').mockReturnValue([]);
+    vi.spyOn(specialRulesService, 'evaluateSpecialRules').mockResolvedValue([]);
 
     (fs.mkdtempSync as any).mockReturnValue('/mock/workDir');
     (fs.writeFileSync as any).mockImplementation(() => {});
@@ -222,7 +222,7 @@ describe('NodeJudgerService', () => {
     expect(localProgramStore.saveHighestScoreFile).not.toHaveBeenCalled();
   });
 
-  it('should stop correctly', () => {
+  it('should stop correctly', async () => {
     expect(nodeJudgerService.stop()).toBe(false);
     
     setupConfig(false, true);
@@ -231,9 +231,10 @@ describe('NodeJudgerService', () => {
     
     // start judge
     const p = nodeJudgerService.judge('puz1', '/mock/path.py');
+    await Promise.resolve();
     expect(nodeJudgerService.stop()).toBe(true);
     // kill should have been called internally by runner? Wait, stop calls currentHandle.stop() which sets abortSignal
-    // For this test, just asserting it returns true is enough.
+    await p.catch(() => {});
   });
 
   it('should calculate score for puzzles without subtasks', async () => {

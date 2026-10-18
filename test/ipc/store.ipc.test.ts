@@ -242,11 +242,11 @@ describe('store.ipc', () => {
         const result = await invoke('store:get-puzzle-info');
         expect(result).toEqual([
           {
-            id: 'p1', title: 'T1', language: 'C', score: 10,
+            id: 'p1', title: 'T1', language: 'C', score: 10, multiplier: 0.5,
             subtasks: [{ title: 'S1', score: 10 }]
           },
           {
-            id: '1', title: 'T2', language: 'Cpp', score: 0, subtasks: undefined
+            id: '1', title: 'T2', language: 'Cpp', score: 0, multiplier: 0.5, subtasks: undefined
           }
         ]);
       });
@@ -270,11 +270,11 @@ describe('store.ipc', () => {
         const result = await invoke('store:get-puzzle-info');
         expect(result).toEqual([
           {
-            id: 'p1', title: 'T1', language: 'C', score: 50, subtasks: undefined,
+            id: 'p1', title: 'T1', language: 'C', score: 50, multiplier: 0.5, subtasks: undefined,
             sectionId: 's1', sectionTitle: 'Section 1', sectionDescription: 'Desc 1', sectionMaxScore: 100
           },
           {
-            id: '1', title: 'T2', language: 'Cpp', score: 0, subtasks: undefined,
+            id: '1', title: 'T2', language: 'Cpp', score: 0, multiplier: 0.5, subtasks: undefined,
             sectionId: 's1', sectionTitle: 'Section 1', sectionDescription: 'Desc 1', sectionMaxScore: 100
           }
         ]);

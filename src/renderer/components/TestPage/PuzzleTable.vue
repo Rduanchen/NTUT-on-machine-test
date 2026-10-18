@@ -85,6 +85,7 @@ import { useTheme } from 'vuetify';
 import PuzzleRow from './PuzzleRow.vue';
 import type { PuzzleInfo } from '../../../common/types';
 import type { SpecialRule, SpecialRuleResultRecord } from '../../../common/types';
+import { applyPuzzleRuleMultiplier } from '../../../common/special-rule-score';
 
 const props = defineProps<{
   puzzles: PuzzleInfo[];
@@ -164,24 +165,9 @@ function calculatePuzzleScore(puzzle: PuzzleInfo, useHighest: boolean = false): 
     }
   }
 
-  // Apply multiplier if special rules failed
-  let multiplier = 1.0;
   const srrSource = useHighest ? props.highestSpecialRuleResults : props.specialRuleResults;
   const srr = srrSource?.[String(puzzle.id)];
-  const esr = props.effectiveSpecialRules?.[String(puzzle.id)];
-
-  if (srr && esr) {
-    for (const res of srr) {
-      if (!res.passed) {
-        const rule = esr.find((r) => r.id === res.ruleId);
-        if (rule && rule.multiplier !== undefined) {
-          multiplier *= rule.multiplier;
-        }
-      }
-    }
-  }
-
-  return Math.floor(baseScore * multiplier);
+  return applyPuzzleRuleMultiplier(baseScore, srr ?? [], puzzle.multiplier ?? 0.5);
 }
 
 function calculateSectionScore(group: PuzzleInfo[], useHighest: boolean = false): number {

@@ -91,8 +91,8 @@ describe('special-rules.service', () => {
     });
 
     describe('evaluateSpecialRules', () => {
-        it('returns empty array if no rules provided', () => {
-            const results = evaluateSpecialRules({
+        it('returns empty array if no rules provided', async () => {
+            const results = await evaluateSpecialRules({
                 rules: [],
                 language: 'Cpp',
                 sourceText: 'int main(){return 0;}'
@@ -100,7 +100,7 @@ describe('special-rules.service', () => {
             expect(results).toEqual([]);
         });
 
-        it('evaluates rules and uses provided checkedAt', () => {
+        it('evaluates rules and uses provided checkedAt', async () => {
             const rules = [
                 {
                     id: 'r1',
@@ -115,7 +115,7 @@ describe('special-rules.service', () => {
                 { ruleId: 'r1', passed: true, message: 'must include main' }
             ]);
 
-            const results = evaluateSpecialRules({
+            const results = await evaluateSpecialRules({
                 rules,
                 language: 'Cpp',
                 sourceText: 'int main(){return 0;}',
@@ -131,7 +131,7 @@ describe('special-rules.service', () => {
             ]);
         });
 
-        it('uses current time for checkedAt if not provided', () => {
+        it('uses current time for checkedAt if not provided', async () => {
             const rules = [
                 {
                     id: 'r1',
@@ -147,7 +147,7 @@ describe('special-rules.service', () => {
             ]);
 
             const before = new Date().toISOString();
-            const results = evaluateSpecialRules({
+            const results = await evaluateSpecialRules({
                 rules,
                 language: 'Cpp',
                 sourceText: 'int main(){return 0;}'
@@ -159,7 +159,7 @@ describe('special-rules.service', () => {
             expect(results[0].checkedAt <= after).toBe(true);
         });
 
-        it('includes reason if returned by engine', () => {
+        it('includes reason if returned by engine', async () => {
             const rules = [
                 {
                     id: 'r1',
@@ -174,7 +174,7 @@ describe('special-rules.service', () => {
                 { ruleId: 'r1', passed: false, message: 'must not include main', reason: 'found main' }
             ]);
 
-            const results = evaluateSpecialRules({
+            const results = await evaluateSpecialRules({
                 rules,
                 language: 'Cpp',
                 sourceText: 'int main(){return 0;}'

@@ -84,4 +84,53 @@ describe('examConfigSchema - special rules compatibility', () => {
     expect(parsed.globalSpecialRules?.length).toBe(1);
     expect(parsed.puzzles![0].specialRules?.length).toBe(1);
   });
+
+  it('accepts Python AST rules and defaults the puzzle multiplier', () => {
+    const config = buildExamConfig({
+      sections: [],
+      puzzles: [{
+        title: 'Python puzzle', language: 'Python', subtasks: [],
+        specialRules: [{
+          id: 'python-if', type: 'pythonFeature', constraint: 'MUST_HAVE',
+          message: 'Use if', params: { features: ['IF'] },
+        }],
+      }],
+    } as Partial<ReturnType<typeof buildExamConfig>>);
+
+    const parsed = examConfigSchema.parse(config);
+    expect(parsed.puzzles?.[0].multiplier).toBe(0.5);
+    expect(parsed.puzzles?.[0].specialRules?.[0].type).toBe('pythonFeature');
+  });
+
+  it('uses the puzzle multiplier and drops legacy rule multipliers', () => {
+    const config = buildExamConfig({
+      sections: [],
+      puzzles: [{
+        title: 'P1', language: 'Python', multiplier: 0.25, subtasks: [],
+        specialRules: [{
+          id: 'old-rule', type: 'use', constraint: 'MUST_HAVE',
+          message: 'Use print', multiplier: 0.1, params: { target: 'print' },
+        }],
+      }],
+    } as Partial<ReturnType<typeof buildExamConfig>>);
+
+    const parsed = examConfigSchema.parse(config);
+    expect(parsed.puzzles?.[0].multiplier).toBe(0.25);
+    expect(parsed.puzzles?.[0].specialRules?.[0]).not.toHaveProperty('multiplier');
+  });
+
+  it('rejects unsupported Python AST features', () => {
+    const config = buildExamConfig({
+      sections: [],
+      puzzles: [{
+        title: 'P1', language: 'Python', subtasks: [],
+        specialRules: [{
+          id: 'bad-feature', type: 'pythonFeature', constraint: 'MUST_HAVE',
+          message: 'Unsupported', params: { features: ['MAGIC'] },
+        }],
+      }],
+    } as Partial<ReturnType<typeof buildExamConfig>>);
+
+    expect(examConfigSchema.safeParse(config).success).toBe(false);
+  });
 });

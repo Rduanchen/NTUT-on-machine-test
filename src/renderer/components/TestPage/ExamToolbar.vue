@@ -204,6 +204,7 @@
 import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { JudgeRunResult, ExamConfig } from '../../common/types';
+import { applyPuzzleRuleMultiplier, roundFinalScore } from '../../../common/special-rule-score';
 
 defineProps<{ 
   puzzleCount: number,
@@ -338,21 +339,8 @@ const sections = computed<SectionSummary[]>(() => {
       passed += puzzlePassedSubtasks;
       total += puzzleTotalSubtasks;
 
-      let multiplier = 1.0;
       const srr = specialRuleResults.value?.[puzzleKey];
-      const esr = effectiveSpecialRules.value?.[puzzleKey] || puzzle.specialRules || [];
-      if (srr && esr) {
-        for (const res of srr) {
-          if (!res.passed) {
-            const rule = esr.find((r: any) => r.id === res.ruleId) || examConfig.value?.globalSpecialRules?.find((r: any) => r.id === res.ruleId);
-            if (rule && rule.multiplier !== undefined) {
-              multiplier *= rule.multiplier;
-            }
-          }
-        }
-      }
-
-      const finalPuzzleScore = Math.floor(puzzleScore * multiplier);
+      const finalPuzzleScore = applyPuzzleRuleMultiplier(puzzleScore, srr ?? [], puzzle.multiplier ?? 0.5);
       sectionScore += finalPuzzleScore;
     }
 
@@ -373,7 +361,7 @@ const sections = computed<SectionSummary[]>(() => {
 const finalScore = computed(() => {
   const allSections = sections.value;
   if (allSections.length === 0) return 0;
-  return allSections.reduce((a, s) => a + s.score, 0);
+  return roundFinalScore(allSections.reduce((a, s) => a + s.score, 0));
 });
 
 // ─── Actions ───

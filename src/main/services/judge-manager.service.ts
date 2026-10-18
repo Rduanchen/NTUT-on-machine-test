@@ -7,6 +7,7 @@ import { submitCode, submitScore } from './api.service';
 import { connectionService } from './connection.service';
 import { logger, logServerEvent } from './logger.service';
 import * as fs from 'fs';
+import { applyPuzzleRuleMultiplier, roundFinalScore } from '../../common/special-rule-score';
 
 class JudgeManagerService {
   private countPassedSubtasks(result: JudgeRunResult | undefined | null): number {
@@ -96,19 +97,19 @@ class JudgeManagerService {
       // and the backend has its own guard as the final authority.
       const preference = ramStore.uploadVersionPreference || 'current';
       const useHighest = preference === 'highest';
-      
+
       const resultsSource = useHighest ? ramStore.highestHiddenTestResults : ramStore.hiddenTestResults;
       const visibleResultsSource = useHighest ? ramStore.highestTestResults : ramStore.testResults;
       const srrSource = useHighest ? ramStore.highestSpecialRuleResults : ramStore.specialRuleResults;
 
       // Always allow upload since this can be triggered manually from finished page
       // with a specific preference, we just use the selected source.
-      
+
       if (true) {
         let totalScore = 0;
         const sections = ramStore.examConfig?.sections || [];
         const allPuzzles = sections.flatMap(s => s.puzzles) ?? ramStore.examConfig?.puzzles ?? [];
-        
+
         let puzzleAmount = 0;
         let passedPuzzleAmount = 0;
         let subtaskAmount = 0;
@@ -122,16 +123,16 @@ class JudgeManagerService {
               puzzleAmount++;
               const puzzleIndexInAll = allPuzzles.findIndex(p => p.id === puzzle.id);
               const fallbackKey = puzzleIndexInAll !== -1 ? String(puzzleIndexInAll) : '';
-              const puzzleId = puzzle.id && resultsSource[puzzle.id] 
-                ? puzzle.id 
+              const puzzleId = puzzle.id && resultsSource[puzzle.id]
+                ? puzzle.id
                 : (resultsSource[fallbackKey] ? fallbackKey : (puzzle.id || ''));
-              
+
               const result = resultsSource[puzzleId];
               let puzzleScore = 0;
               let puzzlePassedSubtasks = 0;
               const puzzleTotalSubtasks = puzzle.subtasks ? puzzle.subtasks.length : 0;
               subtaskAmount += puzzleTotalSubtasks;
-              
+
               let subtasksInfo: any[] = [];
 
               if (puzzle.subtasks && puzzle.subtasks.length > 0) {
@@ -139,7 +140,9 @@ class JudgeManagerService {
                   const subtaskConfig = puzzle.subtasks[i];
                   const subtaskResult = result?.subtasks?.[i];
                   const visibleResult = visibleResultsSource[puzzleId]?.subtasks?.[i] || [];
-                  
+
+                  const visibleCount = subtaskConfig.visible ? subtaskConfig.visible.length : 0;
+
                   if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.length > 0) {
                     if (subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
                       puzzleScore += (subtaskConfig.score || 0);
@@ -149,13 +152,13 @@ class JudgeManagerService {
                   }
 
                   subtasksInfo.push({
-                    visible: visibleResult.map((c: any) => ({
+                    visible: visibleResult.slice(0, visibleCount).map((c: any) => ({
                       status: c?.statusCode || 'WA',
                       userOutput: c?.userOutput || '',
                       expectedOutput: c?.expectingOutput || '',
                       time: c?.time || '0'
                     })),
-                    hidden: (subtaskResult || []).map((c: any) => ({
+                    hidden: (subtaskResult || []).slice(visibleCount).map((c: any) => ({
                       status: c?.statusCode || 'WA',
                       userOutput: c?.userOutput || '',
                       expectedOutput: c?.expectingOutput || '',
@@ -170,20 +173,7 @@ class JudgeManagerService {
               }
 
               const srr = srrSource[puzzleId];
-              const esr = puzzle.specialRules || [];
-              let multiplier = 1.0;
-              if (srr && esr) {
-                for (const res of srr) {
-                  if (!res.passed) {
-                    const rule = esr.find(r => r.id === res.ruleId) || ramStore.examConfig?.globalSpecialRules?.find(r => r.id === res.ruleId);
-                    if (rule && rule.multiplier !== undefined) {
-                      multiplier *= rule.multiplier;
-                    }
-                  }
-                }
-              }
-
-              const finalPuzzleScore = Math.floor(puzzleScore * multiplier);
+              const finalPuzzleScore = applyPuzzleRuleMultiplier(puzzleScore, srr || [], puzzle.multiplier ?? 0.5);
               sectionScore += finalPuzzleScore;
 
               const finalIndex = puzzleIndexInAll !== -1 ? puzzleIndexInAll : 0;
@@ -205,12 +195,12 @@ class JudgeManagerService {
             puzzleAmount++;
             const puzzleId = puzzle.id || puzzle.title;
             const result = resultsSource[puzzleId];
-            
+
             let puzzleScore = 0;
             let puzzlePassedSubtasks = 0;
             const puzzleTotalSubtasks = puzzle.subtasks ? puzzle.subtasks.length : 0;
             subtaskAmount += puzzleTotalSubtasks;
-            
+
             let subtasksInfo: any[] = [];
 
             if (puzzle.subtasks && puzzle.subtasks.length > 0) {
@@ -218,7 +208,9 @@ class JudgeManagerService {
                 const subtaskConfig = puzzle.subtasks[i];
                 const subtaskResult = result?.subtasks?.[i];
                 const visibleResult = visibleResultsSource[puzzleId]?.subtasks?.[i] || [];
-                
+
+                const visibleCount = subtaskConfig.visible ? subtaskConfig.visible.length : 0;
+
                 if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.length > 0) {
                   if (subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
                     puzzleScore += (subtaskConfig.score || 0);
@@ -228,13 +220,13 @@ class JudgeManagerService {
                 }
 
                 subtasksInfo.push({
-                  visible: visibleResult.map((c: any) => ({
+                  visible: visibleResult.slice(0, visibleCount).map((c: any) => ({
                     status: c?.statusCode || 'WA',
                     userOutput: c?.userOutput || '',
                     expectedOutput: c?.expectingOutput || '',
                     time: c?.time || '0'
                   })),
-                  hidden: (subtaskResult || []).map((c: any) => ({
+                  hidden: (subtaskResult || []).slice(visibleCount).map((c: any) => ({
                     status: c?.statusCode || 'WA',
                     userOutput: c?.userOutput || '',
                     expectedOutput: c?.expectingOutput || '',
@@ -249,20 +241,7 @@ class JudgeManagerService {
             }
 
             const srr = srrSource[puzzleId];
-            const esr = puzzle.specialRules || [];
-            let multiplier = 1.0;
-            if (srr && esr) {
-              for (const res of srr) {
-                if (!res.passed) {
-                  const rule = esr.find(r => r.id === res.ruleId) || ramStore.examConfig?.globalSpecialRules?.find(r => r.id === res.ruleId);
-                  if (rule && rule.multiplier !== undefined) {
-                    multiplier *= rule.multiplier;
-                  }
-                }
-              }
-            }
-
-            totalScore += Math.floor(puzzleScore * multiplier);
+            totalScore += applyPuzzleRuleMultiplier(puzzleScore, srr || [], puzzle.multiplier ?? 0.5);
 
             const puzzleIndex = puzzles.findIndex((p) => (p.id || p.title) === puzzleId);
             const finalIndex = puzzleIndex !== -1 ? puzzleIndex : 0;
@@ -273,7 +252,7 @@ class JudgeManagerService {
           }
         }
 
-        const score = totalScore;
+        const score = roundFinalScore(totalScore);
         const scorePayload = {
           score,
           puzzleResults,
