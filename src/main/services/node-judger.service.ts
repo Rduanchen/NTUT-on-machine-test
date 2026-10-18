@@ -87,7 +87,7 @@ class NodeJudgerService {
         examConfig: config,
         puzzleId,
       });
-      specialRuleResults = evaluateSpecialRules({
+      specialRuleResults = await evaluateSpecialRules({
         rules: effectiveRules,
         language: puzzle.language,
         sourceText: codeString,
