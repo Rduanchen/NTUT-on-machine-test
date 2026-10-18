@@ -1,6 +1,7 @@
 {
   "testTitle": "北科大計算機程式設計期中考",
   "description": "the test will be start at 18:00 and end at 20:00",
+  "environmentVariables": { "startPassword": "start" },
   "judgerSettings": {
     "timeLimit": 10000,
     "memoryLimit": 10240

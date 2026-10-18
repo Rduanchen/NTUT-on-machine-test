@@ -7,6 +7,7 @@ describe('examConfigSchema - special rules compatibility', () => {
         const legacyConfig = {
             testTitle: 'Legacy Exam',
             description: 'no special rules',
+            environmentVariables: { startPassword: 'start' },
             judgerSettings: {
                 timeLimit: 1,
                 memoryLimit: 128
@@ -41,6 +42,7 @@ describe('examConfigSchema - special rules compatibility', () => {
         const config = {
             testTitle: 'Exam With Rules',
             description: 'has special rules',
+            environmentVariables: { startPassword: 'start' },
             judgerSettings: {
                 timeLimit: 1,
                 memoryLimit: 128
@@ -93,5 +95,83 @@ describe('examConfigSchema - special rules compatibility', () => {
         const parsed = examConfigSchema.parse(config);
         expect(parsed.globalSpecialRules?.length).toBe(1);
         expect(parsed.puzzles[0].specialRules?.length).toBe(1);
+    });
+
+    it('accepts Python AST rules and defaults puzzle multiplier to 0.5', () => {
+        const config = {
+            testTitle: 'Python AST Exam',
+            description: 'AST rules',
+            environmentVariables: { startPassword: 'start' },
+            judgerSettings: { timeLimit: 1, memoryLimit: 128 },
+            accessibleUsers: [],
+            puzzles: [{
+                title: 'P1',
+                language: 'Python',
+                subtasks: [],
+                specialRules: [{
+                    id: 'python-if',
+                    type: 'pythonFeature',
+                    constraint: 'MUST_HAVE',
+                    message: 'Use if',
+                    params: { features: ['IF'] },
+                }],
+            }],
+        };
+
+        const parsed = examConfigSchema.parse(config);
+        expect(parsed.puzzles?.[0].multiplier).toBe(0.5);
+        expect(parsed.puzzles?.[0].specialRules?.[0].type).toBe('pythonFeature');
+    });
+
+    it('ignores legacy rule multipliers and uses the configured puzzle multiplier', () => {
+        const config = {
+            testTitle: 'Multiplier Migration',
+            description: 'legacy rule multipliers',
+            environmentVariables: { startPassword: 'start' },
+            judgerSettings: { timeLimit: 1, memoryLimit: 128 },
+            accessibleUsers: [],
+            puzzles: [{
+                title: 'P1',
+                language: 'Python',
+                multiplier: 0.25,
+                subtasks: [],
+                specialRules: [{
+                    id: 'old-rule',
+                    type: 'use',
+                    constraint: 'MUST_HAVE',
+                    message: 'Use print',
+                    multiplier: 0.1,
+                    params: { target: 'print' },
+                }],
+            }],
+        };
+
+        const parsed = examConfigSchema.parse(config);
+        expect(parsed.puzzles?.[0].multiplier).toBe(0.25);
+        expect(parsed.puzzles?.[0].specialRules?.[0]).not.toHaveProperty('multiplier');
+    });
+
+    it('rejects Python feature rules with an unsupported feature', () => {
+        const result = examConfigSchema.safeParse({
+            testTitle: 'Invalid Python AST Exam',
+            description: 'unsupported feature',
+            environmentVariables: { startPassword: 'start' },
+            judgerSettings: { timeLimit: 1, memoryLimit: 128 },
+            accessibleUsers: [],
+            puzzles: [{
+                title: 'P1',
+                language: 'Python',
+                subtasks: [],
+                specialRules: [{
+                    id: 'bad-feature',
+                    type: 'pythonFeature',
+                    constraint: 'MUST_HAVE',
+                    message: 'Unsupported feature',
+                    params: { features: ['MAGIC'] },
+                }],
+            }],
+        });
+
+        expect(result.success).toBe(false);
     });
 });

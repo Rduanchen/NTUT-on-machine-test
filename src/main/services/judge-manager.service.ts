@@ -7,6 +7,7 @@ import { submitCode, submitScore } from './api.service';
 import { connectionService } from './connection.service';
 import { logger, logServerEvent } from './logger.service';
 import * as fs from 'fs';
+import { applyPuzzleRuleMultiplier, roundFinalScore } from '../../common/special-rule-score';
 
 class JudgeManagerService {
   private countPassedSubtasks(result: JudgeRunResult | undefined | null): number {
@@ -172,20 +173,7 @@ class JudgeManagerService {
               }
 
               const srr = srrSource[puzzleId];
-              const esr = puzzle.specialRules || [];
-              let multiplier = 1.0;
-              if (srr && esr) {
-                for (const res of srr) {
-                  if (!res.passed) {
-                    const rule = esr.find(r => r.id === res.ruleId) || ramStore.examConfig?.globalSpecialRules?.find(r => r.id === res.ruleId);
-                    if (rule && rule.multiplier !== undefined) {
-                      multiplier *= rule.multiplier;
-                    }
-                  }
-                }
-              }
-
-              const finalPuzzleScore = Math.floor(puzzleScore * multiplier);
+              const finalPuzzleScore = applyPuzzleRuleMultiplier(puzzleScore, srr || [], puzzle.multiplier ?? 0.5);
               sectionScore += finalPuzzleScore;
 
               const finalIndex = puzzleIndexInAll !== -1 ? puzzleIndexInAll : 0;
@@ -253,20 +241,7 @@ class JudgeManagerService {
             }
 
             const srr = srrSource[puzzleId];
-            const esr = puzzle.specialRules || [];
-            let multiplier = 1.0;
-            if (srr && esr) {
-              for (const res of srr) {
-                if (!res.passed) {
-                  const rule = esr.find(r => r.id === res.ruleId) || ramStore.examConfig?.globalSpecialRules?.find(r => r.id === res.ruleId);
-                  if (rule && rule.multiplier !== undefined) {
-                    multiplier *= rule.multiplier;
-                  }
-                }
-              }
-            }
-
-            totalScore += Math.floor(puzzleScore * multiplier);
+            totalScore += applyPuzzleRuleMultiplier(puzzleScore, srr || [], puzzle.multiplier ?? 0.5);
 
             const puzzleIndex = puzzles.findIndex((p) => (p.id || p.title) === puzzleId);
             const finalIndex = puzzleIndex !== -1 ? puzzleIndex : 0;
@@ -277,7 +252,7 @@ class JudgeManagerService {
           }
         }
 
-        const score = totalScore;
+        const score = roundFinalScore(totalScore);
         
         const response = await submitScore({
           score,
