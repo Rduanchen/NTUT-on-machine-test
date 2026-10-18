@@ -23,6 +23,11 @@ vi.mock('../../src/main/services/ramStore.service', () => {
         ramStore: {
             testResults: {},
             hiddenTestResults: {},
+            specialRuleResults: {},
+            highestSpecialRuleResults: {},
+            highestHiddenTestResults: {},
+            highestTestResults: {},
+            uploadVersionPreference: 'current',
             examConfig: null, // no sections to count
             studentInfo: { id: 's123', name: 'n' },
             markTestResultSynced: vi.fn(),
@@ -66,6 +71,7 @@ vi.mock('../../src/main/services/logger.service', () => {
             error: vi.fn(),
             silly: vi.fn(),
         },
+        logServerEvent: vi.fn(),
     };
 });
 
@@ -87,6 +93,12 @@ describe('judgeManager upload gating', () => {
         vi.clearAllMocks();
         (ramStore.testResults as any) = {};
         (ramStore.hiddenTestResults as any) = {};
+        (ramStore.specialRuleResults as any) = {};
+        (ramStore.highestSpecialRuleResults as any) = {};
+        (ramStore.highestHiddenTestResults as any) = {};
+        (ramStore.highestTestResults as any) = {};
+        (ramStore as any).examConfig = null;
+        (ramStore as any).uploadVersionPreference = 'current';
 
         // Let the mock setters mutate the same object instance used by the service.
         // (We can't close over ramStore from inside vi.mock.)
@@ -162,5 +174,38 @@ describe('judgeManager upload gating', () => {
         // Score not submitted since hidden result count < last known public count after setTestResult.
         // submitCode also should not be called since isHigherOrEqual is false.
         expect(vi.mocked(apiService.submitCode)).not.toHaveBeenCalled();
+    });
+
+    it('uploads the puzzle multiplier once when any global or puzzle rule fails', async () => {
+        (ramStore as any).examConfig = {
+            sections: [{
+                id: 's1',
+                title: 'Section',
+                maxScore: 100,
+                puzzles: [{
+                    id: '0',
+                    title: 'P1',
+                    language: 'Cpp',
+                    multiplier: 0.5,
+                    subtasks: [{ title: 'S1', score: 10, visible: [], hidden: [{}] }],
+                    specialRules: [{ id: 'local-rule' }],
+                }],
+            }],
+            globalSpecialRules: [{ id: 'global-rule' }],
+        };
+        (ramStore.hiddenTestResults as any)['0'] = {
+            subtasks: [[{ statusCode: 'AC' }]],
+        };
+        (ramStore.testResults as any)['0'] = { subtasks: [[]] };
+        (ramStore.specialRuleResults as any)['0'] = [
+            { ruleId: 'local-rule', passed: false },
+            { ruleId: 'global-rule', passed: false },
+        ];
+
+        await judgeManager.syncResultsInBackground(false);
+
+        expect(vi.mocked(apiService.submitScore)).toHaveBeenCalledWith(
+            expect.objectContaining({ score: 5 }),
+        );
     });
 });

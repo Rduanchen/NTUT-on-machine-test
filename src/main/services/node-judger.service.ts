@@ -18,6 +18,7 @@ import type {
   JudgeTestCaseResult,
   SupportedLanguage
 } from '../../common/types';
+import { applyPuzzleRuleMultiplier } from '../../common/special-rule-score';
 
 /**
  * Node-Judger Service - Code evaluation using built-in node-judger
@@ -87,7 +88,7 @@ class NodeJudgerService {
         examConfig: config,
         puzzleId,
       });
-      specialRuleResults = evaluateSpecialRules({
+      specialRuleResults = await evaluateSpecialRules({
         rules: effectiveRules,
         language: puzzle.language,
         sourceText: codeString,
@@ -157,13 +158,12 @@ class NodeJudgerService {
 
     // Evaluate scores to determine if this is the highest score
     try {
-      const globalRules = config.globalSpecialRules || [];
-      const currentScore = this.calculateScore(puzzle, finalHidden, specialRuleResults, globalRules);
+      const currentScore = this.calculateScore(puzzle, finalHidden, specialRuleResults);
       
       const prevHighestHidden = ramStore.highestHiddenTestResults[puzzleId];
       const prevHighestSR = ramStore.highestSpecialRuleResults[puzzleId];
       const prevHighestScore = prevHighestHidden 
-        ? this.calculateScore(puzzle, prevHighestHidden, prevHighestSR || [], globalRules)
+        ? this.calculateScore(puzzle, prevHighestHidden, prevHighestSR || [])
         : -1;
 
       if (currentScore >= prevHighestScore) {
@@ -194,7 +194,7 @@ class NodeJudgerService {
     return true;
   }
 
-  private calculateScore(puzzle: Puzzle, result: JudgeRunResult, specialRuleResults: any[], globalRules: any[]): number {
+  private calculateScore(puzzle: Puzzle, result: JudgeRunResult, specialRuleResults: any[]): number {
     let score = 0;
     if (puzzle.subtasks && puzzle.subtasks.length > 0) {
       for (let i = 0; i < puzzle.subtasks.length; i++) {
@@ -219,20 +219,7 @@ class NodeJudgerService {
       score = (puzzle.score || 0) * rate;
     }
 
-    let multiplier = 1.0;
-    const esr = puzzle.specialRules || [];
-    if (specialRuleResults) {
-      for (const res of specialRuleResults) {
-        if (!res.passed) {
-          const rule = esr.find((r: any) => r.id === res.ruleId) || globalRules?.find((r: any) => r.id === res.ruleId);
-          if (rule && rule.multiplier !== undefined) {
-            multiplier *= rule.multiplier;
-          }
-        }
-      }
-    }
-
-    return Math.floor(score * multiplier);
+    return applyPuzzleRuleMultiplier(score, specialRuleResults, puzzle.multiplier ?? 0.5);
   }
 
   private proccessUnHiddenResult(rawResult: JudgeResult, puzzle: Puzzle): JudgeRunResult {

@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { evaluateRules } from "special-rule-engine";
 
 describe("special-rule-engine import (student app)", () => {
-    it("can import and run a trivial rule", () => {
-        const results = evaluateRules(
+    it("can import and run a trivial rule", async () => {
+        const results = await evaluateRules(
             [
                 {
                     id: "r1",

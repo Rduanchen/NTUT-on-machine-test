@@ -24,6 +24,7 @@ export interface Puzzle {
   id?: string;
   title: string;
   score?: number;
+  multiplier?: number;
   language: SupportedLanguage;
   timeLimit?: number;
   memoryLimit?: number;
@@ -32,14 +33,16 @@ export interface Puzzle {
 }
 
 export type RuleConstraint = 'MUST_HAVE' | 'MUST_NOT_HAVE';
+export type PythonFeature =
+  | 'IF' | 'FOR' | 'WHILE' | 'FUNCTION' | 'NESTED_LOOP' | 'RECURSION'
+  | 'LAMBDA' | 'LIST' | 'DICT' | 'SET' | 'SORT' | 'SORTED';
 
 export interface SpecialRule {
   id: string;
-  type: 'regex' | 'use' | 'composite' | 'nestedLoop';
+  type: 'regex' | 'use' | 'composite' | 'nestedLoop' | 'pythonFeature';
   constraint: RuleConstraint;
   message: string;
   severity?: 'info' | 'warn';
-  multiplier?: number;
   params: unknown;
 }
 
@@ -226,6 +229,7 @@ export interface PuzzleInfo {
   sectionDescription?: string;
   sectionMaxScore?: number;
   score?: number;
+  multiplier?: number;
   subtasks?: { title: string; score?: number }[];
 }
 

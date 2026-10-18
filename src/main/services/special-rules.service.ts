@@ -24,17 +24,17 @@ export function getEffectiveSpecialRules(input: {
     return [...globalRules, ...puzzleRules];
 }
 
-export function evaluateSpecialRules(input: {
+export async function evaluateSpecialRules(input: {
     rules: SpecialRule[];
     language: SupportedLanguage;
     sourceText: string;
     checkedAt?: string;
-}): SpecialRuleResultRecord[] {
+}): Promise<SpecialRuleResultRecord[]> {
     const checkedAt = input.checkedAt ?? new Date().toISOString();
 
     if (!input.rules.length) return [];
 
-    const results = evaluateRules(input.rules as any, {
+    const results = await evaluateRules(input.rules as any, {
         // Engine accepts `language` as a string selector for normalization.
         language: input.language,
         sourceText: input.sourceText,

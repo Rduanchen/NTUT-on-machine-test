@@ -157,6 +157,7 @@ export function registerStoreIpc(): void {
             sectionDescription: section.description,
             sectionMaxScore: section.maxScore,
             score: puzzle.score ?? 0,
+            multiplier: puzzle.multiplier ?? 0.5,
             subtasks: puzzle.subtasks?.map(s => ({ title: s.title, score: s.score ?? 0 }))
           });
         }
@@ -170,6 +171,7 @@ export function registerStoreIpc(): void {
           title: puzzle.title,
           language: puzzle.language,
           score: puzzle.score ?? 0,
+          multiplier: puzzle.multiplier ?? 0.5,
           subtasks: puzzle.subtasks?.map(s => ({ title: s.title, score: s.score ?? 0 }))
         });
       }
