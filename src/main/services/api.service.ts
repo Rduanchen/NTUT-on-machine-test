@@ -1,3 +1,4 @@
+import { examLanguagesSchema, type ExamLanguages } from '../schemas/exam-languages.schema';
 import axios, { AxiosInstance } from 'axios';
 import { ramStore } from './ramStore.service';
 import { cryptoService } from './crypto.service';
@@ -70,6 +71,7 @@ function createAuthenticatedClient(): AxiosInstance {
       if (!cryptoState) throw new Error('Crypto state not initialized');
 
       const deviceUuid = await getDeviceUuid();
+      if (ramStore.cryptoState?.aesKeyHex !== cryptoState.aesKeyHex) throw new Error("Registration changed");
       let originalData = config.data;
       if (typeof originalData === 'string') {
         try { originalData = JSON.parse(originalData); } catch (e) {}
@@ -170,15 +172,30 @@ export async function fetchExamKey(): Promise<IpcResponse<{ examKey: string }>> 
   }
 }
 
+export async function getExamLanguages(): Promise<IpcResponse<ExamLanguages>> {
+  try {
+    const key = ramStore.cryptoState?.aesKeyHex;
+    const backend = ramStore.backendUrl;
+    if (!key) throw new Error('Device is not registered');
+    const response = await authClient.post(`${getBaseUrl()}/exam/languages`, {});
+    if (ramStore.cryptoState?.aesKeyHex !== key || ramStore.backendUrl !== backend) throw new Error('Registration changed');
+    const raw: unknown = JSON.parse(cryptoService.decryptAesPayload(response.data, key));
+    return { success: true, data: examLanguagesSchema.parse(raw) };
+  } catch (error) { return makeErrorResponse('getExamLanguages', error); }
+}
+
 export async function reportEnvironmentCheck(
   status: 'RUNNING' | 'PASSED' | 'FAILED',
-  failedLanguages: string[]
+  failedLanguages: string[],
+  sequence: number
 ): Promise<IpcResponse<void>> {
   try {
     const response = await authClient.post(`${getBaseUrl()}/exam/environment-report`, {
       status,
-      failedLanguages
+      failedLanguages,
+      sequence
     });
+    if (response.data?.success !== true) throw new Error("Report was not acknowledged");
     return { success: true, data: response.data };
   } catch (error) {
     return makeErrorResponse('reportEnvironmentCheck', error);

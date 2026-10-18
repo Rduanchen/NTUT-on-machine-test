@@ -7,21 +7,21 @@ describe('environment login guard', () => {
       getEnvironmentNavigationDecision({
         targetName: 'login',
         status: 'IDLE',
-        examStatus: 'NOT_STARTED',
+        examStatus: 'SETUP_FINISHED',
         isVerified: false
       })
     ).toBe(true);
   });
 
-  it('blocks login only while a loaded config is actively being checked', () => {
+  it('allows login while the environment check is running', () => {
     expect(
       getEnvironmentNavigationDecision({
         targetName: 'login',
         status: 'RUNNING',
-        examStatus: 'NOT_STARTED',
+        examStatus: 'SETUP_FINISHED',
         isVerified: false
       })
-    ).toEqual({ name: 'settings' });
+    ).toBe(true);
   });
 
   it('allows an assistant to continue after reviewing a failed check', () => {
@@ -29,7 +29,7 @@ describe('environment login guard', () => {
       getEnvironmentNavigationDecision({
         targetName: 'login',
         status: 'FAILED',
-        examStatus: 'NOT_STARTED',
+        examStatus: 'SETUP_FINISHED',
         isVerified: false
       })
     ).toBe(true);
@@ -40,7 +40,7 @@ describe('environment login guard', () => {
       getEnvironmentNavigationDecision({
         targetName: 'login',
         status: 'PASSED',
-        examStatus: 'NOT_STARTED',
+        examStatus: 'SETUP_FINISHED',
         isVerified: false
       })
     ).toBe(true);

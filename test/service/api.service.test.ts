@@ -4,13 +4,13 @@ import * as si from 'systeminformation';
 import * as os from 'os';
 
 // Mock dependencies before importing the service
-const mockAxiosInstance = {
+const mockAxiosInstance = vi.hoisted(() => ({
   get: vi.fn(),
   post: vi.fn(),
   interceptors: {
     request: { use: vi.fn() }
   }
-};
+}));
 
 vi.mock('axios', () => {
   return {
@@ -80,6 +80,33 @@ describe('API Service', () => {
     // actually, we can't easily reset cachedDeviceUuid because it's a module level let.
     // We'll test getDeviceUuid branches sequentially, but since it caches, we need a workaround
     // We can use vi.resetModules() to re-import it, but vitest supports it nicely inside test blocks.
+  });
+
+  describe('pre-login language API', () => {
+    it('decrypts and validates languages without a login token', async () => {
+      mockRamStore.cryptoState.userSessionID = '';
+      mockAxiosInstance.post.mockResolvedValue({ data: 'encrypted_{"languages":["C","Java"]}' });
+      expect(await apiService.getExamLanguages()).toEqual({ success: true, data: { languages: ['C', 'Java'] } });
+    });
+    it('rejects malformed data and missing registration', async () => {
+      mockAxiosInstance.post.mockResolvedValue({ data: 'encrypted_{"languages":["Rust"]}' });
+      expect((await apiService.getExamLanguages()).success).toBe(false);
+      mockRamStore.cryptoState = null;
+      expect((await apiService.getExamLanguages()).success).toBe(false);
+    });
+    it('discards a reply if registration changed in flight', async () => {
+      mockAxiosInstance.post.mockImplementationOnce(async () => {
+        mockRamStore.cryptoState.aesKeyHex = 'replacement';
+        return { data: 'encrypted_{"languages":[]}' };
+      });
+      expect((await apiService.getExamLanguages()).success).toBe(false);
+    });
+    it('requires an application acknowledgement for reports', async () => {
+      mockAxiosInstance.post.mockResolvedValue({ data: { success: false } });
+      expect((await apiService.reportEnvironmentCheck('PASSED', [], 2)).success).toBe(false);
+      mockAxiosInstance.post.mockResolvedValue({ data: { success: true } });
+      expect((await apiService.reportEnvironmentCheck('PASSED', [], 2)).success).toBe(true);
+    });
   });
 
   describe('getDeviceUuid', () => {

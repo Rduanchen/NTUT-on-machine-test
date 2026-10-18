@@ -1,3 +1,4 @@
+import { environmentCheckService } from './environment-check.service';
 import { io, Socket } from 'socket.io-client';
 import { getMainWindow } from '../system/windowManager';
 import { ramStore } from './ramStore.service';
@@ -336,6 +337,7 @@ class MessageSyncService {
 
     localProgramStore.reset();
     connectionService.clearQueues();
+    environmentCheckService.reset();
     ramStore.clearForReset();
 
     const win = getMainWindow();

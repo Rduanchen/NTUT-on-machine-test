@@ -1,3 +1,4 @@
+import { environmentCheckService } from '../../src/main/services/environment-check.service';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const mocks = vi.hoisted(() => {
@@ -48,6 +49,8 @@ const mocks = vi.hoisted(() => {
     setRamStoreState: (val: any) => { mockRamStoreState = val; }
   };
 });
+
+vi.mock('../../src/main/services/environment-check.service', () => ({ environmentCheckService: { prepareOnline: vi.fn().mockResolvedValue(undefined), flushReport: vi.fn().mockResolvedValue(undefined) } }));
 
 vi.mock('../../src/main/services/api.service', () => ({
   logAction: mocks.mockLogAction,
@@ -161,6 +164,8 @@ describe('Connection Service', () => {
       
       expect(mocks.mockRamStoreState.connectionStatus).toBe('connected');
       expect(mocks.mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('Server connection restored'));
+      expect(environmentCheckService.prepareOnline).toHaveBeenCalled();
+      expect(environmentCheckService.flushReport).toHaveBeenCalled();
       expect(mocks.mockSend).toHaveBeenCalledWith('connection:status-changed', 'connected');
     });
 

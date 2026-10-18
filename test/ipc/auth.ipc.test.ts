@@ -1,3 +1,4 @@
+import { environmentCheckService } from '../../src/main/services/environment-check.service';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ipcMain, app } from 'electron';
 import { registerAuthIpc } from '../../src/main/ipc/auth.ipc';
@@ -13,8 +14,11 @@ import { configService } from '../../src/main/services/config.service';
 import { judgeManager } from '../../src/main/services/judge-manager.service';
 import fs from 'fs';
 
+vi.mock('../../src/main/services/environment-check.service', () => ({ environmentCheckService: { prepareOnline: vi.fn(() => new Promise(() => {})) } }));
+
 vi.mock('../../src/main/services/ramStore.service', () => ({
   ramStore: {
+    on: vi.fn(),
     cryptoState: null,
     isOfflineMode: false,
     examConfig: null,
@@ -111,7 +115,24 @@ describe('auth.ipc', () => {
 
       const result = await invoke('auth:register');
       expect(messageSyncService.registerSocket).toHaveBeenCalled();
+      expect(environmentCheckService.prepareOnline).toHaveBeenCalledOnce();
       expect(result).toEqual({ success: true });
+    });
+
+    it('keeps an approved registration when the environment check reports failure', async () => {
+      vi.mocked(getPublicKey).mockResolvedValueOnce({ success: true, data: { publicKey: 'pub' } } as any);
+      vi.mocked(getDeviceUuid).mockResolvedValueOnce('approved-device');
+      vi.mocked(cryptoService.buildRegistrationPayload).mockImplementationOnce(() => {
+        ramStore.cryptoState = { clientAesKey: 'approved-key' } as any;
+        return { encrypted_aes_key: 'enc' } as any;
+      });
+      vi.mocked(registerDevice).mockResolvedValueOnce({ success: true } as any);
+      vi.mocked(environmentCheckService.prepareOnline).mockResolvedValueOnce({ status: 'FAILED' } as any);
+
+      expect(await invoke('auth:register')).toEqual({ success: true });
+      expect(await invoke('auth:is-registered')).toBe(true);
+      expect(ramStore.cryptoState).toMatchObject({ clientAesKey: 'approved-key' });
+      expect(vi.mocked(registerDevice)).toHaveBeenCalledOnce();
     });
 
     it('fails if getPublicKey fails', async () => {

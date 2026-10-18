@@ -10,7 +10,7 @@ export interface EnvironmentNavigationContext {
 export function getEnvironmentNavigationDecision(
   context: EnvironmentNavigationContext
 ): true | { name: 'settings' } {
-  if (context.targetName !== 'login') return true;
-  if (context.status !== 'RUNNING') return true;
-  return { name: 'settings' };
+  // Diagnostics are advisory; phase and identity guards own admission.
+  void context;
+  return true;
 }

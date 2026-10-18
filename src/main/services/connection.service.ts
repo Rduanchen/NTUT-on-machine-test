@@ -1,3 +1,4 @@
+import { environmentCheckService } from './environment-check.service';
 import { ramStore } from './ramStore.service';
 import {
   logger,
@@ -127,6 +128,8 @@ class ConnectionService {
     }
     
     this.isSyncing = true;
+    void environmentCheckService.prepareOnline();
+    void environmentCheckService.flushReport();
 
     try {
       // 0. Retroactive Login Sync

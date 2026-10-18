@@ -1,3 +1,4 @@
+import { examLanguagesSchema } from '../schemas/exam-languages.schema';
 import type {
   ExamConfigMetaShape,
   EnvironmentCheckReport,
@@ -12,7 +13,7 @@ import {
 } from '../judge/node-judger/environment-profiles';
 import { EnvironmentCheckRunner } from '../judge/node-judger/environment-check-runner';
 import { ramStore } from './ramStore.service';
-import { reportEnvironmentCheck } from './api.service';
+import { getExamLanguages, reportEnvironmentCheck } from './api.service';
 
 export interface EnvironmentLanguageExecutor {
   runLanguage(
@@ -43,6 +44,72 @@ function initialLanguageResult(language: SupportedLanguage): EnvironmentLanguage
 
 export class EnvironmentCheckService {
   private runId = 0;
+  private session = '';
+  private languages: SupportedLanguage[] | null = null;
+  private preparation: Promise<EnvironmentCheckReport> | null = null;
+  private sequence = 0;
+  private sending = false;
+  private pending: { status: 'RUNNING' | 'PASSED' | 'FAILED'; failed: string[]; sequence: number; session: string } | null = null;
+  private lastReportedRun = -1;
+
+  private currentSession(): string {
+    return ramStore.cryptoState ? `${ramStore.backendUrl}|${ramStore.cryptoState.aesKeyHex}` : '';
+  }
+
+  public invalidateRegistration(): void {
+    if (this.session && this.session !== this.currentSession()) this.reset();
+  }
+
+  public reset(): void {
+    this.stop();
+    this.session = '';
+    this.languages = null;
+    this.preparation = null;
+    this.pending = null;
+    this.sequence = 0;
+    this.lastReportedRun = -1;
+    ramStore.environmentCheckReport = {
+      status: 'IDLE', configFingerprint: '', platform: process.platform, architecture: process.arch,
+      requiredLanguages: [], languageResults: [], startedAt: null, completedAt: null,
+      message: '尚未進行執行環境檢查'
+    };
+  }
+
+  public async prepareOnline(): Promise<EnvironmentCheckReport> {
+    const session = this.currentSession();
+    if (!session || ramStore.isOfflineMode) return this.getReport();
+    if (session !== this.session) { this.reset(); this.session = session; }
+    if (this.preparation) return this.preparation;
+    if (this.languages !== null) { void this.flushReport(); return this.getReport(); }
+    ramStore.environmentCheckReport = { ...this.getReport(), status: 'RUNNING',
+      startedAt: new Date().toISOString(), completedAt: null, message: '正在取得考試語言' };
+    const generation = this.runId;
+    const work = (async () => {
+      try {
+        const response = await getExamLanguages();
+        if (generation !== this.runId || session !== this.currentSession()) return this.getReport();
+        if (!response.success) throw new Error(response.error?.message ?? '無法取得考試語言');
+        this.languages = examLanguagesSchema.parse(response.data).languages;
+        return await this.applyLanguages(this.languages);
+      } catch (error) {
+        if (generation === this.runId && session === this.currentSession()) {
+          const report: EnvironmentCheckReport = { ...this.getReport(), status: 'FAILED',
+            requiredLanguages: [], languageResults: [], completedAt: new Date().toISOString(),
+            message: error instanceof Error ? error.message : '無法取得考試語言' };
+          this.publish(this.runId, report);
+        }
+        return this.getReport();
+      }
+    })();
+    this.preparation = work;
+    try { return await work; } finally { if (this.preparation === work) this.preparation = null; }
+  }
+
+  public applyLanguages(languages: SupportedLanguage[], force = false): Promise<EnvironmentCheckReport> {
+    const parsed = examLanguagesSchema.parse({ languages });
+    return this.checkConfig({ puzzles: parsed.languages.map(language => ({ language })) }, force);
+  }
+
   private abortController: AbortController | null = null;
 
   public constructor(
@@ -64,7 +131,7 @@ export class EnvironmentCheckService {
     meta: ExamConfigMetaShape,
     force = false
   ): Promise<EnvironmentCheckReport> {
-    return this.checkConfig(meta as any, force);
+    return this.checkConfig(meta, force);
   }
 
   public async applyConfig(config: ExamConfig, force = false): Promise<EnvironmentCheckReport> {
@@ -76,6 +143,11 @@ export class EnvironmentCheckService {
   }
 
   public async retry(): Promise<EnvironmentCheckReport> {
+    if (!ramStore.isOfflineMode && this.currentSession()) {
+      if (this.currentSession() !== this.session || this.languages === null) return this.prepareOnline();
+      return this.applyLanguages(this.languages, true);
+    }
+    if (ramStore.examConfigMeta) return this.applyMeta(ramStore.examConfigMeta, true);
     if (!ramStore.examConfig) throw new Error('目前沒有可檢查的考試設定');
     return this.checkConfig(ramStore.examConfig, true);
   }
@@ -86,10 +158,11 @@ export class EnvironmentCheckService {
     this.abortController = null;
   }
 
-  public async checkConfig(config: any, force = false): Promise<EnvironmentCheckReport> {
+  public async checkConfig(config: Parameters<typeof extractRequiredLanguages>[0], force = false): Promise<EnvironmentCheckReport> {
     const requiredLanguages = extractRequiredLanguages(config);
     const configFingerprint = createEnvironmentFingerprint(requiredLanguages);
     const current = ramStore.environmentCheckReport;
+    if (!force && current?.status === 'RUNNING' && current.configFingerprint === configFingerprint && this.abortController) return current;
     if (!force && current?.status === 'PASSED' && current.configFingerprint === configFingerprint)
       return current;
 
@@ -119,6 +192,7 @@ export class EnvironmentCheckService {
         message: '沒有需要檢查的程式語言'
       };
       this.publish(runId, report);
+      this.abortController = null;
       return report;
     }
 
@@ -177,36 +251,40 @@ export class EnvironmentCheckService {
   }
 
   private publish(runId: number, report: EnvironmentCheckReport): void {
-    if (runId !== this.runId) return;
+    if (runId !== this.runId || (this.session && this.session !== this.currentSession())) return;
     ramStore.environmentCheckReport = report;
-    void this.reportToBackend(report);
+    if (this.session && this.session !== this.currentSession()) return;
+    if (report.status === 'RUNNING' && this.lastReportedRun === runId) return;
+    if (report.status !== 'RUNNING' && report.status !== 'PASSED' && report.status !== 'FAILED') return;
+    this.lastReportedRun = runId;
+    if (ramStore.isOfflineMode || !this.currentSession()) return;
+    this.pending = { status: report.status,
+      failed: report.languageResults.filter(result => result.status === 'failed').map(result => result.language),
+      sequence: ++this.sequence, session: this.currentSession() };
+    void this.flushReport();
   }
 
-  /**
-   * Tell the backend whether this seat can run the exam.
-   *
-   * Fire-and-forget on purpose. The verdict is for the invigilator's console,
-   * not for this machine — a backend that cannot be reached must not stop the
-   * check itself, and the report is resent on the next run anyway.
-   *
-   * Only terminal verdicts are sent. RUNNING would arrive once per language and
-   * tell the console nothing it can act on.
-   */
-  private async reportToBackend(report: EnvironmentCheckReport): Promise<void> {
-    if (report.status !== 'PASSED' && report.status !== 'FAILED') return;
-    if (ramStore.isOfflineMode) return;
-    if (!ramStore.cryptoState) return;
-
-    const failed = report.languageResults
-      .filter((result) => result.status === 'failed')
-      .map((result) => result.language);
-
+  public async flushReport(): Promise<void> {
+    if (this.sending) return;
+    this.sending = true;
     try {
-      await reportEnvironmentCheck(report.status, failed);
-    } catch {
-      /* Reported again on the next check. */
-    }
+      while (this.pending) {
+        const pending = this.pending;
+        if (pending.session !== this.currentSession() || ramStore.isOfflineMode) {
+          this.pending = null;
+          return;
+        }
+        try {
+          const response = await reportEnvironmentCheck(pending.status, pending.failed, pending.sequence);
+          if (!response.success) return;
+        } catch { return; }
+        if (this.pending === pending) this.pending = null;
+      }
+    } finally { this.sending = false; }
   }
 }
 
 export const environmentCheckService = new EnvironmentCheckService();
+// Clear immediately when credentials/backend are replaced, including pending requests.
+ramStore.on('cryptoState', () => environmentCheckService.invalidateRegistration());
+ramStore.on('backendUrl', () => environmentCheckService.invalidateRegistration());

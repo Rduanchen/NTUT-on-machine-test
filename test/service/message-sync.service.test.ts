@@ -1,4 +1,7 @@
+import { environmentCheckService } from '../../src/main/services/environment-check.service';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+vi.mock('../../src/main/services/environment-check.service', () => ({ environmentCheckService: { reset: vi.fn() } }));
 
 const mocks = vi.hoisted(() => {
   const mockSend = vi.fn();
@@ -19,6 +22,7 @@ const mocks = vi.hoisted(() => {
   const mockClearForReset = vi.fn();
 
   let mockRamStoreState: any = {
+    on: vi.fn(),
     clearForReset: mockClearForReset,
     isOfflineMode: false,
     backendUrl: 'http://test-url',
@@ -340,6 +344,8 @@ describe('Message Sync Service', () => {
           socketHandlers['exam-reset']({ resetAt: new Date().toISOString() });
 
           expect(mocks.mockClearForReset).toHaveBeenCalledOnce();
+          expect(environmentCheckService.reset).toHaveBeenCalledOnce();
+          expect(vi.mocked(environmentCheckService.reset).mock.invocationCallOrder[0]).toBeLessThan(mocks.mockClearForReset.mock.invocationCallOrder[0]);
         });
 
         it('discards the previous exam\'s answer files', () => {

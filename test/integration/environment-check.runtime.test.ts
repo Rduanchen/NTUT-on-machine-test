@@ -12,7 +12,7 @@ const runIntegration = process.env.RUN_ENVIRONMENT_CHECK_INTEGRATION === '1';
 
 describe.skipIf(!runIntegration)('installed compiler/runtime integration matrix', () => {
   for (const language of ENVIRONMENT_LANGUAGE_ORDER) {
-    it(`${language}: probe, smoke, TLE and MLE`, async () => {
+    it(`${language}: probe, smoke, TLE and MLE`, async (context) => {
       const profile = ENVIRONMENT_LANGUAGE_PROFILES[language];
       const controller = new AbortController();
       const probes = await Promise.all(
@@ -22,6 +22,7 @@ describe.skipIf(!runIntegration)('installed compiler/runtime integration matrix'
         console.warn(
           `[environment integration] ${language} skipped: required tool is not installed`
         );
+        context.skip();
         return;
       }
       const result = await new EnvironmentCheckRunner().runLanguage(profile, controller.signal);

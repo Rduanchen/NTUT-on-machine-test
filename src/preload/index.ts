@@ -66,7 +66,7 @@ const api = {
     getExamInfo: () => ipcRenderer.invoke('store:get-exam-info'),
     forceConfigRefresh: () => ipcRenderer.invoke('store:force-config-refresh'),
 
-    /** Get current exam status (UNINITIALIZED | NOT_STARTED | IN_PROGRESS | FINISHED) */
+    /** Get current exam status (UNINITIALIZED | INITIALIZED | SETUP_FINISHED | IN_PROGRESS | FINISHED) */
     getExamStatus: () => ipcRenderer.invoke('store:get-exam-status'),
 
     /** Set exam status manually (e.g. for offline bypass) */

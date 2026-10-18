@@ -250,7 +250,7 @@ class ConfigService {
     ramStore.examConfigCipher = cipher;
     ramStore.isConfigured = true;
 
-    await environmentCheckService.applyMeta(meta);
+    if (ramStore.isOfflineMode) await environmentCheckService.applyMeta(meta);
 
     if (ramStore.examKey) {
       this.unsealPaper(ramStore.examKey);

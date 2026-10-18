@@ -1,3 +1,4 @@
+import { environmentCheckService } from '../services/environment-check.service';
 import { ipcMain } from 'electron';
 import { ramStore } from '../services/ramStore.service';
 import { cryptoService } from '../services/crypto.service';
@@ -86,6 +87,7 @@ async function registerThisDevice(): Promise<IpcResponse<void>> {
      * machine. */
     ramStore.hasEverRegistered = true;
     messageSyncService.registerSocket();
+    void environmentCheckService.prepareOnline();
     return { success: true };
   } catch (error) {
     logger.error('[Auth] Error during registration:', error);

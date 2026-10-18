@@ -1,3 +1,4 @@
+import { environmentCheckService } from '../../src/main/services/environment-check.service';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -16,6 +17,7 @@ import {
 import { preSettingsSchema } from '../../src/main/schemas/presettings.schema';
 import { ErrorCode } from '../../src/common/errorCodes';
 
+vi.mock('../../src/main/services/environment-check.service', () => ({ environmentCheckService: { applyMeta: vi.fn().mockResolvedValue(undefined) } }));
 vi.mock('fs');
 vi.mock('path');
 vi.mock('electron', () => ({
@@ -26,6 +28,7 @@ vi.mock('electron', () => ({
 }));
 vi.mock('../../src/main/services/ramStore.service', () => ({
     ramStore: {
+    on: vi.fn(),
         isConfigured: false,
         backendUrl: '',
         examConfig: undefined,
