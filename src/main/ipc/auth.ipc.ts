@@ -238,11 +238,15 @@ export function registerAuthIpc(): void {
             if (submissionsResponse.success && submissionsResponse.data) {
               for (const sub of submissionsResponse.data) {
                 const ext = getExtensionForLanguage(sub.language);
-                const tempPath = path.join(app.getPath('temp'), `recovered_${sub.questionId}.${ext}`);
-                fs.writeFileSync(tempPath, sub.codeContent);
-                // judgeManager will also save it in localProgramStore
-                await judgeManager.runJudge(sub.questionId, tempPath);
-                fs.unlinkSync(tempPath);
+                const tempDir = fs.mkdtempSync(path.join(app.getPath('temp'), 'ntut-recovery-'));
+                const tempPath = path.join(tempDir, `submission.${ext}`);
+                try {
+                  fs.writeFileSync(tempPath, sub.codeContent, { flag: 'wx', mode: 0o600 });
+                  // judgeManager also saves the submission in localProgramStore.
+                  await judgeManager.runJudge(sub.questionId, tempPath);
+                } finally {
+                  fs.rmSync(tempDir, { recursive: true, force: true });
+                }
               }
             }
           } catch (e) {

@@ -290,8 +290,29 @@ describe('auth.ipc', () => {
       expect(messageSyncService.manualRefresh).toHaveBeenCalled();
       expect(fs.writeFileSync).toHaveBeenCalledTimes(2);
       expect(judgeManager.runJudge).toHaveBeenCalledTimes(2);
-      expect(fs.unlinkSync).toHaveBeenCalledTimes(2);
+      expect(fs.rmSync).toHaveBeenCalledTimes(2);
       expect(result.success).toBe(true);
+    });
+
+    it('uses a private temporary path for recovered code regardless of question ID', async () => {
+      ramStore.cryptoState = {} as any;
+      vi.mocked(getStudentIdByIp).mockResolvedValueOnce({
+        success: true, data: { testId: 'test1' }
+      } as any);
+      vi.mocked(login).mockResolvedValueOnce({
+        success: true, data: { session_token: 'tok' }
+      } as any);
+      vi.mocked(getSubmissions).mockResolvedValueOnce({
+        success: true,
+        data: [{ questionId: '../../outside', language: 'Python', codeContent: 'print(1)' }]
+      } as any);
+
+      expect((await invoke('auth:login')).success).toBe(true);
+      expect(fs.mkdtempSync).toHaveBeenCalledWith(expect.stringContaining('ntut-recovery-'));
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        '/tmp/ntut-exam-test/submission.py', 'print(1)', { flag: 'wx', mode: 0o600 }
+      );
+      expect(fs.rmSync).toHaveBeenCalledWith('/tmp/ntut-exam-test', { recursive: true, force: true });
     });
 
     it('handles getSubmissions failure gracefully', async () => {
