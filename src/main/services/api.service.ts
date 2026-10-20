@@ -1,29 +1,54 @@
+import { examLanguagesSchema, type ExamLanguages } from '../schemas/exam-languages.schema';
 import axios, { AxiosInstance } from 'axios';
 import { ramStore } from './ramStore.service';
 import { cryptoService } from './crypto.service';
 import { logger } from './logger.service';
 import * as os from 'os';
+import * as si from 'systeminformation';
 import type {
   ExamConfig,
   LogActionPayload,
   IpcResponse,
   ServerMessage
 } from '../../common/types';
+import { getMainWindow } from '../system/windowManager';
 
 const API_TIMEOUT = 5000;
 
-export function getMacAddresses() {
+let cachedDeviceUuid: string | null = null;
+
+export async function getDeviceUuid(): Promise<string> {
+  if (cachedDeviceUuid) return cachedDeviceUuid;
+
+  try {
+    const baseboard = await si.baseboard();
+    if (baseboard.serial && baseboard.serial !== '-' && baseboard.serial.toLowerCase() !== 'unknown') {
+      cachedDeviceUuid = baseboard.serial;
+      return cachedDeviceUuid;
+    }
+    const system = await si.system();
+    if (system.uuid && system.uuid !== '-' && system.uuid.toLowerCase() !== 'unknown') {
+      cachedDeviceUuid = system.uuid;
+      return cachedDeviceUuid;
+    }
+  } catch (e) {
+    logger.warn('[getDeviceUuid] Failed to get hardware info, falling back to mac address');
+  }
+
   const interfaces = os.networkInterfaces();
   for (const name in interfaces) {
     const nets = interfaces[name];
     if (!nets) continue;
     for (const net of nets) {
       if (!net.internal && net.mac !== '00:00:00:00:00:00') {
-        return net.mac;
+        cachedDeviceUuid = net.mac;
+        return cachedDeviceUuid;
       }
     }
   }
-  return 'unknown';
+  
+  cachedDeviceUuid = 'fallback-uuid-' + Date.now();
+  return cachedDeviceUuid;
 }
 
 function createPublicClient(): AxiosInstance {
@@ -40,17 +65,23 @@ function createAuthenticatedClient(): AxiosInstance {
     headers: { 'Content-Type': 'application/json' }
   });
 
-  client.interceptors.request.use((config) => {
+  client.interceptors.request.use(async (config) => {
     try {
       const cryptoState = ramStore.cryptoState;
       if (!cryptoState) throw new Error('Crypto state not initialized');
 
-      const deviceUuid = getMacAddresses();
+      const deviceUuid = await getDeviceUuid();
+      if (ramStore.cryptoState?.aesKeyHex !== cryptoState.aesKeyHex) throw new Error("Registration changed");
+      let originalData = config.data;
+      if (typeof originalData === 'string') {
+        try { originalData = JSON.parse(originalData); } catch (e) {}
+      }
+
       const payloadObj = {
+        ...(originalData || {}),
         timestamp: Date.now(),
         nonce: cryptoService.generateRandomString(),
-        session_token: cryptoState.userSessionID,
-        ...(config.data || {})
+        session_token: cryptoState.userSessionID
       };
       
       const encryptedPayload = cryptoService.encryptAesPayload(
@@ -63,6 +94,7 @@ function createAuthenticatedClient(): AxiosInstance {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.silly(`[API] Failed to encrypt body for authenticated request: ${msg}`);
+      return Promise.reject(err);
     }
     return config;
   });
@@ -105,6 +137,68 @@ export async function registerDevice(device_uuid: string, encrypted_aes_key: str
     return { success: true, data: response.data };
   } catch (error) {
     return makeErrorResponse('registerDevice', error);
+  }
+}
+
+/**
+ * Report this machine's environment-check verdict.
+ *
+ * Goes over the authenticated client, which encrypts with the device key — but
+ * carries no session token, because the check runs before any student has
+ * logged in. Sends the verdict and the failing language names only; the full
+ * diagnostic stays on the machine, where its unbounded compiler output can do
+ * no harm.
+ */
+/**
+ * Ask for the key that opens the delivered paper.
+ *
+ * Only answered while the exam is running. It is never broadcast — a broadcast
+ * reaches every listener without establishing who any of them are — so this
+ * point-to-point request is the only way it travels.
+ */
+export async function fetchExamKey(): Promise<IpcResponse<{ examKey: string }>> {
+  try {
+    const response = await authClient.post(`${getBaseUrl()}/exam/key`, {});
+
+    const cryptoState = ramStore.cryptoState;
+    if (!cryptoState) {
+      throw new Error('Crypto credentials not initialized');
+    }
+
+    const decrypted = cryptoService.decryptAesPayload(response.data, cryptoState.aesKeyHex);
+    return { success: true, data: JSON.parse(decrypted) };
+  } catch (error) {
+    return makeErrorResponse('fetchExamKey', error);
+  }
+}
+
+export async function getExamLanguages(): Promise<IpcResponse<ExamLanguages>> {
+  try {
+    const key = ramStore.cryptoState?.aesKeyHex;
+    const backend = ramStore.backendUrl;
+    if (!key) throw new Error('Device is not registered');
+    const response = await authClient.post(`${getBaseUrl()}/exam/languages`, {});
+    if (ramStore.cryptoState?.aesKeyHex !== key || ramStore.backendUrl !== backend) throw new Error('Registration changed');
+    const raw: unknown = JSON.parse(cryptoService.decryptAesPayload(response.data, key));
+    return { success: true, data: examLanguagesSchema.parse(raw) };
+  } catch (error) { return makeErrorResponse('getExamLanguages', error); }
+}
+
+export async function reportEnvironmentCheck(
+  status: 'RUNNING' | 'PASSED' | 'FAILED',
+  failedLanguages: string[],
+  sequence: number
+): Promise<IpcResponse<void>> {
+  try {
+    const response = await authClient.post(`${getBaseUrl()}/exam/environment-report`, {
+      status,
+      failedLanguages,
+      sequence
+    });
+    if (response.data?.success !== true) throw new Error("Report was not acknowledged");
+    return { success: true, data: response.data };
+  } catch (error) {
+    return makeErrorResponse('reportEnvironmentCheck', error);
   }
 }
 
@@ -159,9 +253,25 @@ export async function submitCode(codeContent: string, questionId: string, langua
   }
 }
 
-export async function submitScore(score: number): Promise<IpcResponse<void>> {
+export async function getSubmissions(): Promise<IpcResponse<any[]>> {
   try {
-    const response = await authClient.post(`${getBaseUrl()}/submissions/score`, { score });
+    const response = await authClient.get(`${getBaseUrl()}/submissions/codes`);
+    return { success: true, data: response.data };
+  } catch (error) {
+    return makeErrorResponse('getSubmissions', error);
+  }
+}
+
+export async function submitScore(payload: { 
+  score: number, 
+  puzzleResults?: any, 
+  subtaskAmount?: number, 
+  passedSubtaskAmount?: number, 
+  puzzleAmount?: number, 
+  passedPuzzleAmount?: number 
+}): Promise<IpcResponse<void>> {
+  try {
+    const response = await authClient.post(`${getBaseUrl()}/submissions/score`, payload);
     return { success: true, data: response.data };
   } catch (error) {
     return makeErrorResponse('submitScore', error);
@@ -172,7 +282,15 @@ export async function submitScore(score: number): Promise<IpcResponse<void>> {
 
 export async function logAction(payload: LogActionPayload): Promise<IpcResponse<void>> {
   try {
-    const response = await authClient.post(`${getBaseUrl()}/log`, payload);
+    if (!ramStore.cryptoState?.userSessionID) {
+       return { success: false, error: { code: 'NOT_LOGGED_IN', message: 'Cannot send logs before login' } };
+    }
+
+    const mappedPayload = {
+      ...payload,
+      actionType: payload.action
+    };
+    const response = await authClient.post(`${getBaseUrl()}/log`, mappedPayload);
     return { success: true, data: response.data };
   } catch (error) {
     return makeErrorResponse('logAction', error);
@@ -205,7 +323,7 @@ export async function getMessages(afterId?: string): Promise<IpcResponse<ServerM
 
 export async function healthCheck(host?: string): Promise<boolean> {
   try {
-    const baseUrl = host ? host.replace(/\/+$/, '') + '/api' : ramStore.backendUrl.replace(/\/+$/, '') + '/api';
+    const baseUrl = host ? host.replace(/\/+$/, '') : ramStore.backendUrl.replace(/\/+$/, '');
     // Use the public status endpoint for health check
     await publicClient.get(`${baseUrl}/user/exam/status`, { timeout: 3000 });
     return true;
@@ -217,13 +335,41 @@ export async function healthCheck(host?: string): Promise<boolean> {
 // ─── Error Helper ───────────────────────────────────────────────────
 
 function makeErrorResponse(context: string, error: unknown): IpcResponse<any> {
-  const message = error instanceof Error ? error.message : String(error);
+  let message = '';
+  let code = 'NETWORK_ERROR';
+  if (axios.isAxiosError(error)) {
+    if (error.response) {
+      code = error.response.data?.code || `HTTP_${error.response.status}`;
+      message = error.response.data?.error || error.response.data?.message || error.message;
+    } else {
+      code = 'NETWORK_ERROR';
+      message = error.message;
+    }
+  } else if (error instanceof Error) {
+    message = error.message;
+  } else {
+    message = String(error);
+  }
+  
+  if (code === 'CRYPTO_VERIFICATION_FAILED' || 
+      code === 'HTTP_401' ||
+      (typeof message === 'string' && (message.includes('not registered') || message.includes('Unauthorized')))) {
+    try {
+      const win = getMainWindow();
+      if (win && !win.isDestroyed()) {
+        win.webContents?.send('app:force-logout', message || '您的裝置已被登出或解除綁定。');
+      }
+    } catch (e) {
+      // Ignore if window not available
+    }
+  }
+
   logger.silly(`[API] ${context}: ${message}`);
   return {
     success: false,
     error: {
-      code: 'NETWORK_ERROR',
-      message: `${context}: ${message}`
+      code,
+      message
     }
   };
 }

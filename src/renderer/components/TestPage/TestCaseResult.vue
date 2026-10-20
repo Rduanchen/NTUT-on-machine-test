@@ -8,7 +8,7 @@
         </span>
         <v-spacer />
         <div class="d-flex align-center">
-          <span class="text-caption text-medium-emphasis mr-2">Passed:</span>
+          <span class="text-caption text-medium-emphasis mr-2">{{ t('examSystem.judge.passedLabel') }}</span>
           <span class="text-h6 font-weight-bold text-primary">
             {{ result?.correctCount ?? 0 }}
           </span>
@@ -29,7 +29,7 @@
         <div class="d-flex align-center mb-2">
           <v-icon class="mr-2" color="primary">mdi-shield-check-outline</v-icon>
           <span class="text-subtitle-2 font-weight-bold">
-            Special Rules
+            {{ t('examSystem.judge.specialRules') }}
           </span>
           <v-spacer />
           <v-chip
@@ -46,9 +46,9 @@
         <v-table density="compact" class="result-table">
           <thead>
             <tr>
-              <th class="text-left bg-surface-light" style="width: 110px">Status</th>
-              <th class="text-left bg-surface-light">Rule</th>
-              <th class="text-left bg-surface-light" style="width: 260px">Reason</th>
+              <th class="text-left bg-surface-light" style="width: 110px">{{ t('examSystem.judge.tableHeaders.status') }}</th>
+              <th class="text-left bg-surface-light">{{ t('examSystem.judge.tableHeaders.rule') }}</th>
+              <th class="text-left bg-surface-light" style="width: 260px">{{ t('examSystem.judge.tableHeaders.reason') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -80,7 +80,7 @@
       <div v-for="group in groupedSubtasks" :key="group.id" class="mb-6">
         <div class="d-flex align-center mb-2">
           <v-chip size="small" color="secondary" variant="flat" class="mr-2 font-weight-bold">
-            Subtask {{ group.id }}
+            {{ t('examSystem.judge.subtaskLabel', { id: group.id }) }}
           </v-chip>
           <v-spacer />
           <v-progress-linear
@@ -103,9 +103,9 @@
             <thead>
               <tr>
                 <th class="text-left bg-surface-light" style="width: 60px">#</th>
-                <th class="text-left bg-surface-light" style="width: 140px">Status</th>
-                <th class="text-left bg-surface-light" style="width: 100px">Time</th>
-                <th class="text-left bg-surface-light">Output</th>
+                <th class="text-left bg-surface-light" style="width: 140px">{{ t('examSystem.judge.tableHeaders.status') }}</th>
+                <th class="text-left bg-surface-light" style="width: 100px">{{ t('examSystem.judge.tableHeaders.time') }}</th>
+                <th class="text-left bg-surface-light">{{ t('examSystem.judge.tableHeaders.output') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -133,9 +133,19 @@
                 <td class="py-2">
                   <div
                     class="code-block rounded pa-2 text-caption font-mono"
-                    :class="{ 'text-medium-emphasis': !item.userOutput }"
+                    :class="{ 'text-medium-emphasis': !item.userOutput && item.isHidden }"
                   >
-                    {{ item.userOutput || t('examSystem.judge.hiddenOutput') }}
+                    <template v-if="!item.userOutput">
+                      <span v-if="item.isHidden" class="text-medium-emphasis">
+                        {{ t('examSystem.judge.hiddenOutput') }}
+                      </span>
+                      <span v-else class="text-medium-emphasis">
+                        {{ t('examSystem.judge.noOutput') || '沒有輸出' }}
+                      </span>
+                    </template>
+                    <template v-else>
+                      {{ item.userOutput }}
+                    </template>
                   </div>
                 </td>
               </tr>
@@ -162,6 +172,7 @@ const { t } = useI18n();
 
 interface DisplayTestCaseResult extends JudgeTestCaseResult {
   id: string;
+  isHidden: boolean;
 }
 
 interface DisplaySubtask {
@@ -173,12 +184,23 @@ interface DisplaySubtask {
 
 // --- Props ---
 const props = defineProps<{
+  puzzleId?: string;
   result: JudgeRunResult | null | undefined;
   effectiveSpecialRules?: SpecialRule[];
   specialRuleResults?: SpecialRuleResultRecord[];
 }>();
 
 // --- Computed ---
+import { ref, onMounted } from 'vue';
+import type { ExamConfig } from '../../../common/types';
+
+const examConfig = ref<ExamConfig | null>(null);
+
+onMounted(async () => {
+  if ((window as any).api?.store) {
+    examConfig.value = await (window as any).api.store.getExamConfig();
+  }
+});
 const hasResult = computed(() => {
   const r = props.result;
   return !!(r && Array.isArray(r.subtasks) && r.subtasks.length > 0);
@@ -186,10 +208,23 @@ const hasResult = computed(() => {
 
 const groupedSubtasks = computed<DisplaySubtask[]>(() => {
   if (!props.result || !Array.isArray(props.result.subtasks)) return [];
+  
+  let puzzle: any = null;
+  if (examConfig.value && props.puzzleId) {
+    if (examConfig.value.sections && examConfig.value.sections.length > 0) {
+      puzzle = examConfig.value.sections.flatMap(s => s.puzzles).find(p => String(p.id) === props.puzzleId);
+    } else if (examConfig.value.puzzles) {
+      puzzle = examConfig.value.puzzles.find(p => String(p.id) === props.puzzleId);
+    }
+  }
+
   return props.result.subtasks.map((subtaskResults, subtaskIdx) => {
+    const visibleCount = puzzle?.subtasks?.[subtaskIdx]?.visible?.length ?? subtaskResults.length;
+
     const testCasesResults = subtaskResults.map((result, caseIdx) => ({
       ...result,
-      id: `${subtaskIdx + 1}-${caseIdx + 1}`
+      id: `${subtaskIdx + 1}-${caseIdx + 1}`,
+      isHidden: caseIdx >= visibleCount
     }));
 
     const correctCount = subtaskResults.filter((item) => item.statusCode === 'AC').length;
@@ -223,8 +258,8 @@ const ruleRows = computed<
       return {
         ruleId: rule.id,
         message: rule.message,
-        reason: 'Not evaluated',
-        status: { text: 'N/A', color: 'grey' },
+        reason: t('examSystem.judge.notEvaluated'),
+        status: { text: t('examSystem.puzzles.rulesNotAvailable'), color: 'grey' },
       };
     }
 
@@ -233,22 +268,22 @@ const ruleRows = computed<
       message: r.message ?? rule.message,
       reason: r.reason,
       status: r.passed
-        ? { text: 'PASS', color: 'success' }
-        : { text: 'FAIL', color: 'error' },
+        ? { text: t('examSystem.judge.pass'), color: 'success' }
+        : { text: t('examSystem.judge.fail'), color: 'error' },
     };
   });
 });
 
 const rulesSummaryChip = computed(() => {
   const total = props.effectiveSpecialRules?.length ?? 0;
-  if (total === 0) return { text: 'Rules N/A', color: 'grey' };
+  if (total === 0) return { text: t('examSystem.puzzles.rulesNotAvailable'), color: 'grey' };
 
   const results = props.specialRuleResults ?? [];
-  if (results.length === 0) return { text: `Rules 0/${total}`, color: 'grey' };
+  if (results.length === 0) return { text: t('examSystem.puzzles.rulesSummary', { passed: 0, total }), color: 'grey' };
 
   const passed = results.filter((r) => r.passed).length;
   return {
-    text: `Rules ${passed}/${total}`,
+    text: t('examSystem.puzzles.rulesSummary', { passed, total }),
     color: passed === total ? 'success' : 'error',
   };
 });

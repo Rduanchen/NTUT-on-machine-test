@@ -7,7 +7,11 @@ import type {
   ServerMessage,
   SocketConnectionStatus,
   SpecialRuleResultRecord,
-  SpecialRule
+  SpecialRule,
+  ExamConfig,
+  ExamState,
+  UploadVersionPreference,
+  EnvironmentCheckReport
 } from '../common/types';
 
 interface ConfigAPI {
@@ -15,24 +19,55 @@ interface ConfigAPI {
   getFromServer: (host: string) => Promise<IpcResponse<void>>;
   getServerStatus: (hostname: string) => Promise<IpcResponse<void>>;
   isSetupComplete: () => Promise<boolean>;
+  hasBackendUrl: () => Promise<boolean>;
+  isBackendReachable: () => Promise<boolean>;
+  isPreDeployed: () => Promise<boolean>;
+  isOffline: () => Promise<boolean>;
+  ensurePaper: () => Promise<IpcResponse<void>>;
+  startWithPassword: (password: string) => Promise<IpcResponse<void>>;
 }
 
 interface AuthAPI {
   login: (studentID?: string) => Promise<IpcResponse<void>>;
+  register: () => Promise<IpcResponse<void>>;
   isVerified: () => Promise<boolean>;
+  isRegistered: () => Promise<boolean>;
   getStudentInfo: () => Promise<StudentInformation>;
+}
+
+interface EnvironmentCheckAPI {
+  getReport: () => Promise<IpcResponse<EnvironmentCheckReport>>;
+  retry: () => Promise<IpcResponse<EnvironmentCheckReport>>;
+  onUpdated: (callback: (report: EnvironmentCheckReport) => void) => () => void;
 }
 
 interface StoreAPI {
   getConnectionStatus: () => Promise<ConnectionStatus>;
   getTestResults: () => Promise<Record<string, JudgeRunResult>>;
+  getHiddenTestResults: () => Promise<Record<string, JudgeRunResult>>;
+  getExamConfig: () => Promise<ExamConfig | null>;
   getSpecialRuleResults: () => Promise<Record<string, SpecialRuleResultRecord[]>>;
+  getHighestTestResults: () => Promise<Record<string, JudgeRunResult>>;
+  getHighestHiddenTestResults: () => Promise<Record<string, JudgeRunResult>>;
+  getHighestSpecialRuleResults: () => Promise<Record<string, SpecialRuleResultRecord[]>>;
+  getUploadVersionPreference: () => Promise<UploadVersionPreference>;
+  setUploadVersionPreference: (preference: UploadVersionPreference) => Promise<IpcResponse<void>>;
   getEffectiveSpecialRules: () => Promise<Record<string, SpecialRule[]>>;
   getPuzzleInfo: () => Promise<PuzzleInfo[]>;
   getExamInfo: () => Promise<{ testTitle: string; description: string } | null>;
-  onConnectionStatusChanged: (callback: (status: string) => void) => void;
-  onTestResultsUpdated: (callback: (results: Record<string, JudgeRunResult>) => void) => void;
-  onSpecialRuleResultsUpdated: (callback: (results: Record<string, SpecialRuleResultRecord[]>) => void) => void;
+  getExamStatus: () => Promise<ExamState>;
+  onConnectionStatusChanged: (callback: (status: string) => void) => () => void;
+  onExamStatusChanged: (callback: (status: string) => void) => () => void;
+  onTestResultsUpdated: (callback: (results: Record<string, JudgeRunResult>) => void) => () => void;
+  onSpecialRuleResultsUpdated: (
+    callback: (results: Record<string, SpecialRuleResultRecord[]>) => void
+  ) => () => void;
+  onHighestTestResultsUpdated: (
+    callback: (results: Record<string, JudgeRunResult>) => void
+  ) => () => void;
+  onHighestSpecialRuleResultsUpdated: (
+    callback: (results: Record<string, SpecialRuleResultRecord[]>) => void
+  ) => () => void;
 }
 
 interface JudgerAPI {
@@ -48,16 +83,23 @@ interface NotificationAPI {
   getVersions: () => Promise<{ configVersion: number; messageVersion: number }>;
   getSocketStatus: () => Promise<SocketConnectionStatus>;
   refresh: () => Promise<IpcResponse<void>>;
-  onUpdated: (callback: (messages: ServerMessage[]) => void) => void;
-  onSocketStatusChanged: (callback: (status: SocketConnectionStatus) => void) => void;
+  onUpdated: (callback: (messages: ServerMessage[]) => void) => () => void;
+  onSocketStatusChanged: (callback: (status: SocketConnectionStatus) => void) => () => void;
+}
+
+/** The supported replacement for the `File.path` Electron removed in 32. */
+interface FilesAPI {
+  getPath: (file: File) => string;
 }
 
 interface API {
   config: ConfigAPI;
+  environmentCheck: EnvironmentCheckAPI;
   auth: AuthAPI;
   store: StoreAPI;
   judger: JudgerAPI;
   notifications: NotificationAPI;
+  files: FilesAPI;
 }
 
 declare global {
@@ -67,4 +109,4 @@ declare global {
   }
 }
 
-export { };
+export {};

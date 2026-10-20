@@ -82,6 +82,25 @@
             {{ syncMsg }}
           </v-alert>
 
+          <!-- Version Selection -->
+          <div class="mb-4">
+            <div class="text-subtitle-2 font-weight-bold mb-2">重新上傳版本選擇</div>
+            <v-select
+              v-model="selectedVersion"
+              :items="[
+                { title: '現在版（目前最後一次撰寫的程式碼）', value: 'current' },
+                { title: '歷史最高分版（系統紀錄得分最高的版本）', value: 'highest' }
+              ]"
+              density="compact"
+              variant="outlined"
+              hide-details
+              @update:model-value="updateVersionSelection"
+            ></v-select>
+            <div class="text-caption text-medium-emphasis mt-1">
+              若想更改上傳版本，請選擇後再次點擊下方的「上傳程式」與「上傳分數」。
+            </div>
+          </div>
+
           <!-- Action Buttons -->
           <div class="d-flex flex-column gap-3">
             <!-- 1. Push all code -->
@@ -146,13 +165,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
+import { goToDerivedPage } from '../router/navigate';
 import type { JudgeRunResult, ExamConfig } from '../../common/types';
+import { applyPuzzleRuleMultiplier, roundFinalScore } from '../../common/special-rule-score';
 
 const { t } = useI18n();
+const router = useRouter();
 
 // ─── State ──────────────────────────────────────────────────────────
+const selectedVersion = ref<'current' | 'highest'>('current');
 const isSyncingCode = ref(false);
 const isSyncingScore = ref(false);
 const syncMsg = ref('');
@@ -173,56 +197,79 @@ const specialRuleResults = ref<Record<string, any>>({});
 const effectiveSpecialRules = ref<Record<string, any>>({});
 
 const sections = computed<SectionSummary[]>(() => {
-  if (!examConfig.value?.sections) return [];
-  return examConfig.value.sections.map((section) => {
+  if (!examConfig.value) return [];
+  
+  const allPuzzles = examConfig.value.sections?.flatMap((s: any) => s.puzzles) ?? examConfig.value.puzzles ?? [];
+  const rawSections = examConfig.value.sections || [];
+  
+  if (rawSections.length === 0 && examConfig.value.puzzles && examConfig.value.puzzles.length > 0) {
+    rawSections.push({
+      id: 'default',
+      title: t('examSystem.puzzles.defaultSection'),
+      maxScore: 0,
+      puzzles: examConfig.value.puzzles
+    });
+  }
+
+  return rawSections.map((section: any) => {
     let passed = 0;
     let total = 0;
     let sectionScore = 0;
 
     for (const puzzle of section.puzzles) {
-      const result = testResults.value[puzzle.id ?? puzzle.title];
+      const puzzleIndexInAll = allPuzzles.findIndex((p: any) => p.id === puzzle.id && p.title === puzzle.title);
+      const fallbackKey = puzzleIndexInAll !== -1 ? String(puzzleIndexInAll) : '';
+      const puzzleKey = (puzzle.id && testResults.value[puzzle.id])
+        ? puzzle.id
+        : (testResults.value[fallbackKey] ? fallbackKey : (puzzle.id ?? puzzle.title ?? ''));
+
+      const result = testResults.value[puzzleKey];
       let puzzlePassedSubtasks = 0;
-      let puzzleTotalSubtasks = puzzle.subtasks?.length || 1;
+      let puzzleTotalSubtasks = puzzle.subtasks?.length || 0;
       
-      if (result?.subtasks) {
-        puzzleTotalSubtasks = result.subtasks.length;
-        for (const subtaskCases of result.subtasks) {
-          if (Array.isArray(subtaskCases) && subtaskCases.every((c: any) => c?.statusCode === 'AC')) {
+      let puzzleScore = 0;
+      
+      if (puzzle.subtasks && puzzle.subtasks.length > 0) {
+        for (let i = 0; i < puzzle.subtasks.length; i++) {
+          const subtask = puzzle.subtasks[i];
+          const subtaskResult = result?.subtasks?.[i];
+          if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
+            puzzleScore += (subtask.score || 0);
             puzzlePassedSubtasks++;
           }
         }
+      } else {
+        if (result?.subtasks) {
+          puzzleTotalSubtasks = result.subtasks.length;
+          for (const subtaskCases of result.subtasks) {
+            if (Array.isArray(subtaskCases) && subtaskCases.every((c: any) => c?.statusCode === 'AC')) {
+              puzzlePassedSubtasks++;
+            }
+          }
+        }
+        const rate = puzzleTotalSubtasks > 0 ? (puzzlePassedSubtasks / puzzleTotalSubtasks) : 0;
+        const baseScore = puzzle.score || 0;
+        puzzleScore = baseScore * rate;
       }
 
       passed += puzzlePassedSubtasks;
       total += puzzleTotalSubtasks;
 
-      const rate = puzzleTotalSubtasks > 0 ? (puzzlePassedSubtasks / puzzleTotalSubtasks) : 0;
-      
-      // Calculate multiplier
-      let multiplier = 1.0;
-      const srr = specialRuleResults.value?.[puzzle.id ?? puzzle.title];
-      const esr = effectiveSpecialRules.value?.[puzzle.id ?? puzzle.title];
-      if (srr && esr) {
-        for (const res of srr) {
-          if (!res.passed) {
-            const rule = esr.find((r: any) => r.id === res.ruleId);
-            if (rule && rule.multiplier !== undefined) {
-              multiplier *= rule.multiplier;
-            }
-          }
-        }
-      }
-
-      const baseScore = puzzle.score || 0;
-      sectionScore += Number((baseScore * rate * multiplier).toFixed(1));
+      const srr = specialRuleResults.value?.[puzzleKey];
+      const finalPuzzleScore = applyPuzzleRuleMultiplier(puzzleScore, srr ?? [], puzzle.multiplier ?? 0.5);
+      sectionScore += finalPuzzleScore;
     }
+
+    const cappedScore = (section.maxScore !== undefined && section.maxScore !== null && section.maxScore >= 0)
+      ? Math.min(sectionScore, section.maxScore)
+      : sectionScore;
 
     return {
       id: section.id,
       title: section.title,
       passedSubtasks: passed,
       totalSubtasks: total,
-      score: sectionScore,
+      score: cappedScore,
     };
   });
 });
@@ -230,10 +277,35 @@ const sections = computed<SectionSummary[]>(() => {
 const finalScore = computed(() => {
   const allSections = sections.value;
   if (allSections.length === 0) return 0;
-  return allSections.reduce((a, s) => a + s.score, 0);
+  return roundFinalScore(allSections.reduce((a, s) => a + s.score, 0));
 });
 
 // ─── Actions ──────────────────────────────────────────────────────────
+async function fetchScores() {
+  if (!window.api?.store) return;
+  const isHighest = selectedVersion.value === 'highest';
+  if (isHighest && window.api.store.getHighestHiddenTestResults) {
+    testResults.value = await window.api.store.getHighestHiddenTestResults();
+  } else if (window.api.store.getHiddenTestResults) {
+    testResults.value = await window.api.store.getHiddenTestResults();
+  } else {
+    testResults.value = await window.api.store.getTestResults();
+  }
+
+  if (isHighest && window.api.store.getHighestSpecialRuleResults) {
+    specialRuleResults.value = await window.api.store.getHighestSpecialRuleResults() || {};
+  } else {
+    specialRuleResults.value = await window.api.store.getSpecialRuleResults?.() || {};
+  }
+}
+
+async function updateVersionSelection(newVal: string) {
+  if (window.api?.store?.setUploadVersionPreference) {
+    await window.api.store.setUploadVersionPreference(newVal as any);
+  }
+  await fetchScores();
+}
+
 async function pushAllCode() {
   if (!window.api?.judger) return;
   isSyncingCode.value = true;
@@ -285,27 +357,31 @@ async function downloadCode() {
 // ─── Init ────────────────────────────────────────────────────────────
 onMounted(async () => {
   if (window.api?.store) {
-    testResults.value = await window.api.store.getTestResults();
-    examConfig.value = await window.api.store.getExamInfo?.() as any;
-    
-    // Attempt to get exam config properly if getExamInfo doesn't include sections
-    if (!examConfig.value?.sections) {
-       // getExamStatus doesn't return config, we might need a specific IPC for full config or just puzzle info
-       const puzzleInfo = await window.api.store.getPuzzleInfo?.();
-       if (puzzleInfo) {
-         // Mock sections if backend config IPC is not available
-         // Actually, wait, ramStore.examConfig is what we need.
-         // Let's add an IPC to get full config if needed, or rely on what's available.
-       }
+    if (window.api.store.getUploadVersionPreference) {
+      selectedVersion.value = await window.api.store.getUploadVersionPreference() as 'current' | 'highest';
+    }
+
+    await fetchScores();
+
+    if (window.api.store.getExamConfig) {
+      examConfig.value = await window.api.store.getExamConfig();
+    } else {
+      examConfig.value = await window.api.store.getExamInfo?.() as any;
     }
     
-    specialRuleResults.value = await window.api.store.getSpecialRuleResults?.() || {};
     effectiveSpecialRules.value = await window.api.store.getEffectiveSpecialRules?.() || {};
+
+    /* The phase is watched once, in App.vue — a reset from here has to land
+     * on the waiting screen like everywhere else. */
   }
 
   // Auto push on mount
   await pushAllCode();
   await confirmScore();
+});
+
+onBeforeUnmount(() => {
+  /* Nothing to unsubscribe: the phase is watched above every page. */
 });
 </script>
 

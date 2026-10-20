@@ -1,35 +1,51 @@
-// src/main/services/configService.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import fs from 'fs';
-import path from 'path';
+import { environmentCheckService } from '../../src/main/services/environment-check.service';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
 import { app } from 'electron';
 import { configService } from '../../src/main/services/config.service';
 import { ramStore } from '../../src/main/services/ramStore.service';
-import { fetchExamConfig } from '../../src/main/services/api.service';
+import { logger } from '../../src/main/services/logger.service';
+import { fetchSecureExamConfig, healthCheck } from '../../src/main/services/api.service';
 import { connectionService } from '../../src/main/services/connection.service';
 import { messageSyncService } from '../../src/main/services/message-sync.service';
-import { logger } from '../../src/main/services/logger.service';
-import { validatePreSettingsFormat } from '../../src/main/utilities/presettingsFormatChecker';
-import { validateConfigFormat } from '../../src/main/utilities/configFormatChecker';
+import {
+    examConfigSchema,
+    examConfigPayloadSchema,
+    mergeExamConfig
+} from '../../src/main/schemas/examConfig.schema';
+import { preSettingsSchema } from '../../src/main/schemas/presettings.schema';
+import { ErrorCode } from '../../src/common/errorCodes';
 
-// ---- Vitest mocks ----
+vi.mock('../../src/main/services/environment-check.service', () => ({ environmentCheckService: { applyMeta: vi.fn().mockResolvedValue(undefined) } }));
 vi.mock('fs');
 vi.mock('path');
 vi.mock('electron', () => ({
     app: {
-        getAppPath: vi.fn(),
+        getAppPath: vi.fn().mockReturnValue('/mock/app/path'),
         isPackaged: false,
     },
 }));
 vi.mock('../../src/main/services/ramStore.service', () => ({
     ramStore: {
+    on: vi.fn(),
         isConfigured: false,
         backendUrl: '',
         examConfig: undefined,
+        isOfflineMode: false,
+        examStatus: '',
+    },
+}));
+vi.mock('../../src/main/services/logger.service', () => ({
+    logger: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
     },
 }));
 vi.mock('../../src/main/services/api.service', () => ({
-    fetchExamConfig: vi.fn(),
+    fetchSecureExamConfig: vi.fn(),
+    healthCheck: vi.fn(),
 }));
 vi.mock('../../src/main/services/connection.service', () => ({
     connectionService: {
@@ -41,233 +57,353 @@ vi.mock('../../src/main/services/message-sync.service', () => ({
         start: vi.fn(),
     },
 }));
-vi.mock('../../src/main/services/logger.service', () => ({
-    logger: {
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
+vi.mock('../../src/main/schemas/examConfig.schema', () => ({
+    examConfigSchema: {
+        safeParse: vi.fn(),
+    },
+    /* The paper now arrives split. This is the shape the delivery endpoint
+     * returns; the questions inside `cipher` stay sealed until the exam. */
+    examConfigPayloadSchema: {
+        safeParse: vi.fn(),
+    },
+    examConfigMetaSchema: {
+        parse: vi.fn((value: unknown) => value),
+    },
+    examConfigSecretSchema: {
+        parse: vi.fn((value: unknown) => value),
+    },
+    mergeExamConfig: vi.fn(),
+}));
+vi.mock('../../src/main/schemas/presettings.schema', () => ({
+    preSettingsSchema: {
+        safeParse: vi.fn(),
     },
 }));
-vi.mock('../../src/main/utilities/presettingsFormatChecker', () => ({
-    validatePreSettingsFormat: vi.fn(),
-}));
-vi.mock('../../src/main/utilities/configFormatChecker', () => ({
-    validateConfigFormat: vi.fn(),
-}));
 
-// 型別輔助
-const mockedFs = fs as unknown as {
-    readFileSync: ReturnType<typeof vi.fn>;
-    existsSync: ReturnType<typeof vi.fn>;
-};
-const mockedPath = path as unknown as {
-    join: ReturnType<typeof vi.fn>;
-};
-const mockedApp = app as unknown as {
-    getAppPath: ReturnType<typeof vi.fn>;
-};
-const mockedRamStore = ramStore as unknown as {
-    isConfigured: boolean;
-    backendUrl: string;
-    examConfig: unknown;
-};
-const mockedFetchExamConfig = fetchExamConfig as unknown as ReturnType<typeof vi.fn>;
-const mockedConnectionService = connectionService as unknown as {
-    start: ReturnType<typeof vi.fn>;
-};
-const mockedMessageSyncService = messageSyncService as unknown as {
-    start: ReturnType<typeof vi.fn>;
-};
-const mockedLogger = logger as unknown as {
-    info: ReturnType<typeof vi.fn>;
-    warn: ReturnType<typeof vi.fn>;
-    error: ReturnType<typeof vi.fn>;
-};
-const mockedValidatePreSettingsFormat =
-    validatePreSettingsFormat as unknown as ReturnType<typeof vi.fn>;
-const mockedValidateConfigFormat =
-    validateConfigFormat as unknown as ReturnType<typeof vi.fn>;
+describe('ConfigService', () => {
+    let originalResourcesPath: string | undefined;
 
-// NOTE: This suite is currently out of sync with the refactored main-process services
-// (`src/main/services/*`). It's unrelated to special-rules config parsing and is
-// causing CI noise. We'll re-enable after the service tests are updated.
-describe.skip('ConfigService', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        // 若你在 ConfigService 裡面加了 _resetForTest，可以在這裡呼叫：
-        // (ConfigService as any)._resetForTest?.();
+        originalResourcesPath = process.resourcesPath;
+        process.resourcesPath = '/mock/resources/path';
+        
+        // Reset ramStore
+        ramStore.isConfigured = false;
+        ramStore.backendUrl = '';
+        ramStore.examConfig = undefined as any;
+        ramStore.isOfflineMode = false;
+        ramStore.examStatus = '';
+        
+        // Default mocks
+        (path.join as any).mockImplementation((...args: string[]) => args.join('/'));
+    });
+
+    afterEach(() => {
+        if (originalResourcesPath !== undefined) {
+            process.resourcesPath = originalResourcesPath;
+        } else {
+            delete (process as any).resourcesPath;
+        }
+    });
+
+    describe('getInstance', () => {
+        it('creates a new instance if none exists and returns the same instance subsequently', () => {
+            const ConfigServiceClass = (configService as any).constructor;
+            const originalInstance = ConfigServiceClass.instance;
+            
+            ConfigServiceClass.instance = undefined;
+            const instance1 = ConfigServiceClass.getInstance();
+            expect(instance1).toBeDefined();
+            
+            const instance2 = ConfigServiceClass.getInstance();
+            expect(instance1).toBe(instance2);
+            
+            ConfigServiceClass.instance = originalInstance;
+        });
+    });
+
+    describe('initFromPreSettings', () => {
+        it('shows settings page if pre_settings.json does not exist (unpackaged)', async () => {
+            app.isPackaged = false;
+            (fs.existsSync as any).mockReturnValue(false);
+
+            await configService.initFromPreSettings();
+
+            expect(path.join).toHaveBeenCalledWith('/mock/app/path', 'resources', 'pre_settings.json');
+            expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('No pre_settings.json found'));
+            expect(ramStore.isConfigured).toBe(false);
+        });
+
+        it('shows settings page if pre_settings.json does not exist (packaged)', async () => {
+            app.isPackaged = true;
+            (fs.existsSync as any).mockReturnValue(false);
+
+            await configService.initFromPreSettings();
+
+            expect(path.join).toHaveBeenCalledWith('/mock/resources/path', 'pre_settings.json');
+            expect(ramStore.isConfigured).toBe(false);
+        });
+
+        it('fails if pre_settings.json format is invalid', async () => {
+            (fs.existsSync as any).mockReturnValue(true);
+            (fs.readFileSync as any).mockReturnValue('{"invalid":"json"}');
+            (preSettingsSchema.safeParse as any).mockReturnValue({ success: false, error: 'validation error' });
+
+            await configService.initFromPreSettings();
+
+            expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('format is invalid'), 'validation error');
+            expect(ramStore.isConfigured).toBe(false);
+        });
+
+        it('starts services if remoteHost exists', async () => {
+            (fs.existsSync as any).mockReturnValue(true);
+            (fs.readFileSync as any).mockReturnValue('{"remoteHost":"http://test.com"}');
+            (preSettingsSchema.safeParse as any).mockReturnValue({ success: true, data: { remoteHost: 'http://test.com' } });
+
+            await configService.initFromPreSettings();
+
+            expect(ramStore.backendUrl).toBe('http://test.com');
+            expect(connectionService.start).toHaveBeenCalled();
+            expect(messageSyncService.start).toHaveBeenCalledWith('http://test.com');
+        });
+
+        /* Feature 007 bugfix BUG-02. `isConfigured` only turns true once a
+         * paper has been fetched, and `/` is the startup route — so a machine
+         * with a perfectly good pre_settings.json sat on a settings form asking
+         * for the address it had already been given. The only thing that would
+         * have moved it on is a connection-status event emitted from here,
+         * before `createWindow()`, with no renderer listening. */
+        it('marks the machine as deployed so it is never shown the settings form', async () => {
+            (fs.existsSync as any).mockReturnValue(true);
+            (fs.readFileSync as any).mockReturnValue('{"remoteHost":"http://test.com"}');
+            (preSettingsSchema.safeParse as any).mockReturnValue({ success: true, data: { remoteHost: 'http://test.com' } });
+
+            await configService.initFromPreSettings();
+
+            expect(ramStore.isPreDeployed).toBe(true);
+        });
+
+        it('leaves a machine with no remoteHost free to use the settings form', async () => {
+            ramStore.isPreDeployed = false;
+            (fs.existsSync as any).mockReturnValue(true);
+            (fs.readFileSync as any).mockReturnValue('{}');
+            (preSettingsSchema.safeParse as any).mockReturnValue({ success: true, data: {} });
+
+            await configService.initFromPreSettings();
+
+            expect(ramStore.isPreDeployed).toBe(false);
+        });
+
+        it('does not start services if remoteHost is missing', async () => {
+            (fs.existsSync as any).mockReturnValue(true);
+            (fs.readFileSync as any).mockReturnValue('{}');
+            (preSettingsSchema.safeParse as any).mockReturnValue({ success: true, data: {} });
+
+            await configService.initFromPreSettings();
+
+            expect(ramStore.isConfigured).toBe(false);
+            expect(connectionService.start).not.toHaveBeenCalled();
+            expect(messageSyncService.start).not.toHaveBeenCalled();
+        });
+
+        it('catches and logs errors when reading pre_settings.json throws', async () => {
+            (fs.existsSync as any).mockReturnValue(true);
+            const err = new Error('read error');
+            (fs.readFileSync as any).mockImplementation(() => { throw err; });
+
+            await configService.initFromPreSettings();
+
+            expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Error reading pre_settings.json'), err);
+            expect(ramStore.isConfigured).toBe(false);
+        });
     });
 
     describe('setConfigFromFile', () => {
-        it('config format invalid returns error', async () => {
-            mockedFs.readFileSync = vi
-                .fn()
-                .mockReturnValueOnce(JSON.stringify({ some: 'data' }));
-
-            mockedValidateConfigFormat.mockReturnValueOnce({
+        it('rejects a file that is not an offline deployment bundle', async () => {
+            /* The plaintext config this replaced was both a second parsing path
+             * and a way for a student to hand themselves a paper. */
+            (fs.readFileSync as any).mockReturnValue('{}');
+            (examConfigPayloadSchema.safeParse as any).mockReturnValue({
                 success: false,
-                error: 'Invalid format details',
+                error: { issues: [{ path: ['someField'], message: 'is required' }] }
             });
 
             const res = await configService.setConfigFromFile('/path/config.json');
 
-            expect(mockedFs.readFileSync).toHaveBeenCalledWith(
-                '/path/config.json',
-                'utf-8',
-            );
             expect(res.success).toBe(false);
-            expect(res.error?.code).toBeDefined();
+            if (!res.success) {
+                expect(res.error.code).toBe(ErrorCode.INVALID_CONFIG_FORMAT);
+                expect(res.error.message).toContain('someField: is required');
+            }
         });
 
-        it('reads file, updates store and sets isConfigLoaded to true', async () => {
-            mockedFs.readFileSync = vi
-                .fn()
-                .mockReturnValueOnce(JSON.stringify({ some: 'config' }));
+        it('loads a bundle, stays offline, and leaves the questions sealed', async () => {
+            (fs.readFileSync as any).mockReturnValue('{}');
+            const bundle = {
+                meta: { testTitle: 'Offline' },
+                cipher: { iv: 'i', ciphertext: 'c', tag: 't' }
+            };
+            (examConfigPayloadSchema.safeParse as any).mockReturnValue({ success: true, data: bundle });
 
-            mockedValidateConfigFormat.mockReturnValueOnce({
-                success: true,
-                data: { some: 'config' },
-            });
+            const res = await configService.setConfigFromFile('/path/bundle.json');
+
+            expect(res.success).toBe(true);
+            expect(ramStore.examConfigMeta).toEqual(bundle.meta);
+            expect(ramStore.examConfigCipher).toEqual(bundle.cipher);
+            // The exam starts on the invigilator's spoken password, not on load.
+            expect(ramStore.examConfig).toBeFalsy();
+            expect(ramStore.isOfflineMode).toBe(true);
+            expect(ramStore.examStatus).toBe('SETUP_FINISHED');
+        });
+
+        it('returns error if fs.readFileSync throws an Error', async () => {
+            (fs.readFileSync as any).mockImplementation(() => { throw new Error('fs read error'); });
+
             const res = await configService.setConfigFromFile('/path/config.json');
 
-            expect(mockedFs.readFileSync).toHaveBeenCalledWith(
-                '/path/config.json',
-                'utf-8',
-            );
-            expect(mockedRamStore.examConfig).toEqual({
-                some: 'config',
-            });
-            expect(res.success).toBe(true);
-            expect(configService.isConfigLoaded()).toBe(true);
+            expect(res.success).toBe(false);
+            if (!res.success) {
+                expect(res.error.code).toBe(ErrorCode.INVALID_CONFIG_FORMAT);
+                expect(res.error.message).toBe('fs read error');
+            }
+        });
+
+        it('returns error if fs.readFileSync throws a non-Error', async () => {
+            (fs.readFileSync as any).mockImplementation(() => { throw 'string error'; });
+
+            const res = await configService.setConfigFromFile('/path/config.json');
+
+            expect(res.success).toBe(false);
+            if (!res.success) {
+                expect(res.error.code).toBe(ErrorCode.INVALID_CONFIG_FORMAT);
+                expect(res.error.message).toBe('string error');
+            }
         });
     });
 
     describe('setConfigFromServer', () => {
-        it('returns error when no response from server', async () => {
-            (mockedFetchExamConfig as any).mockResolvedValueOnce(null);
+        it('starts services and delegates to fetchAndSaveConfig', async () => {
+            const spy = vi.spyOn(configService, 'fetchAndSaveConfig').mockResolvedValue({ success: true });
 
-            const res = await configService.setConfigFromServer('http://example.com');
+            const res = await configService.setConfigFromServer('http://server.com');
 
-            expect(res.success).toBe(false);
-            expect(res.error?.code).toBeDefined();
-            // 視你預期而定，這裡通常仍是 false
-            expect(configService.isConfigLoaded()).toBe(false);
-        });
-
-        it('updates store and sets isConfigLoaded on success', async () => {
-            const remoteConfig = { a: 1 };
-            (mockedFetchExamConfig as any).mockResolvedValueOnce(remoteConfig);
-
-            const res = await configService.setConfigFromServer('http://example.com');
-
-            expect(mockedFetchExamConfig).toHaveBeenCalledWith('http://example.com');
-            expect(mockedRamStore.examConfig).toEqual(remoteConfig);
+            expect(ramStore.backendUrl).toBe('http://server.com');
+            expect(ramStore.isOfflineMode).toBe(false);
+            expect(connectionService.start).toHaveBeenCalled();
+            expect(messageSyncService.start).toHaveBeenCalledWith('http://server.com');
+            expect(spy).toHaveBeenCalledWith('http://server.com');
             expect(res.success).toBe(true);
-            expect(configService.isConfigLoaded()).toBe(true);
+            
+            spy.mockRestore();
         });
     });
 
     describe('checkServerStatus', () => {
-        it('returns error when server status is not ok', async () => {
-            // Current implementation does not expose checkServerStatus(); keep smoke assertions minimal.
-            expect(typeof configService.isConfigLoaded).toBe('function');
+        it('returns success if healthCheck returns true', async () => {
+            (healthCheck as any).mockResolvedValue(true);
+
+            const res = await configService.checkServerStatus('http://server.com');
+            expect(res.success).toBe(true);
         });
 
-        it('returns success with data when server status ok', async () => {
-            expect(typeof configService.initFromPreSettings).toBe('function');
+        it('returns SERVER_STATUS_NOT_OK if healthCheck returns false', async () => {
+            (healthCheck as any).mockResolvedValue(false);
+
+            const res = await configService.checkServerStatus('http://server.com');
+            expect(res.success).toBe(false);
+            if (!res.success) {
+                expect(res.error.code).toBe(ErrorCode.SERVER_STATUS_NOT_OK);
+            }
+        });
+
+        it('returns SERVER_STATUS_NOT_OK if healthCheck throws', async () => {
+            (healthCheck as any).mockRejectedValue(new Error('network error'));
+
+            const res = await configService.checkServerStatus('http://server.com');
+            expect(res.success).toBe(false);
+            if (!res.success) {
+                expect(res.error.code).toBe(ErrorCode.SERVER_STATUS_NOT_OK);
+            }
         });
     });
 
-    describe('initFromLocalPreSettings', () => {
-        it('logs and sets isConfigLoaded false when file does not exist', async () => {
-            mockedPath.join = vi.fn().mockReturnValue('/fake/pre_settings.json');
-            mockedApp.getAppPath = vi.fn().mockReturnValue('/app');
-            mockedFs.existsSync = vi.fn().mockReturnValue(false);
-
-            // Old implementation used initFromLocalPreSettings(); current service uses initFromPreSettings().
-            // Keep this test minimal by calling the current startup method instead.
-            await configService.initFromPreSettings();
-
-            expect(mockedFs.existsSync).toHaveBeenCalledWith(
-                '/fake/pre_settings.json',
-            );
-            expect(mockedLogger.error).toHaveBeenCalledWith(
-                'No local config file found when starting up',
-            );
-            expect(configService.isConfigLoaded()).toBe(false);
-        });
-
-        it('fails when pre-settings format is invalid', async () => {
-            mockedPath.join = vi.fn().mockReturnValue('/fake/pre_settings.json');
-            mockedFs.existsSync = vi.fn().mockReturnValue(true);
-            mockedFs.readFileSync = vi.fn().mockReturnValue('{}');
-            mockedValidatePreSettingsFormat.mockReturnValue({
-                success: false,
-                error: 'bad format',
-            });
-
-            await configService.initFromPreSettings();
-
-            expect(mockedLogger.error).toHaveBeenCalledWith(
-                'Local pre_settings.json format is invalid: bad format',
-            );
-            expect(configService.isConfigLoaded()).toBe(false);
-        });
-
-        it('fails when server returns no config', async () => {
-            mockedPath.join = vi.fn().mockReturnValue('/fake/pre_settings.json');
-            mockedFs.existsSync = vi.fn().mockReturnValue(true);
-            mockedFs.readFileSync = vi
-                .fn()
-                .mockReturnValue(JSON.stringify({ remoteHost: 'http://example.com' }));
-            mockedValidatePreSettingsFormat.mockReturnValue({ success: true });
-            (mockedFetchExamConfig as any).mockResolvedValueOnce(null);
-
-            await configService.initFromPreSettings();
-
-            expect(mockedLogger.error).toHaveBeenCalledWith(
-                'Failed to fetch config from server during init',
-            );
-            expect(configService.isConfigLoaded()).toBe(false);
-        });
-
-        it('fails when remote config format invalid', async () => {
-            mockedPath.join = vi.fn().mockReturnValue('/fake/pre_settings.json');
-            mockedFs.existsSync = vi.fn().mockReturnValue(true);
-            mockedFs.readFileSync = vi
-                .fn()
-                .mockReturnValue(JSON.stringify({ remoteHost: 'http://example.com' }));
-            mockedValidatePreSettingsFormat.mockReturnValue({ success: true });
-            (mockedFetchExamConfig as any).mockResolvedValueOnce({ some: 'data' });
-            mockedValidateConfigFormat.mockReturnValue({
-                success: false,
-                error: 'config bad',
-            });
-
-            await configService.initFromPreSettings();
-
-            expect(mockedLogger.error).toHaveBeenCalledWith(
-                'Invalid config format fetched from server during init: config bad',
-            );
-            expect(configService.isConfigLoaded()).toBe(false);
-        });
-
-        it('updates store, calls ApiSystem.setup and sets isConfigLoaded true on success', async () => {
-            mockedPath.join = vi.fn().mockReturnValue('/fake/pre_settings.json');
-            mockedFs.existsSync = vi.fn().mockReturnValue(true);
-            mockedFs.readFileSync = vi
-                .fn()
-                .mockReturnValue(JSON.stringify({ remoteHost: 'http://example.com' }));
-            mockedValidatePreSettingsFormat.mockReturnValue({ success: true });
-            const remoteConfig = { key: 'value' };
-            (mockedFetchExamConfig as any).mockResolvedValueOnce(remoteConfig);
-            mockedValidateConfigFormat.mockReturnValue({ success: true });
-
-            await configService.initFromPreSettings();
-
-            expect(mockedRamStore.examConfig).toEqual(remoteConfig);
-            expect(mockedLogger.info).toHaveBeenCalled();
+    describe('isConfigLoaded', () => {
+        it('returns ramStore.isConfigured', () => {
+            ramStore.isConfigured = true;
             expect(configService.isConfigLoaded()).toBe(true);
+
+            ramStore.isConfigured = false;
+            expect(configService.isConfigLoaded()).toBe(false);
+        });
+    });
+
+    describe('fetchAndSaveConfig', () => {
+        it('returns NO_RESPONSE if fetchSecureExamConfig fails', async () => {
+            (fetchSecureExamConfig as any).mockResolvedValue({ success: false });
+
+            const res = await configService.fetchAndSaveConfig('http://server.com');
+
+            expect(ramStore.isConfigured).toBe(false);
+            expect(res.success).toBe(false);
+            if (!res.success) {
+                expect(res.error.code).toBe(ErrorCode.NO_RESPONSE);
+            }
+        });
+        
+        it('returns NO_RESPONSE if fetchSecureExamConfig succeeds but data is missing', async () => {
+            (fetchSecureExamConfig as any).mockResolvedValue({ success: true, data: undefined });
+
+            const res = await configService.fetchAndSaveConfig('http://server.com');
+
+            expect(ramStore.isConfigured).toBe(false);
+            expect(res.success).toBe(false);
+        });
+
+        it('returns INVALID_CONFIG_FORMAT if fetched config validation fails', async () => {
+            (fetchSecureExamConfig as any).mockResolvedValue({ success: true, data: { foo: 'bar' } });
+            (examConfigPayloadSchema.safeParse as any).mockReturnValue({
+                success: false,
+                error: { issues: [{ path: ['field'], message: 'invalid' }] }
+            });
+
+            const res = await configService.fetchAndSaveConfig('http://server.com');
+
+            expect(ramStore.isConfigured).toBe(false);
+            expect(res.success).toBe(false);
+            if (!res.success) {
+                expect(res.error.code).toBe(ErrorCode.INVALID_CONFIG_FORMAT);
+                expect(res.error.message).toContain('field: invalid');
+            }
+        });
+
+        it('stores both halves and leaves the questions sealed', async () => {
+            /* The state a machine sits in for the whole of INITIALIZED and
+             * SETUP_FINISHED: fully prepared, holding a paper it cannot read. */
+            const payload = { meta: { testTitle: 'Sealed' }, cipher: { iv: 'i', ciphertext: 'c', tag: 't' } };
+            (fetchSecureExamConfig as any).mockResolvedValue({ success: true, data: payload });
+            (examConfigPayloadSchema.safeParse as any).mockReturnValue({ success: true, data: payload });
+
+            const res = await configService.fetchAndSaveConfig('http://server.com');
+
+            expect(ramStore.examConfigMeta).toEqual(payload.meta);
+            expect(ramStore.examConfigCipher).toEqual(payload.cipher);
+            // Nothing was assembled: without the key there is no paper to read.
+            expect(ramStore.examConfig).toBeFalsy();
+            expect(vi.mocked(mergeExamConfig)).not.toHaveBeenCalled();
+            expect(ramStore.backendUrl).toBe('http://server.com');
+            expect(res.success).toBe(true);
+        });
+
+        it('uses ramStore.backendUrl if host is not provided', async () => {
+            ramStore.backendUrl = 'http://ramstore.com';
+            const payload = { meta: { testTitle: 'Sealed' }, cipher: { iv: 'i', ciphertext: 'c', tag: 't' } };
+            (fetchSecureExamConfig as any).mockResolvedValue({ success: true, data: payload });
+            (examConfigPayloadSchema.safeParse as any).mockReturnValue({ success: true, data: payload });
+
+            await configService.fetchAndSaveConfig();
+
+            expect(ramStore.backendUrl).toBe('http://ramstore.com');
         });
     });
 });

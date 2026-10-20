@@ -1,4 +1,4 @@
-import { examConfigSchema, ExamConfig } from "../schemas/config.schema";
+import { examConfigSchema, ExamConfigSchema as ExamConfig } from "../schemas/examConfig.schema";
 
 /**
  * 驗證給定的資料是否符合 midterm_test_config.json 的格式

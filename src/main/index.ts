@@ -1,15 +1,16 @@
-import { app, shell, BrowserWindow, dialog } from 'electron';
+import { app, shell, BrowserWindow, dialog, ipcMain } from 'electron';
 import { join } from 'path';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import icon from '../../resources/icon.png?asset';
 import { registerAllIpc } from './ipc/index.ipc';
 import { setMainWindow } from './system/windowManager';
-import { logger, setupLogger, clearLogOnStartup } from './services/logger.service';
+import { logger, setupLogger, clearLogOnStartup, logServerEvent } from './services/logger.service';
 import { configService } from './services/config.service';
 import { connectionService } from './services/connection.service';
 import { localProgramStore } from './services/localProgram.service';
 import { ramStore } from './services/ramStore.service';
 import { messageSyncService } from './services/message-sync.service';
+import { environmentCheckService } from './services/environment-check.service';
 
 clearLogOnStartup();
 setupLogger();
@@ -35,12 +36,16 @@ function createWindow(): void {
 
   mainWindow.on('close', (e) => {
     logger.warn('User attempted to close the main window during an active test.');
+    logServerEvent('alert', 'User attempted to close the main window during an active test.', {
+      type: 'APP_ON_QUIT'
+    });
     e.preventDefault();
 
     const choice = dialog.showMessageBoxSync(mainWindow, {
       type: 'warning',
       buttons: ['取消[cancel]', '關閉[close]'],
       defaultId: 0,
+      cancelId: 0,
       title: '您尚未完成考試，請勿關閉這個程式！[Do not close the application]',
       message: '這個動作會影響到你的考試成績 [This action will affect your test results]',
       detail:
@@ -94,6 +99,10 @@ app.whenReady().then(async () => {
   // Register all IPC handlers
   registerAllIpc();
 
+  ipcMain.handle('app:quit', () => {
+    app.quit();
+  });
+
   // Try to load config from pre_settings.json
   await configService.initFromPreSettings();
 
@@ -111,6 +120,7 @@ app.on('window-all-closed', () => {
   logger.info('Application On Quit');
   connectionService.stop();
   messageSyncService.stop();
+  environmentCheckService.stop();
   localProgramStore.deleteTempDir();
   ramStore.clear();
   if (process.platform !== 'darwin') {

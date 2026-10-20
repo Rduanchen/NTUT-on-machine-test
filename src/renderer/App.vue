@@ -26,16 +26,29 @@
           >
             {{ t(`examSystem.serverStatus.${serverStatus}`) }}
           </v-chip>
+          <v-btn
+            class="ml-3 text-none"
+            size="small"
+            variant="tonal"
+            :color="environmentPresentation.color"
+            :prepend-icon="environmentPresentation.icon"
+            @click="showEnvironmentDialog = true"
+          >
+            {{ t(environmentPresentation.labelKey) }}
+            <v-tooltip activator="parent" location="bottom">{{
+              t('examSystem.environmentCheck.openReport')
+            }}</v-tooltip>
+          </v-btn>
         </div>
 
         <div class="d-flex align-center no-drag">
           <v-text class="mr-3 font-weight-medium" style="font-size: 1.2em">
-            This system is developed by VerechoTJI |
+            {{ t('examSystem.developedBy') }}
             <span
               :class="['neon-text', isDark ? 'neon-text--dark' : 'neon-text--light']"
               @click="handleSecretClick"
             >
-              阿端
+              {{ t('examSystem.easterEgg.developerName') }}
               <v-tooltip activator="parent" location="bottom" open-delay="50">
                 <span class="text-caption">{{ t('examSystem.secretLabel') }}</span>
               </v-tooltip>
@@ -109,7 +122,7 @@
         <v-btn icon variant="text" size="small" @click="showNotifications = true">
           <v-icon>mdi-bell-badge-outline</v-icon>
           <v-tooltip activator="parent" location="bottom">
-            {{ t('examSystem.serverStatusLabel') }} socket feed
+            {{ t('examSystem.notificationCenter.socketFeed') }}
           </v-tooltip>
         </v-btn>
       </div>
@@ -136,14 +149,16 @@
           class="text-h3 font-weight-black mb-6"
           :class="['mega-neon-text', isDark ? 'mega-neon-text--dark' : 'mega-neon-text--light']"
         >
-          You catch me !!
+          {{ t('examSystem.easterEgg.title') }}
         </div>
 
-        <div class="text-h5 font-weight-bold mb-1">阿端(Justin)</div>
+        <div class="text-h5 font-weight-bold mb-1">
+          {{ t('examSystem.easterEgg.developerName') }}
+        </div>
 
         <div class="text-subtitle-1 text-medium-emphasis mb-6 font-weight-medium">
-          NTUT 資工一(CS1) <br />
-          <span class="text-primary">Full Stack Developer</span>
+          {{ t('examSystem.easterEgg.class') }} <br />
+          <span class="text-primary">{{ t('examSystem.easterEgg.role') }}</span>
         </div>
 
         <div class="mb-6">
@@ -164,11 +179,35 @@
         <v-divider class="mb-4"></v-divider>
 
         <v-btn color="primary" variant="flat" block size="large" @click="showEasterEgg = false">
-          Close
+          {{ t('examSystem.common.close') }}
         </v-btn>
       </v-card>
     </v-dialog>
     <NotificationCenter v-model="showNotifications" />
+    <EnvironmentCheckDialog
+      v-model="showEnvironmentDialog"
+      :report="environmentReport"
+      @retry="retryEnvironmentCheck"
+      @ignore="showEnvironmentDialog = false"
+    />
+
+    <!-- Force Logout Dialog -->
+    <v-dialog v-model="forceLogoutDialog" persistent width="auto">
+      <v-card
+        class="pa-8 text-center rounded-xl"
+        style="border: 2px solid #f44336"
+        elevation="24"
+        min-width="320"
+      >
+        <v-icon color="error" size="64" class="mb-4">mdi-alert-octagon</v-icon>
+        <div class="text-h5 font-weight-bold text-error mb-2">安全連線錯誤或已被強制登出</div>
+        <div class="text-body-1 mb-6 font-weight-medium">{{ forceLogoutMessage }}</div>
+
+        <v-btn color="error" variant="flat" block size="large" @click="handleAppQuit">
+          關閉系統 [Quit Application]
+        </v-btn>
+      </v-card>
+    </v-dialog>
 
     <!-- Bottom-right toast snackbar for incoming notifications -->
     <v-snackbar
@@ -195,15 +234,41 @@
 
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
+import { goToDerivedPage } from './router/navigate';
+import { startBuffer, clearBuffer, FINISH_BUFFER_SECONDS } from './constants/bufferState';
 import { useI18n } from 'vue-i18n';
 import { useTheme } from 'vuetify';
 import NotificationCenter from './components/NotificationCenter.vue';
+import EnvironmentCheckDialog from './components/EnvironmentCheckDialog.vue';
+import { getEnvironmentPresentation } from './components/environment-check.presentation';
 
 const route = useRoute();
+const router = useRouter();
 const studentInfo = ref(null);
 const serverStatus = ref('disconnected');
 const showNotifications = ref(false);
+const showEnvironmentDialog = ref(false);
+const environmentReport = ref({
+  status: 'IDLE',
+  configFingerprint: '',
+  platform: '',
+  architecture: '',
+  requiredLanguages: [],
+  languageResults: [],
+  startedAt: null,
+  completedAt: null,
+  message: ''
+});
+const environmentPresentation = computed(() =>
+  getEnvironmentPresentation(environmentReport.value.status)
+);
+let stopEnvironmentUpdates = null;
+let stopConnectionUpdates = null;
+let stopExamStatusUpdates = null;
+
+const forceLogoutDialog = ref(false);
+const forceLogoutMessage = ref('');
 
 // Snackbar for new incoming notifications
 const snackbarVisible = ref(false);
@@ -243,12 +308,66 @@ const updateServerAvailability = async () => {
   serverStatus.value = status === 'connected' ? 'connected' : 'disconnected';
 };
 
+const handleAppQuit = () => {
+  if (window.api?.app) {
+    window.api.app.quit();
+  }
+};
+
+const applyEnvironmentReport = (report) => {
+  if (!report) return;
+  environmentReport.value = report;
+  if (report.status === 'FAILED') showEnvironmentDialog.value = true;
+};
+
+const retryEnvironmentCheck = async () => {
+  const response = await window.api?.environmentCheck?.retry?.();
+  if (response?.data) applyEnvironmentReport(response.data);
+};
+
 onMounted(async () => {
+  const initialEnvironment = await window.api?.environmentCheck?.getReport?.();
+  if (initialEnvironment?.data) applyEnvironmentReport(initialEnvironment.data);
+  stopEnvironmentUpdates =
+    window.api?.environmentCheck?.onUpdated?.(applyEnvironmentReport) ?? null;
+
   if (window.api?.store) {
     await updateServerAvailability();
 
-    window.api.store.onConnectionStatusChanged(async (status) => {
+    stopConnectionUpdates = window.api.store.onConnectionStatusChanged(async (status) => {
       serverStatus.value = status === 'connected' ? 'connected' : 'disconnected';
+
+      // Auto-redirect from settings if server connects successfully
+      if (status === 'connected' && route.name === 'settings') {
+        await goToDerivedPage(router);
+      }
+    });
+
+    /* The one place the global phase is watched.
+     *
+     * "The page is derived, never remembered" was written as seven separate
+     * subscriptions, one per page — so it only held on the pages that happened
+     * to have one, and only for the phase values that page thought to handle.
+     * The exam page listened for FINISHED and IN_PROGRESS and nothing else, so
+     * a global reset left a machine sitting on a live exam screen for an exam
+     * that had just been wiped. Settings and the approval screen listened for
+     * nothing at all.
+     *
+     * One subscription, above every page, cannot drift that way. */
+    stopExamStatusUpdates = window.api.store.onExamStatusChanged(async (status) => {
+      if (status === 'FINISHED') {
+        /* The collection window. A machine mid-upload when the exam is called
+         * keeps its page until the window closes; the exam page pushes on to
+         * /finished when it elapses. Every other phase — a reset included —
+         * re-derives immediately. */
+        if (route.name === 'exam') {
+          startBuffer(FINISH_BUFFER_SECONDS);
+          return;
+        }
+      } else {
+        clearBuffer();
+      }
+      await goToDerivedPage(router);
     });
   }
 
@@ -265,10 +384,29 @@ onMounted(async () => {
     });
     snackbarVisible.value = true;
   });
+
+  // Listen for force logout from server or local crypto failure
+  window.api?.auth?.onForceLogout?.((message) => {
+    // During active exam, show the fatal force-logout dialog
+    // During login/waiting, just redirect back to login page to allow re-login
+    const currentPath = route.path;
+    const isInExam = currentPath === '/exam';
+
+    if (isInExam) {
+      forceLogoutMessage.value = message || '您的連線已失效，請重新綁定裝置。';
+      forceLogoutDialog.value = true;
+    } else {
+      // Not in exam - just go back to login so user can re-login with a new ID
+      // Pass skipAutoLogin query so LoginPage shows the manual form
+      router.push({ path: '/login', query: { skipAutoLogin: '1' } });
+    }
+  });
 });
 
 onBeforeUnmount(() => {
-  // cleanup if needed
+  stopEnvironmentUpdates?.();
+  stopConnectionUpdates?.();
+  stopExamStatusUpdates?.();
 });
 
 watch(

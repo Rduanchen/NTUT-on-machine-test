@@ -5,8 +5,9 @@ import { ramStore } from './ramStore.service';
 import { localProgramStore } from './localProgram.service';
 import { submitCode, submitScore } from './api.service';
 import { connectionService } from './connection.service';
-import { logger } from './logger.service';
+import { logger, logServerEvent } from './logger.service';
 import * as fs from 'fs';
+import { applyPuzzleRuleMultiplier, roundFinalScore } from '../../common/special-rule-score';
 
 class JudgeManagerService {
   private countPassedSubtasks(result: JudgeRunResult | undefined | null): number {
@@ -20,17 +21,6 @@ class JudgeManagerService {
       }
     }
     return passed;
-  }
-
-  private countPassedSubtasksInAllPuzzles(
-    resultsByPuzzle: Record<string, JudgeRunResult> | undefined | null
-  ): number {
-    if (!resultsByPuzzle) return 0;
-    let total = 0;
-    for (const r of Object.values(resultsByPuzzle)) {
-      total += this.countPassedSubtasks(r);
-    }
-    return total;
   }
 
   public async runJudge(
@@ -97,7 +87,6 @@ class JudgeManagerService {
 
   public async syncResultsInBackground(uploadCode: boolean): Promise<void> {
     try {
-      const results = ramStore.hiddenTestResults;
 
       // Prevent lower-score overwrite on backend:
       // only upload test results if the *current* score (passed subtasks) is >=
@@ -106,29 +95,188 @@ class JudgeManagerService {
       // available baseline is the last known public score stored in ramStore.testResults.
       // This still prevents obvious regressions (e.g. after a rejudge/config update),
       // and the backend has its own guard as the final authority.
-      const currentPassedSubtasks = this.countPassedSubtasksInAllPuzzles(
-        ramStore.hiddenTestResults
-      );
-      const lastKnownPassedSubtasks = this.countPassedSubtasksInAllPuzzles(ramStore.testResults);
+      const preference = ramStore.uploadVersionPreference || 'current';
+      const useHighest = preference === 'highest';
 
-      if (currentPassedSubtasks >= lastKnownPassedSubtasks) {
-        // Calculate total subtasks across all sections
-        const allPuzzles = ramStore.examConfig?.sections?.flatMap(s => s.puzzles) ?? [];
-        const totalSubtasks = allPuzzles.reduce((acc, p) => acc + p.subtasks.length, 0) || 1;
-        const score = Math.round((currentPassedSubtasks / totalSubtasks) * 100);
-        
-        const response = await submitScore(score);
+      const resultsSource = useHighest ? ramStore.highestHiddenTestResults : ramStore.hiddenTestResults;
+      const visibleResultsSource = useHighest ? ramStore.highestTestResults : ramStore.testResults;
+      const srrSource = useHighest ? ramStore.highestSpecialRuleResults : ramStore.specialRuleResults;
+
+      // Always allow upload since this can be triggered manually from finished page
+      // with a specific preference, we just use the selected source.
+
+      if (true) {
+        let totalScore = 0;
+        const sections = ramStore.examConfig?.sections || [];
+        const allPuzzles = sections.flatMap(s => s.puzzles) ?? ramStore.examConfig?.puzzles ?? [];
+
+        let puzzleAmount = 0;
+        let passedPuzzleAmount = 0;
+        let subtaskAmount = 0;
+        let passedSubtaskAmount = 0;
+        let puzzleResults: Record<string, any> = {};
+
+        if (sections.length > 0) {
+          for (const section of sections) {
+            let sectionScore = 0;
+            for (const puzzle of section.puzzles) {
+              puzzleAmount++;
+              const puzzleIndexInAll = allPuzzles.findIndex(p => p.id === puzzle.id);
+              const fallbackKey = puzzleIndexInAll !== -1 ? String(puzzleIndexInAll) : '';
+              const puzzleId = puzzle.id && resultsSource[puzzle.id]
+                ? puzzle.id
+                : (resultsSource[fallbackKey] ? fallbackKey : (puzzle.id || ''));
+
+              const result = resultsSource[puzzleId];
+              let puzzleScore = 0;
+              let puzzlePassedSubtasks = 0;
+              const puzzleTotalSubtasks = puzzle.subtasks ? puzzle.subtasks.length : 0;
+              subtaskAmount += puzzleTotalSubtasks;
+
+              let subtasksInfo: any[] = [];
+
+              if (puzzle.subtasks && puzzle.subtasks.length > 0) {
+                for (let i = 0; i < puzzle.subtasks.length; i++) {
+                  const subtaskConfig = puzzle.subtasks[i];
+                  const subtaskResult = result?.subtasks?.[i];
+                  const visibleResult = visibleResultsSource[puzzleId]?.subtasks?.[i] || [];
+
+                  const visibleCount = subtaskConfig.visible ? subtaskConfig.visible.length : 0;
+
+                  if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.length > 0) {
+                    if (subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
+                      puzzleScore += (subtaskConfig.score || 0);
+                      puzzlePassedSubtasks += 1;
+                      passedSubtaskAmount += 1;
+                    }
+                  }
+
+                  subtasksInfo.push({
+                    visible: visibleResult.slice(0, visibleCount).map((c: any) => ({
+                      status: c?.statusCode || 'WA',
+                      userOutput: c?.userOutput || '',
+                      expectedOutput: c?.expectingOutput || '',
+                      time: c?.time || '0'
+                    })),
+                    hidden: (subtaskResult || []).slice(visibleCount).map((c: any) => ({
+                      status: c?.statusCode || 'WA',
+                      userOutput: c?.userOutput || '',
+                      expectedOutput: c?.expectingOutput || '',
+                      time: c?.time || '0'
+                    }))
+                  });
+                }
+              }
+
+              if (puzzlePassedSubtasks === puzzleTotalSubtasks && puzzleTotalSubtasks > 0) {
+                passedPuzzleAmount += 1;
+              }
+
+              const srr = srrSource[puzzleId];
+              const finalPuzzleScore = applyPuzzleRuleMultiplier(puzzleScore, srr || [], puzzle.multiplier ?? 0.5);
+              sectionScore += finalPuzzleScore;
+
+              const finalIndex = puzzleIndexInAll !== -1 ? puzzleIndexInAll : 0;
+              puzzleResults[`Q${finalIndex + 1}`] = {
+                subtasks: subtasksInfo,
+                specialRuleResults: srr || []
+              };
+            }
+
+            const cappedSectionScore = (section.maxScore !== undefined && section.maxScore !== null && section.maxScore >= 0)
+              ? Math.min(sectionScore, section.maxScore)
+              : sectionScore;
+            totalScore += cappedSectionScore;
+          }
+        } else {
+          // Flat list legacy fallback
+          const puzzles = ramStore.examConfig?.puzzles || [];
+          for (const puzzle of puzzles) {
+            puzzleAmount++;
+            const puzzleId = puzzle.id || puzzle.title;
+            const result = resultsSource[puzzleId];
+
+            let puzzleScore = 0;
+            let puzzlePassedSubtasks = 0;
+            const puzzleTotalSubtasks = puzzle.subtasks ? puzzle.subtasks.length : 0;
+            subtaskAmount += puzzleTotalSubtasks;
+
+            let subtasksInfo: any[] = [];
+
+            if (puzzle.subtasks && puzzle.subtasks.length > 0) {
+              for (let i = 0; i < puzzle.subtasks.length; i++) {
+                const subtaskConfig = puzzle.subtasks[i];
+                const subtaskResult = result?.subtasks?.[i];
+                const visibleResult = visibleResultsSource[puzzleId]?.subtasks?.[i] || [];
+
+                const visibleCount = subtaskConfig.visible ? subtaskConfig.visible.length : 0;
+
+                if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.length > 0) {
+                  if (subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
+                    puzzleScore += (subtaskConfig.score || 0);
+                    puzzlePassedSubtasks += 1;
+                    passedSubtaskAmount += 1;
+                  }
+                }
+
+                subtasksInfo.push({
+                  visible: visibleResult.slice(0, visibleCount).map((c: any) => ({
+                    status: c?.statusCode || 'WA',
+                    userOutput: c?.userOutput || '',
+                    expectedOutput: c?.expectingOutput || '',
+                    time: c?.time || '0'
+                  })),
+                  hidden: (subtaskResult || []).slice(visibleCount).map((c: any) => ({
+                    status: c?.statusCode || 'WA',
+                    userOutput: c?.userOutput || '',
+                    expectedOutput: c?.expectingOutput || '',
+                    time: c?.time || '0'
+                  }))
+                });
+              }
+            }
+
+            if (puzzlePassedSubtasks === puzzleTotalSubtasks && puzzleTotalSubtasks > 0) {
+              passedPuzzleAmount += 1;
+            }
+
+            const srr = srrSource[puzzleId];
+            totalScore += applyPuzzleRuleMultiplier(puzzleScore, srr || [], puzzle.multiplier ?? 0.5);
+
+            const puzzleIndex = puzzles.findIndex((p) => (p.id || p.title) === puzzleId);
+            const finalIndex = puzzleIndex !== -1 ? puzzleIndex : 0;
+            puzzleResults[`Q${finalIndex + 1}`] = {
+              subtasks: subtasksInfo,
+              specialRuleResults: srr || []
+            };
+          }
+        }
+
+        const score = roundFinalScore(totalScore);
+        const scorePayload = {
+          score,
+          puzzleResults,
+          subtaskAmount,
+          passedSubtaskAmount,
+          puzzleAmount,
+          passedPuzzleAmount
+        };
+
+        const response = await submitScore(scorePayload);
         if (response.success) {
           ramStore.markTestResultSynced();
-          connectionService.clearPendingTestResult();
+          connectionService.clearQueuedScore();
+          logServerEvent('UPLOAD_SCORE', '成績上傳成功', { score });
         } else {
-          connectionService.markPendingTestResult();
+          /* Kept, not just noted. A student who answers during an outage and
+           * never runs another judge would otherwise lose that work entirely. */
+          connectionService.queueScore(scorePayload);
         }
       }
 
       if (uploadCode && localProgramStore.hasFiles()) {
         let allSuccess = true;
-        const entries = localProgramStore.getStoredProgramEntries();
+        const entries = localProgramStore.getStoredProgramEntries(preference);
         for (const entry of entries) {
           const codeContent = fs.readFileSync(entry.filePath, 'utf-8');
           const ext = entry.filePath.split('.').pop()?.toLowerCase();
@@ -139,18 +287,24 @@ class JudgeManagerService {
           else if (ext === 'java') language = 'Java';
 
           const codeResponse = await submitCode(codeContent, entry.puzzleId, language);
-          if (!codeResponse.success) allSuccess = false;
+          if (codeResponse.success) {
+            connectionService.clearQueuedSubmission(entry.puzzleId);
+          } else {
+            allSuccess = false;
+            connectionService.queueSubmission({
+              puzzleId: entry.puzzleId,
+              language,
+              codeContent
+            });
+          }
         }
 
-        if (allSuccess) {
-          connectionService.clearPendingProgramFile();
-        } else {
-          connectionService.markPendingProgramFile();
+        if (!allSuccess) {
+          logger.warn('[Judger] Some submissions are queued for the next reconnect.');
         }
       }
     } catch (error) {
       logger.error('[Judger] Background sync failed:', error);
-      connectionService.markPendingTestResult();
     }
   }
 }

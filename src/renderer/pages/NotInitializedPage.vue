@@ -74,6 +74,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
+import { goToDerivedPage } from '../router/navigate';
 import { useI18n } from 'vue-i18n';
 
 const router = useRouter();
@@ -91,17 +92,7 @@ async function checkStatus() {
   if (!window.api?.store) return;
   isChecking.value = true;
   try {
-    const examStatus = await window.api.store.getExamStatus?.();
-    if (examStatus && examStatus !== 'UNINITIALIZED') {
-      // Transition away: NOT_STARTED → login, IN_PROGRESS → exam, FINISHED → finished
-      if (examStatus === 'NOT_STARTED') {
-        router.push('/login');
-      } else if (examStatus === 'IN_PROGRESS') {
-        router.push('/exam');
-      } else if (examStatus === 'FINISHED') {
-        router.push('/finished');
-      }
-    }
+    await goToDerivedPage(router);
   } finally {
     isChecking.value = false;
   }
@@ -133,12 +124,7 @@ onMounted(() => {
   // so that messageSyncService can successfully fetch exam status.
   handleRegisterDevice();
 
-  // Listen for status changes pushed from main process
-  window.api?.store?.onExamStatusChanged?.((status: string) => {
-    if (status === 'NOT_STARTED') router.push('/login');
-    else if (status === 'IN_PROGRESS') router.push('/exam');
-    else if (status === 'FINISHED') router.push('/finished');
-  });
+  /* The phase is watched once, in App.vue — this page has no copy of it. */
 });
 
 onBeforeUnmount(() => {

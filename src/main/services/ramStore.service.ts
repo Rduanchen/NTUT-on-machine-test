@@ -8,9 +8,27 @@ import type {
   ServerMessage,
   SocketConnectionStatus,
   SpecialRuleResultRecord,
-  ExamState
+  ExamState,
+  UploadVersionPreference,
+  EnvironmentCheckReport,
+  EncryptedEnvelope,
+  ExamConfigMetaShape
 } from '../../common/types';
 import * as os from 'os';
+
+export function createIdleEnvironmentCheckReport(): EnvironmentCheckReport {
+  return {
+    status: 'IDLE',
+    configFingerprint: '',
+    platform: process.platform,
+    architecture: process.arch,
+    requiredLanguages: [],
+    languageResults: [],
+    startedAt: null,
+    completedAt: null,
+    message: '尚未進行執行環境檢查'
+  };
+}
 
 /**
  * RAM Store Service - In-memory key-value store
@@ -24,13 +42,20 @@ class RamStoreService {
 
   private state: RamStoreState = {
     examConfig: null,
+    examConfigMeta: null,
+    examConfigCipher: null,
+    examKey: null,
+    environmentCheckReport: createIdleEnvironmentCheckReport(),
     isConfigured: false,
     studentInfo: { id: '', name: '' },
     isStudentVerified: false,
     cryptoState: null,
     testResults: {},
     hiddenTestResults: {},
+    highestTestResults: {},
+    highestHiddenTestResults: {},
     specialRuleResults: {},
+    highestSpecialRuleResults: {},
     isTestResultDirty: false,
     connectionStatus: 'disconnected',
     backendUrl: '',
@@ -38,13 +63,18 @@ class RamStoreService {
     messageVersion: 0,
     configVersion: 0,
     socketStatus: 'disconnected',
-    examStatus: 'UNINITIALIZED'
+    examStatus: 'UNINITIALIZED',
+    isOfflineMode: false,
+    isPreDeployed: false,
+    hasEverRegistered: false,
+    pendingLoginSync: false,
+    uploadVersionPreference: 'current'
   };
 
   /** Event listeners for state changes */
   private listeners: Map<string, Array<(value: unknown) => void>> = new Map();
 
-  private constructor() { }
+  private constructor() {}
 
   public static getInstance(): RamStoreService {
     if (!RamStoreService.instance) {
@@ -73,13 +103,20 @@ class RamStoreService {
   public clear(): void {
     this.state = {
       examConfig: null,
+      examConfigMeta: null,
+      examConfigCipher: null,
+      examKey: null,
+      environmentCheckReport: createIdleEnvironmentCheckReport(),
       isConfigured: false,
       studentInfo: { id: '', name: '' },
       isStudentVerified: false,
       cryptoState: null,
       testResults: {},
       hiddenTestResults: {},
+      highestTestResults: {},
+      highestHiddenTestResults: {},
       specialRuleResults: {},
+      highestSpecialRuleResults: {},
       isTestResultDirty: false,
       connectionStatus: 'disconnected',
       backendUrl: '',
@@ -87,8 +124,65 @@ class RamStoreService {
       messageVersion: 0,
       configVersion: 0,
       socketStatus: 'disconnected',
-      examStatus: 'UNINITIALIZED'
+      examStatus: 'UNINITIALIZED',
+      isOfflineMode: false,
+      isPreDeployed: false,
+      hasEverRegistered: false,
+      pendingLoginSync: false,
+      uploadVersionPreference: 'current'
     };
+  }
+
+  /**
+   * Forget everything the wiped exam left behind.
+   *
+   * The backend has just deleted this machine's registration, its key and the
+   * paper. Keeping any of it would leave the client holding credentials the
+   * server no longer knows: every request afterwards refused, with no path back
+   * — which is why reset was unusable before this existed. Only the phase was
+   * updated, and the machine went on believing it was logged in.
+   *
+   * Deliberately not a `clear()`: the connection to the backend survives, so
+   * the machine can watch for the next exam rather than needing a restart.
+   */
+  public clearForReset(): void {
+    // Identity — the server has forgotten these, so must this machine.
+    this.set('cryptoState', null);
+    this.set('studentInfo', { id: '', name: '' });
+    this.set('isStudentVerified', false);
+    this.set('hasEverRegistered', false);
+    this.set('pendingLoginSync', false);
+
+    // The paper, in both halves and opened.
+    this.set('examConfigMeta', null);
+    this.set('examConfigCipher', null);
+    this.set('examKey', null);
+    this.set('examConfig', null);
+    this.set('isConfigured', false);
+
+    // Work and verdicts from an exam that no longer exists.
+    this.state.testResults = {};
+    this.state.hiddenTestResults = {};
+    this.state.highestTestResults = {};
+    this.state.highestHiddenTestResults = {};
+    this.state.specialRuleResults = {};
+    this.state.highestSpecialRuleResults = {};
+    this.state.isTestResultDirty = false;
+    this.emit('testResults', this.state.testResults);
+    this.emit('highestTestResults', this.state.highestTestResults);
+    this.emit('specialRuleResults', this.state.specialRuleResults);
+
+    this.set('environmentCheckReport', createIdleEnvironmentCheckReport());
+
+    // Sync bookkeeping, so the next exam is not read as a continuation.
+    this.set('notifications', []);
+    this.set('messageVersion', 0);
+    this.set('configVersion', 0);
+    this.set('isOfflineMode', false);
+    this.set('uploadVersionPreference', 'current');
+
+    // Last, so anything watching the phase re-derives against a cleared store.
+    this.set('examStatus', 'UNINITIALIZED');
   }
 
   // ─── Event System ─────────────────────────────────────────────
@@ -137,12 +231,101 @@ class RamStoreService {
     }
   }
 
+  /* The paper arrives in two halves and stays that way until the exam starts.
+   *
+   * `examConfig` is null until then, which is what stops anything downstream
+   * reading a paper early: no extra check to remember, just nothing to read.
+   * All three are memory-only, like the device key — a restart forgets them and
+   * the machine re-enters through the same gate. */
+  get examConfigMeta(): ExamConfigMetaShape | null {
+    return this.state.examConfigMeta;
+  }
+
+  set examConfigMeta(meta: ExamConfigMetaShape | null) {
+    this.set('examConfigMeta', meta);
+  }
+
+  get examConfigCipher(): EncryptedEnvelope | null {
+    return this.state.examConfigCipher;
+  }
+
+  set examConfigCipher(cipher: EncryptedEnvelope | null) {
+    this.set('examConfigCipher', cipher);
+  }
+
+  get examKey(): string | null {
+    return this.state.examKey;
+  }
+
+  set examKey(key: string | null) {
+    this.set('examKey', key);
+  }
+
+  get environmentCheckReport(): EnvironmentCheckReport {
+    return this.state.environmentCheckReport;
+  }
+
+  set environmentCheckReport(report: EnvironmentCheckReport) {
+    this.set('environmentCheckReport', report);
+  }
+
   get isConfigured(): boolean {
     return this.state.isConfigured;
   }
 
   set isConfigured(value: boolean) {
     this.set('isConfigured', value);
+  }
+
+  /**
+   * Whether this machine is running without a backend for the rest of the exam.
+   *
+   * Decided by whether registration ever succeeded, not by where the paper came
+   * from. The old rule keyed off the config's source: loading a paper from a
+   * file meant offline forever, which is how a student could take themselves
+   * out of every server-side control with two clicks.
+   *
+   * A dropped connection does not change this. Being offline for a while and
+   * being an offline machine are different things — one reconnects, the other
+   * never had anything to reconnect to.
+   */
+  get isOfflineMode(): boolean {
+    return this.state.isOfflineMode && !this.state.hasEverRegistered;
+  }
+
+  set isOfflineMode(value: boolean) {
+    this.set('isOfflineMode', value);
+  }
+
+  /**
+   * Whether a backend address was baked in before the machine ever started.
+   *
+   * Survives a reset: the deployment is a property of the machine, not of the
+   * exam that was just wiped.
+   */
+  get isPreDeployed(): boolean {
+    return this.state.isPreDeployed;
+  }
+
+  set isPreDeployed(value: boolean) {
+    this.set('isPreDeployed', value);
+  }
+
+  /** Set once registration succeeds; never unset short of a reset. */
+  get hasEverRegistered(): boolean {
+    return this.state.hasEverRegistered;
+  }
+
+  set hasEverRegistered(value: boolean) {
+    this.set('hasEverRegistered', value);
+  }
+
+  get pendingLoginSync(): boolean {
+    return this.state.pendingLoginSync;
+  }
+
+  set pendingLoginSync(value: boolean) {
+    this.set('pendingLoginSync', value);
   }
 
   get backendUrl(): string {
@@ -215,18 +398,41 @@ class RamStoreService {
     this.state.hiddenTestResults[puzzleId] = result;
   }
 
+  get highestTestResults(): Record<string, JudgeRunResult> {
+    return this.state.highestTestResults;
+  }
+
+  public setHighestTestResult(puzzleId: string, result: JudgeRunResult): void {
+    this.state.highestTestResults[puzzleId] = result;
+    this.emit('highestTestResults', this.state.highestTestResults);
+  }
+
+  get highestHiddenTestResults(): Record<string, JudgeRunResult> {
+    return this.state.highestHiddenTestResults;
+  }
+
+  public setHighestHiddenTestResult(puzzleId: string, result: JudgeRunResult): void {
+    this.state.highestHiddenTestResults[puzzleId] = result;
+  }
+
   // ─── Special Rule Results ─────────────────────────────────────
 
   get specialRuleResults(): Record<string, SpecialRuleResultRecord[]> {
     return this.state.specialRuleResults;
   }
 
-  public setSpecialRuleResults(
-    puzzleId: string,
-    results: SpecialRuleResultRecord[],
-  ): void {
+  public setSpecialRuleResults(puzzleId: string, results: SpecialRuleResultRecord[]): void {
     this.state.specialRuleResults[puzzleId] = results;
     this.emit('specialRuleResults', this.state.specialRuleResults);
+  }
+
+  get highestSpecialRuleResults(): Record<string, SpecialRuleResultRecord[]> {
+    return this.state.highestSpecialRuleResults;
+  }
+
+  public setHighestSpecialRuleResults(puzzleId: string, results: SpecialRuleResultRecord[]): void {
+    this.state.highestSpecialRuleResults[puzzleId] = results;
+    this.emit('highestSpecialRuleResults', this.state.highestSpecialRuleResults);
   }
 
   get isTestResultDirty(): boolean {
@@ -277,6 +483,14 @@ class RamStoreService {
 
   get isConnected(): boolean {
     return this.state.connectionStatus === 'connected';
+  }
+
+  get uploadVersionPreference(): UploadVersionPreference {
+    return this.state.uploadVersionPreference;
+  }
+
+  set uploadVersionPreference(value: UploadVersionPreference) {
+    this.set('uploadVersionPreference', value);
   }
 
   // ─── Utilities ────────────────────────────────────────────────

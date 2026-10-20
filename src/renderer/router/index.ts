@@ -6,10 +6,23 @@ import ExamPage from '../pages/ExamPage.vue';
 import NotInitializedPage from '../pages/NotInitializedPage.vue';
 import WaitingForExamPage from '../pages/WaitingForExamPage.vue';
 import ExamFinishedPage from '../pages/ExamFinishedPage.vue';
+import StandbyPage from '../pages/StandbyPage.vue';
+import PendingApprovalPage from '../pages/PendingApprovalPage.vue';
+import { getEnvironmentNavigationDecision } from './environment-check.guard';
+import {
+  derivePage,
+  isSettingsReachable,
+  isSettingsTheLandingPage
+} from './phase-derivation';
+import { readDeviceState, readExamStatus, readOfflineMode, resolvePage } from './navigate';
+import { isBuffering, bufferEndTime } from '../constants/bufferState';
+import type { ExamState } from '../../common/types';
 
 const routes = [
   { path: '/', name: 'settings', component: Settings },
   { path: '/not-initialized', name: 'not-initialized', component: NotInitializedPage },
+  { path: '/standby', name: 'standby', component: StandbyPage },
+  { path: '/pending-approval', name: 'pending-approval', component: PendingApprovalPage },
   { path: '/login', name: 'login', component: LoginPage },
   { path: '/waiting', name: 'waiting', component: WaitingForExamPage },
   { path: '/exam', name: 'exam', component: ExamPage },
@@ -22,66 +35,72 @@ export const router = createRouter({
 });
 
 /**
- * Navigation guard: enforce lifecycle-aware routing.
+ * Navigation guard: the page is derived, never remembered.
  *
- * State machine:
- *   UNINITIALIZED → /not-initialized
- *   NOT_STARTED   → /login (IP auto-login attempt) or /waiting (after login)
- *   IN_PROGRESS   → /exam
- *   FINISHED      → /finished
+ * Everything the student side knows about where it belongs comes from two
+ * inputs — the global phase and what this machine has achieved locally. There
+ * is no client-side phase left to fall out of step with the backend, and no
+ * "go back a step" path is needed: clearing the device state and re-deriving
+ * lands in the right place on its own.
  *
- * Rules:
- *   - Verified student cannot go back to settings/login.
- *   - Unverified student cannot access /exam, /waiting, or /finished.
- *   - /settings (config page) is always accessible for initial setup.
+ * These rules are a convenience, not a boundary. The backend refuses
+ * out-of-phase requests itself (`exam-phase.middleware.ts`); this only avoids
+ * showing a student a page that cannot work.
  */
-router.beforeEach(async (to) => {
+router.beforeEach(async (to, from) => {
   const api = (window as any).api;
   if (!api) return true;
 
-  const isVerified: boolean = (await api?.auth?.isVerified()) ?? false;
-  const examStatus: string = (await api?.store?.getExamStatus?.()) ?? 'UNINITIALIZED';
+  const examStatus: ExamState = await readExamStatus(api);
+  const device = await readDeviceState(api);
+  const isOffline = await readOfflineMode(api);
 
-  // Always allow settings (needed for initial backend URL config)
+  const environmentResponse = await api?.environmentCheck?.getReport?.();
+  const environmentStatus = environmentResponse?.data?.status ?? 'IDLE';
+  const environmentDecision = getEnvironmentNavigationDecision({
+    targetName: to.name,
+    status: environmentStatus,
+    examStatus,
+    isVerified: device === 'LOGGED_IN'
+  });
+  if (environmentDecision !== true) return environmentDecision;
+
   if (to.name === 'settings') {
-    if (api?.config?.hasBackendUrl) {
-      const hasUrl = await api.config.hasBackendUrl();
-      if (hasUrl) {
-        if (examStatus === 'UNINITIALIZED') return { name: 'not-initialized' };
-        if (examStatus === 'NOT_STARTED') return { name: 'login' };
-        if (examStatus === 'IN_PROGRESS') return isVerified ? { name: 'exam' } : { name: 'login' };
-        if (examStatus === 'FINISHED') return { name: 'finished' };
+    /* Settings can repoint the backend URL and load a paper from a file. Once
+     * students are in the room, that is a way for one of them to detach their
+     * machine from every server-side control — force logout, phase broadcasts,
+     * violation reporting — while still answering questions, and from the
+     * invigilator's console it looks exactly like a dropped connection. */
+    if (!isSettingsReachable(examStatus)) {
+      return { name: resolvePage(derivePage(examStatus, device, isOffline)) };
+    }
+
+    /* On startup, a configured URL is useful only if its backend responds.
+     * Keep the offline deployment form visible when the preset points to a
+     * missing server; a later connection event can move the machine onward. */
+    const isConfigured = (await api?.config?.isSetupComplete?.()) ?? false;
+    if (from.name === undefined) {
+      const isBackendReachable = isConfigured
+        ? false
+        : ((await api?.config?.isBackendReachable?.()) ?? false);
+      if (!isSettingsTheLandingPage(isBackendReachable, isConfigured)) {
+        return { name: resolvePage(derivePage(examStatus, device, isOffline)) };
       }
     }
     return true;
   }
 
-  // Redirect to correct page based on exam status
-  if (examStatus === 'UNINITIALIZED' && to.name !== 'not-initialized') {
-    return { name: 'not-initialized' };
+  /* The collection window: the exam is over, but an upload already under way
+   * is allowed to finish rather than being thrown off the page mid-request. */
+  if (
+    examStatus === 'FINISHED' &&
+    to.name === 'exam' &&
+    isBuffering.value &&
+    Date.now() < bufferEndTime.value
+  ) {
+    return true;
   }
 
-  if (examStatus === 'FINISHED' && to.name !== 'finished') {
-    return { name: 'finished' };
-  }
-
-  if (examStatus === 'IN_PROGRESS') {
-    if (!isVerified && to.name !== 'settings') {
-      return { name: 'settings' };
-    }
-    if (isVerified && (to.name === 'login' || to.name === 'not-initialized' || to.name === 'waiting')) {
-      return { name: 'exam' };
-    }
-  }
-
-  if (examStatus === 'NOT_STARTED') {
-    if (isVerified && to.name === 'login') {
-      return { name: 'waiting' };
-    }
-    if (!isVerified && (to.name === 'exam' || to.name === 'waiting' || to.name === 'finished')) {
-      return { name: 'login' };
-    }
-  }
-
-  return true;
+  const target = resolvePage(derivePage(examStatus, device, isOffline));
+  return to.name === target ? true : { name: target };
 });

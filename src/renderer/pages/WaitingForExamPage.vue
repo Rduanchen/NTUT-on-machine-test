@@ -59,13 +59,55 @@
       </v-alert>
 
       <p class="text-caption text-medium-emphasis">{{ t('waiting.hint') }}</p>
+
+      <!-- Offline Bypass -->
+      <v-btn 
+        color="secondary" 
+        variant="outlined" 
+        class="mt-8 px-6 font-weight-bold" 
+        prepend-icon="mdi-lock-open-outline"
+        @click="showPasswordDialog = true"
+      >
+        Start with Password
+      </v-btn>
     </v-card>
+
+    <!-- Password Dialog -->
+    <v-dialog v-model="showPasswordDialog" max-width="400">
+      <v-card class="pa-4 rounded-xl">
+        <v-card-title class="text-h6 font-weight-bold text-center">Start Exam Manually</v-card-title>
+        <v-card-text>
+          <v-text-field
+            v-model="startPasswordInput"
+            label="Start Password"
+            variant="outlined"
+            :error-messages="passwordError"
+            @keyup.enter="submitPassword"
+            autofocus
+            class="mt-4"
+          />
+        </v-card-text>
+        <v-card-actions class="justify-center mb-2">
+          <v-btn color="grey" variant="text" :disabled="isSubmittingPassword" @click="showPasswordDialog = false">取消</v-btn>
+          <v-btn
+            color="primary"
+            variant="flat"
+            :loading="isSubmittingPassword"
+            data-test="submit-start-password"
+            @click="submitPassword"
+          >
+            開始考試
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
+import { goToDerivedPage } from '../router/navigate';
 import { useI18n } from 'vue-i18n';
 
 const router = useRouter();
@@ -75,6 +117,11 @@ const examInfo = ref<{ testTitle: string; description: string } | null>(null);
 const studentInfo = ref<{ id: string; name: string } | null>(null);
 const autoLoginMsg = ref('');
 const autoLoginSuccess = ref(false);
+
+const showPasswordDialog = ref(false);
+const startPasswordInput = ref('');
+const isSubmittingPassword = ref(false);
+const passwordError = ref('');
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -100,13 +147,37 @@ async function tryAutoLogin() {
 }
 
 async function checkExamStatus() {
-  const status = await window.api?.store?.getExamStatus?.();
-  if (status === 'IN_PROGRESS') {
-    router.push('/exam');
-  } else if (status === 'FINISHED') {
-    router.push('/finished');
-  } else if (status === 'UNINITIALIZED') {
-    router.push('/not-initialized');
+  await goToDerivedPage(router);
+}
+
+/**
+ * Start the exam from the invigilator's spoken password.
+ *
+ * The password used to be compared against a copy of itself sitting in this
+ * machine's own config — a gate whose key was handed to the person being
+ * gated. It is now what unwraps the exam key: get it right and the paper
+ * opens, get it wrong and the paper stays shut, because there is nothing here
+ * to compare against.
+ *
+ * The unwrap happens in the main process; the key must never reach a window.
+ */
+async function submitPassword() {
+  passwordError.value = '';
+  if (!startPasswordInput.value) return;
+
+  isSubmittingPassword.value = true;
+  try {
+    const res = await window.api?.config?.startWithPassword?.(startPasswordInput.value);
+
+    if (res?.success) {
+      showPasswordDialog.value = false;
+      startPasswordInput.value = '';
+      await goToDerivedPage(router);
+    } else {
+      passwordError.value = res?.error?.message ?? '口令不正確';
+    }
+  } finally {
+    isSubmittingPassword.value = false;
   }
 }
 
@@ -120,11 +191,7 @@ onMounted(async () => {
 
   pollTimer = setInterval(checkExamStatus, 5000);
 
-  window.api?.store?.onExamStatusChanged?.((status: string) => {
-    if (status === 'IN_PROGRESS') router.push('/exam');
-    else if (status === 'FINISHED') router.push('/finished');
-    else if (status === 'UNINITIALIZED') router.push('/not-initialized');
-  });
+  /* The phase is watched once, in App.vue. */
 });
 
 onBeforeUnmount(() => {

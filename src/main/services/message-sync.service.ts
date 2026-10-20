@@ -1,16 +1,15 @@
+import { environmentCheckService } from './environment-check.service';
 import { io, Socket } from 'socket.io-client';
 import { getMainWindow } from '../system/windowManager';
 import { ramStore } from './ramStore.service';
-import {
-  getMessages,
-  getExamStatus,
-  fetchSecureExamConfig,
-  getMacAddresses
-} from './api.service';
+import { getMessages, getExamStatus, fetchSecureExamConfig, getDeviceUuid } from './api.service';
 import { logger } from './logger.service';
 import type { ServerMessage, ExamState } from '../../common/types';
-import { examConfigSchema } from '../schemas/examConfig.schema';
+import { examConfigPayloadSchema } from '../schemas/examConfig.schema';
+import { configService } from './config.service';
 import { judgeManager } from './judge-manager.service';
+import { localProgramStore } from './localProgram.service';
+import { connectionService } from './connection.service';
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -31,15 +30,20 @@ class MessageSyncService {
     return MessageSyncService.instance;
   }
 
-  public registerSocket(): void {
+  public async registerSocket(): Promise<void> {
     if (this.socket && this.socket.connected) {
-      const deviceUuid = getMacAddresses();
+      const deviceUuid = await getDeviceUuid();
       logger.info(`[MessageSync] Registering socket for device: ${deviceUuid}`);
       this.socket.emit('register', { device_uuid: deviceUuid });
     }
   }
 
   public start(host?: string): void {
+    if (ramStore.isOfflineMode) {
+      logger.info('[MessageSync] Offline mode active. Skipping socket and polling.');
+      return;
+    }
+
     const targetHost = (host ?? ramStore.backendUrl)?.replace(/\/$/, '');
     if (!targetHost) {
       logger.warn('[MessageSync] Cannot start without backend URL');
@@ -74,6 +78,10 @@ class MessageSyncService {
 
   public async manualRefresh(): Promise<void> {
     await this.syncVersionsAndMessages(true);
+  }
+
+  public async forceConfigRefresh(): Promise<void> {
+    await this.refreshConfigFromServer();
   }
 
   // ─── Socket Handling ──────────────────────────────────────────
@@ -120,6 +128,14 @@ class MessageSyncService {
         const message = this.normalizeSocketPayload(payload);
         if (!message) return;
         this.ingestMessage(message);
+      });
+
+      /* Its own event, not a status message. What this asks of the machine —
+       * forget your identity, your key and your paper — is nothing like a
+       * phase change, and handling it beside ordinary messages would put a
+       * destructive operation one flag away from being triggered by accident. */
+      this.socket.on('exam-reset', () => {
+        this.handleExamReset();
       });
     } catch (error) {
       logger.error('[MessageSync] Failed to initialize socket:', error);
@@ -185,13 +201,14 @@ class MessageSyncService {
       if (forceMessageFetch) {
         await this.fetchAllMessages();
       }
-      
+
       // Also fetch exam status to ensure we don't miss state changes if socket disconnects
       const statusRes = await getExamStatus();
       if (statusRes.success && statusRes.data?.status) {
         const newStatus = statusRes.data.status as ExamState;
         if (ramStore.examStatus !== newStatus) {
           ramStore.examStatus = newStatus;
+          void this.onPhaseChanged(newStatus);
           const win = getMainWindow();
           if (win && !win.isDestroyed()) {
             win.webContents?.send('exam:status-changed', newStatus);
@@ -238,9 +255,23 @@ class MessageSyncService {
     if (message.namespace === 'STATUS') {
       const newState = message.message as ExamState;
       ramStore.examStatus = newState;
+      void this.onPhaseChanged(newState);
       const win = getMainWindow();
       if (win && !win.isDestroyed()) {
         win.webContents?.send('exam:status-changed', newState);
+      }
+      return;
+    }
+
+    if (message.type === 'force_logout') {
+      // Reset auth state so desktop doesn't think it's still logged in
+      ramStore.isStudentVerified = false;
+      ramStore.studentInfo = { id: '', name: '' };
+      ramStore.cryptoState = null;
+
+      const win = getMainWindow();
+      if (win && !win.isDestroyed()) {
+        win.webContents?.send('app:force-logout', message.message);
       }
       return;
     }
@@ -253,6 +284,65 @@ class MessageSyncService {
         .catch((error) => {
           logger.error('[MessageSync] Failed to refresh config after notification:', error);
         });
+    }
+  }
+
+  /**
+   * The exam has started: fetch the key and open the paper.
+   *
+   * The broadcast says only that the exam began — it reaches every listener
+   * without establishing who any of them are, so it is not a channel a key can
+   * travel on. The key comes back over the same authenticated point-to-point
+   * request everything else uses.
+   *
+   * A machine that is already holding the key does nothing: the request is
+   * idempotent, but there is no reason to make it twice.
+   */
+  private async onPhaseChanged(phase: ExamState): Promise<void> {
+    if (phase !== 'IN_PROGRESS') return;
+    if (ramStore.examKey) return;
+
+    try {
+      /* The same idempotent action the login path and the paper-refresh path
+       * use. Keeping the fetch here alone made it reachable only on a
+       * transition into IN_PROGRESS — which a machine re-entering mid-exam
+       * never observes, because the phase was already IN_PROGRESS when it
+       * arrived. */
+      const opened = await configService.ensureExamPaperReadable();
+      if (!opened.success) {
+        logger.warn(
+          `[MessageSync] Exam started but the paper could not be opened yet: ${opened.error?.message}`
+        );
+        return;
+      }
+      await judgeManager.rejudgeAllStoredPrograms();
+    } catch (error) {
+      logger.error('[MessageSync] Failed to open the exam paper:', error);
+    }
+  }
+
+  /**
+   * The exam has been wiped. Forget everything it left here.
+   *
+   * The backend has already deleted this machine's registration and key, so
+   * keeping them would mean every request afterwards is refused with no path
+   * back. Before this, only the phase was updated and the machine went on
+   * believing it was logged in — which is what made reset unusable.
+   *
+   * The socket stays up: the same machine can be used for the next exam
+   * without a restart.
+   */
+  private handleExamReset(): void {
+    logger.info('[MessageSync] Exam reset received; clearing local state.');
+
+    localProgramStore.reset();
+    connectionService.clearQueues();
+    environmentCheckService.reset();
+    ramStore.clearForReset();
+
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) {
+      win.webContents?.send('exam:status-changed', 'UNINITIALIZED');
     }
   }
 
@@ -269,12 +359,12 @@ class MessageSyncService {
         throw new Error('Unable to fetch secure exam config');
       }
 
-      const validation = examConfigSchema.safeParse(response.data);
+      const validation = examConfigPayloadSchema.safeParse(response.data);
       if (!validation.success) {
         throw new Error('Secure config validation failed');
       }
 
-      ramStore.examConfig = validation.data;
+      await configService.applyPaper(validation.data.meta, validation.data.cipher);
       logger.info('[MessageSync] Exam config updated from secure endpoint.');
 
       if (typeof targetVersion === 'number') {

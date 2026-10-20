@@ -22,7 +22,7 @@ let sendLogFunction: ((payload: LogActionPayload) => Promise<void>) | null = nul
 
 /** Custom transport that queues logs for server sync */
 const serverTransport = ((msg: LogMessage) => {
-  const syncLevels = ['info', 'warn', 'error'];
+  const syncLevels = ['error'];
   if (!syncLevels.includes(msg.level)) return;
 
   const payload: LogActionPayload = {
@@ -103,6 +103,28 @@ function requeueLogs(logs: LogActionPayload[]): void {
   serverLogQueue.unshift(...logs);
 }
 
+/**
+ * Pushes a specific event directly to the server log queue.
+ */
+function logServerEvent(actionType: string, message: string, details?: any): void {
+  const payload: LogActionPayload = {
+    action: actionType,
+    studentID: '',
+    level: 'info',
+    timestamp: new Date().toISOString(),
+    message,
+    details
+  };
+
+  if (sendLogFunction) {
+    sendLogFunction(payload).catch(() => {
+      serverLogQueue.push(payload);
+    });
+  } else {
+    serverLogQueue.push(payload);
+  }
+}
+
 // ─── Exports ────────────────────────────────────────────────────────
 
 export {
@@ -112,5 +134,6 @@ export {
   setLogSendFunction,
   getAndClearLogQueue,
   hasQueuedLogs,
-  requeueLogs
+  requeueLogs,
+  logServerEvent
 };

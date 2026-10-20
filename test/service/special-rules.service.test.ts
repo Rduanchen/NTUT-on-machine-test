@@ -1,81 +1,187 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import type { ExamConfig } from '../../src/common/types';
 import { evaluateSpecialRules, getEffectiveSpecialRules } from '../../src/main/services/special-rules.service';
+import { evaluateRules } from 'special-rule-engine';
+
+vi.mock('special-rule-engine', () => ({
+    evaluateRules: vi.fn(),
+}));
 
 describe('special-rules.service', () => {
-    it('merges global + puzzle rules in stable order', () => {
-        const config: ExamConfig = {
-            testTitle: 't',
-            description: 'd',
-            judgerSettings: { timeLimit: 1, memoryLimit: 1 },
-            accessibleUsers: [],
-            globalSpecialRules: [
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    describe('getEffectiveSpecialRules', () => {
+        it('merges global + puzzle rules in stable order (using sections)', () => {
+            const config = {
+                globalSpecialRules: [{ id: 'g1' }],
+                sections: [
+                    {
+                        puzzles: [
+                            { id: 'p_custom', specialRules: [{ id: 'p1' }] }
+                        ]
+                    }
+                ]
+            } as any;
+            const effective = getEffectiveSpecialRules({ examConfig: config, puzzleId: 'p_custom' });
+            expect(effective.map((r) => r.id)).toEqual(['g1', 'p1']);
+        });
+
+        it('handles missing globalSpecialRules', () => {
+            const config = {
+                sections: [
+                    {
+                        puzzles: [
+                            { id: 'p_custom', specialRules: [{ id: 'p1' }] }
+                        ]
+                    }
+                ]
+            } as any;
+            const effective = getEffectiveSpecialRules({ examConfig: config, puzzleId: 'p_custom' });
+            expect(effective.map((r) => r.id)).toEqual(['p1']);
+        });
+
+        it('falls back to flat puzzles array if no sections', () => {
+            const config = {
+                puzzles: [
+                    { id: 'p_custom', specialRules: [{ id: 'p1' }] }
+                ]
+            } as any;
+            const effective = getEffectiveSpecialRules({ examConfig: config, puzzleId: 'p_custom' });
+            expect(effective.map((r) => r.id)).toEqual(['p1']);
+        });
+
+        it('falls back to empty array if no sections and no puzzles', () => {
+            const config = {} as any;
+            const effective = getEffectiveSpecialRules({ examConfig: config, puzzleId: 'p_custom' });
+            expect(effective).toEqual([]);
+        });
+
+        it('matches puzzle by index string if id is missing', () => {
+            const config = {
+                puzzles: [
+                    { specialRules: [{ id: 'p0' }] },
+                    { specialRules: [{ id: 'p1' }] }
+                ]
+            } as any;
+            const effective = getEffectiveSpecialRules({ examConfig: config, puzzleId: '1' });
+            expect(effective.map((r) => r.id)).toEqual(['p1']);
+        });
+
+        it('returns only global rules if puzzle is not found', () => {
+            const config = {
+                globalSpecialRules: [{ id: 'g1' }],
+                puzzles: []
+            } as any;
+            const effective = getEffectiveSpecialRules({ examConfig: config, puzzleId: 'not_found' });
+            expect(effective.map((r) => r.id)).toEqual(['g1']);
+        });
+
+        it('handles puzzle with no specialRules', () => {
+            const config = {
+                puzzles: [
+                    { id: 'p_custom' }
+                ]
+            } as any;
+            const effective = getEffectiveSpecialRules({ examConfig: config, puzzleId: 'p_custom' });
+            expect(effective).toEqual([]);
+        });
+    });
+
+    describe('evaluateSpecialRules', () => {
+        it('returns empty array if no rules provided', async () => {
+            const results = await evaluateSpecialRules({
+                rules: [],
+                language: 'Cpp',
+                sourceText: 'int main(){return 0;}'
+            });
+            expect(results).toEqual([]);
+        });
+
+        it('evaluates rules and uses provided checkedAt', async () => {
+            const rules = [
                 {
-                    id: 'g1',
+                    id: 'r1',
                     type: 'use',
                     constraint: 'MUST_HAVE',
                     message: 'must include main',
                     params: { target: 'main' },
-                },
-            ],
-            sections: [
-                {
-                    id: 's0',
-                    title: 'Section 1',
-                    maxScore: 100,
-                    puzzles: [
-                        {
-                            title: 'p0',
-                            language: 'Cpp',
-                            subtasks: [],
-                            specialRules: [
-                                {
-                                    id: 'p1',
-                                    type: 'use',
-                                    constraint: 'MUST_NOT_HAVE',
-                                    message: 'must not include scanf',
-                                    params: { target: 'scanf' },
-                                },
-                            ],
-                        },
-                    ],
-                },
-            ],
-        };
+                }
+            ] as any;
 
-        const effective = getEffectiveSpecialRules({ examConfig: config, puzzleIndex: 0 });
-        expect(effective.map((r) => r.id)).toEqual(['g1', 'p1']);
-    });
+            (evaluateRules as any).mockReturnValue([
+                { ruleId: 'r1', passed: true, message: 'must include main' }
+            ]);
 
-    it('evaluates rules and returns SpecialRuleResultRecord[] with checkedAt', () => {
-        const rules = [
-            {
-                id: 'r1',
-                type: 'use' as const,
-                constraint: 'MUST_HAVE' as const,
-                message: 'must include main',
-                params: { target: 'main' },
-            },
-            {
-                id: 'r2',
-                type: 'use' as const,
-                constraint: 'MUST_NOT_HAVE' as const,
-                message: 'must not include scanf',
-                params: { target: 'scanf' },
-            },
-        ];
+            const results = await evaluateSpecialRules({
+                rules,
+                language: 'Cpp',
+                sourceText: 'int main(){return 0;}',
+                checkedAt: '2026-01-01T00:00:00.000Z',
+            });
 
-        const results = evaluateSpecialRules({
-            rules,
-            language: 'Cpp',
-            sourceText: 'int main(){return 0;}',
-            checkedAt: '2026-01-01T00:00:00.000Z',
+            expect(evaluateRules).toHaveBeenCalledWith(rules, {
+                language: 'Cpp',
+                sourceText: 'int main(){return 0;}',
+            });
+            expect(results).toEqual([
+                { ruleId: 'r1', passed: true, message: 'must include main', reason: undefined, checkedAt: '2026-01-01T00:00:00.000Z' },
+            ]);
         });
 
-        expect(results).toEqual([
-            expect.objectContaining({ ruleId: 'r1', passed: true, checkedAt: '2026-01-01T00:00:00.000Z' }),
-            expect.objectContaining({ ruleId: 'r2', passed: true, checkedAt: '2026-01-01T00:00:00.000Z' }),
-        ]);
+        it('uses current time for checkedAt if not provided', async () => {
+            const rules = [
+                {
+                    id: 'r1',
+                    type: 'use',
+                    constraint: 'MUST_HAVE',
+                    message: 'must include main',
+                    params: { target: 'main' },
+                }
+            ] as any;
+
+            (evaluateRules as any).mockReturnValue([
+                { ruleId: 'r1', passed: true, message: 'must include main' }
+            ]);
+
+            const before = new Date().toISOString();
+            const results = await evaluateSpecialRules({
+                rules,
+                language: 'Cpp',
+                sourceText: 'int main(){return 0;}'
+            });
+            const after = new Date().toISOString();
+
+            expect(results.length).toBe(1);
+            expect(results[0].checkedAt >= before).toBe(true);
+            expect(results[0].checkedAt <= after).toBe(true);
+        });
+
+        it('includes reason if returned by engine', async () => {
+            const rules = [
+                {
+                    id: 'r1',
+                    type: 'use',
+                    constraint: 'MUST_NOT_HAVE',
+                    message: 'must not include main',
+                    params: { target: 'main' },
+                }
+            ] as any;
+
+            (evaluateRules as any).mockReturnValue([
+                { ruleId: 'r1', passed: false, message: 'must not include main', reason: 'found main' }
+            ]);
+
+            const results = await evaluateSpecialRules({
+                rules,
+                language: 'Cpp',
+                sourceText: 'int main(){return 0;}'
+            });
+
+            expect(results[0]).toHaveProperty('reason', 'found main');
+            expect(results[0].passed).toBe(false);
+        });
     });
 });

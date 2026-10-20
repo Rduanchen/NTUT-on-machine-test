@@ -16,7 +16,68 @@ export interface Subtask {
   hidden: TestCase[];
 }
 
-export type ExamState = 'UNINITIALIZED' | 'NOT_STARTED' | 'IN_PROGRESS' | 'FINISHED';
+/**
+ * The global exam phase, held by the backend and mirrored here.
+ *
+ * Five values with disjoint meanings. The retired `NOT_STARTED` carried two of
+ * them at once — "initialised, registration open" and "registration closed,
+ * login open" — which is why device registration used to stay open through the
+ * window students walk into the room during.
+ */
+/**
+ * The wire shapes of the split exam paper.
+ *
+ * Declared here rather than imported from the main process: the renderer's
+ * tsconfig does not include `main/`, and that boundary is worth keeping. The
+ * main-process zod schemas produce structurally identical types, and the
+ * contract fixture is what checks the two stay in step.
+ */
+export interface EncryptedEnvelope {
+  iv: string;
+  ciphertext: string;
+  tag: string;
+}
+
+export interface WrappedExamKeyShape extends EncryptedEnvelope {
+  salt: string;
+}
+
+/** Only what a machine may hold before the exam starts. */
+export interface ExamConfigMetaShape {
+  testTitle: string;
+  description: string;
+  accessibleUsers: AccessableUser[];
+  judgerSettings: {
+    timeLimit: number;
+    memoryLimit: number;
+    compareMode?: 'strict' | 'loose';
+    compileTimeout?: number;
+    compileMemoryLimit?: number;
+    maxConcurrentJobs?: number;
+    maxSystemRetries?: number;
+  };
+  submitGraceSeconds?: number;
+  sections: Array<{
+    id: string;
+    title: string;
+    description?: string;
+    maxScore: number;
+    puzzles: Array<{
+      id: string;
+      language: SupportedLanguage;
+      timeLimit?: number;
+      memoryLimit?: number;
+    }>;
+  }>;
+  wrappedExamKey: WrappedExamKeyShape;
+}
+
+export type ExamState =
+  | 'UNINITIALIZED'
+  | 'INITIALIZED'
+  | 'SETUP_FINISHED'
+  | 'IN_PROGRESS'
+  | 'FINISHED';
 
 export type SupportedLanguage = 'C' | 'Cpp' | 'Python' | 'JavaScript' | 'Java';
 
@@ -24,6 +85,7 @@ export interface Puzzle {
   id?: string;
   title: string;
   score?: number;
+  multiplier?: number;
   language: SupportedLanguage;
   timeLimit?: number;
   memoryLimit?: number;
@@ -32,14 +94,16 @@ export interface Puzzle {
 }
 
 export type RuleConstraint = 'MUST_HAVE' | 'MUST_NOT_HAVE';
+export type PythonFeature =
+  | 'IF' | 'FOR' | 'WHILE' | 'FUNCTION' | 'NESTED_LOOP' | 'RECURSION'
+  | 'LAMBDA' | 'LIST' | 'DICT' | 'SET' | 'SORT' | 'SORTED';
 
 export interface SpecialRule {
   id: string;
-  type: 'regex' | 'use' | 'composite' | 'nestedLoop';
+  type: 'regex' | 'use' | 'composite' | 'nestedLoop' | 'pythonFeature';
   constraint: RuleConstraint;
   message: string;
   severity?: 'info' | 'warn';
-  multiplier?: number;
   params: unknown;
 }
 
@@ -60,6 +124,7 @@ export interface AccessableUser {
 export interface JudgerSettings {
   timeLimit: number;
   memoryLimit: number;
+  compareMode?: 'strict' | 'loose';
 }
 
 export interface Section {
@@ -129,16 +194,66 @@ export interface CryptoState {
   rsaPublicKey: string;
 }
 
+export type EnvironmentCheckStatus = 'IDLE' | 'RUNNING' | 'PASSED' | 'FAILED';
+export type EnvironmentLanguageCheckStatus = 'pending' | 'running' | 'passed' | 'failed';
+export type EnvironmentResultStatus = 'passed' | 'failed';
+export type EnvironmentDiagnosticKind = 'smoke' | 'tle' | 'mle';
+
+export interface EnvironmentToolResult {
+  tool: string;
+  status: EnvironmentResultStatus;
+  version: string | null;
+  summary: string;
+}
+
+export interface EnvironmentDiagnosticResult {
+  kind: EnvironmentDiagnosticKind;
+  status: EnvironmentResultStatus;
+  durationMs: number;
+  peakMemoryBytes: number | null;
+  summary: string;
+  technicalDetails: string | null;
+}
+
+export interface EnvironmentLanguageResult {
+  language: SupportedLanguage;
+  status: EnvironmentLanguageCheckStatus;
+  tools: EnvironmentToolResult[];
+  checks: EnvironmentDiagnosticResult[];
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+export interface EnvironmentCheckReport {
+  status: EnvironmentCheckStatus;
+  configFingerprint: string;
+  platform: NodeJS.Platform;
+  architecture: string;
+  requiredLanguages: SupportedLanguage[];
+  languageResults: EnvironmentLanguageResult[];
+  startedAt: string | null;
+  completedAt: string | null;
+  message: string;
+}
+
 export interface RamStoreState {
   examConfig: ExamConfig | null;
+  /* Feature 007: the paper's two halves and the key that joins them. */
+  examConfigMeta: ExamConfigMetaShape | null;
+  examConfigCipher: EncryptedEnvelope | null;
+  examKey: string | null;
+  environmentCheckReport: EnvironmentCheckReport;
   isConfigured: boolean;
   studentInfo: StudentInformation;
   isStudentVerified: boolean;
   cryptoState: CryptoState | null;
   testResults: Record<string, JudgeRunResult>;
   hiddenTestResults: Record<string, JudgeRunResult>;
+  highestTestResults: Record<string, JudgeRunResult>;
+  highestHiddenTestResults: Record<string, JudgeRunResult>;
   /** Per puzzleId latest evaluation results for special rules */
   specialRuleResults: Record<string, SpecialRuleResultRecord[]>;
+  highestSpecialRuleResults: Record<string, SpecialRuleResultRecord[]>;
   isTestResultDirty: boolean;
   connectionStatus: ConnectionStatus;
   backendUrl: string;
@@ -147,9 +262,23 @@ export interface RamStoreState {
   configVersion: number;
   socketStatus: SocketConnectionStatus;
   examStatus: ExamState;
+  isOfflineMode: boolean;
+  /**
+   * A backend address was supplied by `pre_settings.json` at startup.
+   *
+   * Distinct from `isConfigured`, which only becomes true once a paper has
+   * actually been fetched. A deployed machine must never be shown the settings
+   * form, and that has to be answerable before the first successful fetch.
+   */
+  isPreDeployed: boolean;
+  /** Registration has succeeded at least once on this machine. */
+  hasEverRegistered: boolean;
+  pendingLoginSync: boolean;
+  uploadVersionPreference: UploadVersionPreference;
 }
 
 export type ConnectionStatus = 'connected' | 'disconnected';
+export type UploadVersionPreference = 'highest' | 'current';
 
 // ─── Judge Result Types ─────────────────────────────────────────────
 
@@ -215,7 +344,11 @@ export interface PuzzleInfo {
   language: SupportedLanguage;
   sectionId?: string;
   sectionTitle?: string;
+  sectionDescription?: string;
+  sectionMaxScore?: number;
   score?: number;
+  multiplier?: number;
+  subtasks?: { title: string; score?: number }[];
 }
 
 // ─── Connection Service Types ───────────────────────────────────────

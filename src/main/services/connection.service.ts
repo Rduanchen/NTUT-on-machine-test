@@ -1,13 +1,30 @@
+import { environmentCheckService } from './environment-check.service';
 import { ramStore } from './ramStore.service';
 import {
   logger,
   getAndClearLogQueue,
   hasQueuedLogs,
   requeueLogs,
-  setLogSendFunction
+  setLogSendFunction,
+  logServerEvent
 } from './logger.service';
-import { logAction } from './api.service';
+import { logAction, login } from './api.service';
 import type { LogActionPayload, SocketConnectionStatus } from '../../common/types';
+import { submitCode, submitScore } from './api.service';
+
+/** One puzzle's code, waiting to be sent. */
+export interface PendingSubmission {
+  puzzleId: string;
+  language: string;
+  codeContent: string;
+  queuedAt: number;
+}
+
+/** The scoreboard, waiting to be sent. Only the latest matters. */
+export interface PendingScore {
+  payload: Record<string, unknown>;
+  queuedAt: number;
+}
 import { getMainWindow } from '../system/windowManager';
 
 /**
@@ -30,9 +47,17 @@ class ConnectionService {
   /** Whether currently syncing queued actions */
   private isSyncing = false;
 
-  /** Pending flags for non-logger actions (retry on reconnect) */
-  private pendingTestResult = false;
-  private pendingProgramFile = false;
+  /**
+   * Work that could not be sent, kept until it is.
+   *
+   * These were three booleans, and reconnecting cleared them without sending
+   * anything — the comment said the next judge run would re-sync. If the
+   * student never ran another judge, the work done while disconnected was
+   * simply gone. An exam client that keeps working offline has to keep what it
+   * produced offline.
+   */
+  private pendingSubmissions = new Map<string, PendingSubmission>();
+  private pendingScore: PendingScore | null = null;
   private pendingConfigRefresh = false;
 
   private constructor() {}
@@ -86,6 +111,7 @@ class ConnectionService {
       ramStore.connectionStatus = 'disconnected';
       if (wasConnected) {
         logger.warn(`[Connection] Server connection lost (socket: ${socketStatus})`);
+        logServerEvent('USER_DISCONNECT', `Server connection lost (socket: ${socketStatus})`);
       }
     }
 
@@ -96,28 +122,46 @@ class ConnectionService {
 
   private async onConnectionRestored(): Promise<void> {
     if (this.isSyncing) return;
+    if (ramStore.isOfflineMode) {
+      logger.info('[Connection] Offline mode active. Ignoring connection restored sync.');
+      return;
+    }
+    
     this.isSyncing = true;
+    void environmentCheckService.prepareOnline();
+    void environmentCheckService.flushReport();
 
     try {
+      // 0. Retroactive Login Sync
+      if (ramStore.pendingLoginSync && ramStore.studentInfo?.id) {
+        logger.info(`[Connection] Attempting retroactive login sync for ${ramStore.studentInfo.id}`);
+        try {
+          const loginRes = await login({ testId: ramStore.studentInfo.id });
+          if (loginRes.success && loginRes.data?.session_token) {
+            if (ramStore.cryptoState) {
+              ramStore.cryptoState.userSessionID = loginRes.data.session_token;
+            }
+            ramStore.pendingLoginSync = false;
+            logger.info('[Connection] Retroactive login sync successful');
+          } else {
+            logger.warn(`[Connection] Retroactive login failed: ${loginRes.error?.message}`);
+            // Do not reset pendingLoginSync, maybe it's a temporary backend error, or it's a violation.
+            // If it's a violation, backend throws 403, but we updated it to log and return token?
+            // Actually, if it's a violation, we changed backend to allow it and log violation!
+            // So if it fails, it's a real network error.
+          }
+        } catch (err) {
+          logger.error('[Connection] Retroactive login error', err);
+        }
+      }
+
       // 1. Flush queued logger requests
       await this.flushLogQueue();
 
-      // 2. Retry pending test result upload
-      if (this.pendingTestResult) {
-        logger.info('[Connection] Retrying pending test result upload');
-        // Re-trigger the sync via judgeManager would be ideal but to avoid circular deps,
-        // just mark as cleared; the next judge run will re-sync.
-        this.pendingTestResult = false;
-        ramStore.markTestResultSynced();
-      }
+      // 2. Send the work produced while disconnected
+      await this.flushPendingWork();
 
-      // 3. Retry pending program file upload
-      if (this.pendingProgramFile) {
-        logger.info('[Connection] Retrying pending program file upload');
-        this.pendingProgramFile = false;
-      }
-
-      // 4. Refresh config if pending
+      // 3. Refresh config if pending
       if (this.pendingConfigRefresh && ramStore.backendUrl) {
         logger.info('[Connection] Refreshing config after reconnect');
         this.pendingConfigRefresh = false;
@@ -132,6 +176,7 @@ class ConnectionService {
   // ─── Log Queue Management ────────────────────────────────────
 
   private async flushLogQueue(): Promise<void> {
+    if (ramStore.isOfflineMode) return;
     if (!hasQueuedLogs()) return;
 
     const logs = getAndClearLogQueue();
@@ -156,24 +201,90 @@ class ConnectionService {
 
   // ─── Pending Request Management ───────────────────────────────
 
-  public markPendingTestResult(): void {
-    this.pendingTestResult = true;
+  /**
+   * Keep a submission until it lands.
+   *
+   * Keyed by puzzle, so a student who edits and re-runs the same question
+   * while offline leaves one entry rather than a growing pile. The last
+   * version is the one they want sent.
+   */
+  public queueSubmission(entry: Omit<PendingSubmission, 'queuedAt'>): void {
+    this.pendingSubmissions.set(entry.puzzleId, { ...entry, queuedAt: Date.now() });
+    logger.info(`[Connection] Queued submission for ${entry.puzzleId} (${this.pendingSubmissions.size} waiting)`);
   }
 
-  public clearPendingTestResult(): void {
-    this.pendingTestResult = false;
+  /** Keep the scoreboard until it lands. Only the latest is worth sending. */
+  public queueScore(payload: Record<string, unknown>): void {
+    this.pendingScore = { payload, queuedAt: Date.now() };
   }
 
-  public markPendingProgramFile(): void {
-    this.pendingProgramFile = true;
+  public clearQueuedScore(): void {
+    this.pendingScore = null;
   }
 
-  public clearPendingProgramFile(): void {
-    this.pendingProgramFile = false;
+  public clearQueuedSubmission(puzzleId: string): void {
+    this.pendingSubmissions.delete(puzzleId);
+  }
+
+  /** For the UI and for tests: what is still waiting. */
+  public getPendingCounts(): { submissions: number; score: boolean } {
+    return { submissions: this.pendingSubmissions.size, score: this.pendingScore !== null };
   }
 
   public markPendingConfigRefresh(): void {
     this.pendingConfigRefresh = true;
+  }
+
+  /**
+   * Drop everything still waiting to be sent.
+   *
+   * Called on a global reset, and only there. Keeping work queued across a
+   * reset would post the previous exam's answers, scores and action log into
+   * the next one the moment the socket came back — an exam the backend has
+   * just created, with different students in the same seats. Losing work is
+   * the point here: the exam it belonged to no longer exists.
+   */
+  public clearQueues(): void {
+    const dropped = this.pendingSubmissions.size + (this.pendingScore ? 1 : 0);
+    this.pendingSubmissions.clear();
+    this.pendingScore = null;
+    this.pendingConfigRefresh = false;
+    getAndClearLogQueue();
+    if (dropped > 0) {
+      logger.info(`[Connection] Reset dropped ${dropped} queued item(s) from the wiped exam.`);
+    }
+  }
+
+  /**
+   * Send everything that has been waiting.
+   *
+   * Anything that fails goes back in the queue rather than being dropped. The
+   * connection has just come back and may go again; losing work on the second
+   * outage would be no better than losing it on the first.
+   */
+  private async flushPendingWork(): Promise<void> {
+    for (const [puzzleId, entry] of [...this.pendingSubmissions]) {
+      try {
+        const res = await submitCode(entry.codeContent, entry.puzzleId, entry.language);
+        if (res.success) {
+          this.pendingSubmissions.delete(puzzleId);
+        }
+      } catch {
+        /* Stays queued. */
+      }
+    }
+
+    if (this.pendingScore) {
+      try {
+        const res = await submitScore(this.pendingScore.payload as any);
+        if (res.success) {
+          ramStore.markTestResultSynced();
+          this.pendingScore = null;
+        }
+      } catch {
+        /* Stays queued. */
+      }
+    }
   }
 
   // ─── Renderer Notification ────────────────────────────────────

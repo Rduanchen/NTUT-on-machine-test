@@ -114,7 +114,7 @@
               <template #message>
                 <div class="d-flex flex-column align-center text-medium-emphasis">
                   <v-icon size="32" class="mb-2">mdi-upload-outline</v-icon>
-                  <span>Drag & Drop or Click</span>
+                  <span>{{ t('examSystem.config.upload.dragDropHint') }}</span>
                 </div>
               </template>
             </v-file-upload>
@@ -142,9 +142,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 import { VFileUpload } from 'vuetify/labs/VFileUpload';
 import { router } from '../router/index';
+import { goToDerivedPage } from '../router/navigate';
+import { resolveFilePath } from '../utils/file-path';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -154,15 +156,6 @@ const selectedFile = ref<File | undefined>(undefined);
 const serverStatus = ref<'connected' | 'disconnected'>('disconnected');
 const isServerConnected = ref(false);
 const verifying = ref(false);
-
-onMounted(async () => {
-  if (window.api?.config) {
-    const isSetupComplete = await window.api.config.isSetupComplete();
-    if (isSetupComplete) {
-      router.push('/login');
-    }
-  }
-});
 
 const canSave = computed(() => !!serverHost.value || !!selectedFile.value);
 
@@ -175,9 +168,21 @@ const onFileSelected = async (files: File | File[] | undefined) => {
 
 const uploadConfigFile = async (file: File) => {
   if (!window.api?.config) return;
-  const re = await window.api.config.setJson(file.path);
+
+  /* Not `file.path` — that property was removed in Electron 32 and this app
+   * runs 34. It resolved to `undefined`, which travelled all the way to
+   * `path.resolve` before anything complained. */
+  let filePath: string;
+  try {
+    filePath = resolveFilePath(file);
+  } catch (error) {
+    alert(error instanceof Error ? error.message : String(error));
+    return;
+  }
+
+  const re = await window.api.config.setJson(filePath);
   if (re.success) {
-    router.push('/login');
+    await goToDerivedPage(router);
   } else {
     alert(
       t('examSystem.config.upload.failed') +
@@ -218,15 +223,9 @@ const getConfigFileFromServer = async () => {
   // Actually try to fetch it, which sets backendUrl and starts services.
   const re = await window.api.config.getFromServer(serverHost.value);
   
-  // We navigate regardless of whether fetching config succeeded or failed.
-  // If it failed because of Crypto state (UNINITIALIZED/NOT_STARTED), 
-  // the router guard will still catch it and route us properly since hasBackendUrl is now true.
-  const status = await window.api.store?.getExamStatus?.() ?? 'UNINITIALIZED';
-  if (status === 'UNINITIALIZED') {
-    router.push('/not-initialized');
-  } else {
-    router.push('/login');
-  }
+  /* Navigate regardless of whether fetching the config succeeded: the backend
+   * URL is set either way, so the derivation now has something to work from. */
+  await goToDerivedPage(router);
 };
 
 const saveSettings = () => {

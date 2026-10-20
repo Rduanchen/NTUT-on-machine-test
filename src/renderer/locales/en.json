@@ -11,7 +11,11 @@
     },
     "errors": {
       "generic": "Login failed. Please check your student ID and try again."
-    }
+    },
+    "autoLoginProgress": "Auto-login in progress...",
+    "autoLoginSuccess": "Auto-login Successful",
+    "waitingForExam": "Waiting for the exam to start. Please wait...",
+    "autoLoginFailed": "Auto-login failed. Please log in manually."
   },
   "examSystem": {
     "title": "NTUT Exam System",
@@ -20,10 +24,52 @@
       "connected": "Connected",
       "disconnected": "Disconnected"
     },
+    "environmentCheck": {
+      "eyebrow": "Pre-exam safety check",
+      "title": "Program environment report",
+      "openReport": "View compiler and runtime-limit diagnostics",
+      "failureWarning": "Some execution environment checks did not pass.",
+      "fixHint": "Install or repair the tool shown in the failed item, then run the check again.",
+      "ignoreRisk": "If the exam will not be affected, an assistant may acknowledge the risk and continue. The report will remain failed.",
+      "ignoreAndContinue": "Acknowledge risk and continue",
+      "retry": "Run check again",
+      "tools": "Compiler and runtime tools",
+      "diagnostics": "Program diagnostics",
+      "languageCount": "{count} exam languages",
+      "awaitingConfig": "Waiting for exam configuration",
+      "awaitingConfigDetail": "The exam configuration and environment checks will load after login verification.",
+      "preparingDiagnostics": "Preparing language checks",
+      "noDiagnosticResults": "The environment check failed before language results were available",
+      "noLanguages": "This exam does not require a programming language check",
+      "status": {
+        "IDLE": "Waiting for config",
+        "RUNNING": "Checking",
+        "PASSED": "Environment ready",
+        "FAILED": "Action required"
+      },
+      "itemStatus": {
+        "pending": "Pending",
+        "running": "Checking",
+        "passed": "Passed",
+        "failed": "Failed"
+      },
+      "check": {
+        "smoke": "Compile and run",
+        "tle": "Time limit (TLE)",
+        "mle": "Memory limit (MLE)"
+      }
+    },
     "secretLabel": "Click three times rapidly",
     "currentLanguage": "Language",
     "switchToLight": "Switch to Light Theme",
     "switchToDark": "Switch to Dark Theme",
+    "developedBy": "This system is developed by VerechoTJI {'|'} ",
+    "easterEgg": {
+      "title": "You catch me !!",
+      "developerName": "阿端",
+      "class": "NTUT CS1",
+      "role": "Full Stack Developer"
+    },
     "studentInfo": {
       "name": "Student",
       "id": "Exam ID"
@@ -45,7 +91,8 @@
         "title": "Upload Config File",
         "label": "Select config file",
         "success": "Config file uploaded successfully",
-        "failed": "Failed to upload config file"
+        "failed": "Failed to upload config file",
+        "dragDropHint": "Drag & Drop or Click"
       },
       "saveButton": "Save Settings",
       "saveSuccess": "Settings saved"
@@ -70,19 +117,33 @@
       "caseFailed": "Failed (WA)",
       "hiddenOutput": "(Hidden test case)",
       "noResult": "There is no test result to display.",
+      "noOutput": "(No output)",
+      "passedLabel": "Passed:",
+      "specialRules": "Special Rules",
+      "subtaskLabel": "Subtask {id}",
+      "notEvaluated": "Not evaluated",
+      "pass": "PASS",
+      "fail": "FAIL",
       "tableHeaders": {
         "caseId": "Test Case ID",
         "result": "Result",
-        "userOutput": "Your Output"
+        "userOutput": "Your Output",
+        "status": "Status",
+        "rule": "Rule",
+        "reason": "Reason",
+        "time": "Time",
+        "output": "Output"
       }
     },
     "common": {
       "close": "Close",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "confirm": "Confirm"
     },
     "notificationCenter": {
       "title": "Realtime Alerts",
       "subtitle": "Stay synced with backend messages & config",
+      "socketFeed": "Socket notifications feed",
       "messageVersion": "Message Version",
       "configVersion": "Config Version",
       "autoSync": "Auto sync runs every 60 seconds. Latest sync: {time}",
@@ -103,12 +164,42 @@
     "puzzles": {
       "forceStop": "Force Stop All Tests",
       "exportZip": "Export Answers as ZIP",
+      "earlyEndConfirm": "Are you sure you want to end the exam early?",
+      "earlyEnd": "Early End",
+      "bufferCountdown": "Exam ended. Navigating in {seconds}s...",
+      "manualRefresh": "Update Config",
+      "manualRefreshTitle": "Manual Config Update",
+      "refreshing": "Fetching latest config and re-evaluating...",
+      "manualRefreshDesc": "Are you sure you want to manually fetch the latest config and re-evaluate local code? This will take some time.",
+      "defaultSection": "Default Section",
+      "maxScoreLabel": "Max Score: ",
+      "estimatedScoreLabel": "Estimated Score: ",
+      "totalEstimatedScoreLabel": "Total Estimated Score:",
+      "rulesNotAvailable": "Rules N/A",
+      "rulesSummary": "Rules {passed}/{total}",
       "finisheTheExam": {
         "label": "Finish the Exam",
         "finisheTheExamIntro": "Please follow the following steps to complete your exam:",
         "updateResult": "upload the result",
         "updateFile": "upload the code ",
-        "end": "After finish all steps, please notify TA to check your submission. Please do not turn off this window unless TA confirms your submission is received."
+        "end": "After finish all steps, please notify TA to check your submission. Please do not turn off this window unless TA confirms your submission is received.",
+        "syncing": "Syncing with server...",
+        "steps": {
+          "rejudge": "Recheck Code",
+          "uploadCode": "Upload Code",
+          "uploadScore": "Upload Score"
+        },
+        "versionSelectTitle": "Please select the code version to upload:",
+        "versionCurrent": "Current Version (The latest version you wrote)",
+        "versionCurrentShort": "Current Version",
+        "versionHighest": "Highest Score Version (The version with the highest score recorded by the system)",
+        "versionHighestShort": "Highest Score",
+        "startUpload": "Start Upload",
+        "confirmWithTA": "Please verify your score with the TA first",
+        "confirmWithTADesc": "Your score and code have been uploaded to the server. Please call the TA to verify your score. If there is an error, you can click \"Cancel\" to re-upload another version. Only after verification is correct can you click \"Confirm and End Exam\".",
+        "confirmWarningTitle": "Warning: Cannot be undone after confirmation",
+        "confirmWarningDesc": "After clicking \"Confirm and End Exam\", you will not be able to modify or resubmit your code.",
+        "confirmButton": "Confirm and End Exam"
       },
       "summary": "{count} problems in total",
       "headers": {
@@ -137,5 +228,45 @@
         "description": "Please select the source code file you want to upload."
       }
     }
+  },
+  "notInitialized": {
+    "title": "System Not Initialized",
+    "subtitle": "Please wait for the proctor to initialize the exam system.",
+    "statusChip": "Waiting for System Setup",
+    "registerSection": "Device Registration",
+    "registerBtn": "Register Device",
+    "retryBtn": "Retry Connection",
+    "registerSuccess": "Device registered successfully",
+    "registerFailed": "Device registration failed"
+  },
+  "waiting": {
+    "title": "Waiting for Exam",
+    "subtitle": "The exam config has been loaded. Please wait for the exam to start.",
+    "statusChip": "Exam Ready",
+    "studentId": "Student ID",
+    "verified": "Verified",
+    "autoLoginSuccess": "Auto-login successful",
+    "autoLoginFailed": "Auto-login failed. Please contact the TA.",
+    "hint": "Please keep this page open. You will be automatically redirected to the exam page once it starts."
+  },
+  "finished": {
+    "banner": "Exam Finished",
+    "bannerSub": "Your answers have been locked. Please complete the following steps to submit.",
+    "examEnded": "Ended",
+    "points": "Points",
+    "subtasks": "subtasks",
+    "confirmWarning": "Please verify that your final score is correct. If there are any discrepancies, contact the TA immediately.",
+    "actionsTitle": "Submission Steps",
+    "pushCode": "1. Upload All Source Codes",
+    "confirmScore": "2. Confirm Score & Submit",
+    "downloadCode": "Download Backup ZIP",
+    "taWarningTitle": "Important Instructions before leaving",
+    "taWarning1": "Do not close this application until the TA has confirmed receipt of your submission.",
+    "taWarning2": "Please keep a copy of the backup ZIP file just in case.",
+    "taWarning3": "You may leave the classroom only after the TA gives permission.",
+    "codePushSuccess": "Code uploaded successfully",
+    "codePushFailed": "Code upload failed. Please try again or contact the TA.",
+    "scoreConfirmSuccess": "Score confirmed and submitted successfully",
+    "scoreConfirmFailed": "Failed to submit score. Please try again or contact the TA."
   }
 }
