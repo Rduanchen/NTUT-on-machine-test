@@ -142,7 +142,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 import { VFileUpload } from 'vuetify/labs/VFileUpload';
 import { router } from '../router/index';
 import { goToDerivedPage } from '../router/navigate';
@@ -156,24 +156,6 @@ const selectedFile = ref<File | undefined>(undefined);
 const serverStatus = ref<'connected' | 'disconnected'>('disconnected');
 const isServerConnected = ref(false);
 const verifying = ref(false);
-
-onMounted(async () => {
-  if (!window.api?.config) return;
-
-  /* A machine that already knows where its backend is has nothing to ask here.
-   *
-   * The only thing that used to move a pre-deployed machine off this page was
-   * a connection-status event, and `pre_settings.json` is read before the
-   * window exists — so the socket often connected with nobody listening and
-   * the machine sat on a settings form for an exam it was already configured
-   * for. The page still exists for the machine that genuinely has no backend
-   * (offline paper deployment); it is just no longer where anyone lands. */
-  const hasBackendUrl = await window.api.config.hasBackendUrl?.();
-  const isSetupComplete = await window.api.config.isSetupComplete();
-  if (hasBackendUrl || isSetupComplete) {
-    await goToDerivedPage(router);
-  }
-});
 
 const canSave = computed(() => !!serverHost.value || !!selectedFile.value);
 

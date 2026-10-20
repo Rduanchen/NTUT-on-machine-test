@@ -137,11 +137,11 @@ describe('derivePage for a machine with no backend', () => {
  * on a form asking for the address it had already been given.
  */
 describe('isSettingsTheLandingPage', () => {
-  it('is the landing page only for a machine that knows nothing', () => {
+  it('is the landing page when no backend can be reached', () => {
     expect(isSettingsTheLandingPage(false, false)).toBe(true);
   });
 
-  it('is not the landing page once a backend address is known', () => {
+  it('is not the landing page when the backend responds', () => {
     expect(isSettingsTheLandingPage(true, false)).toBe(false);
   });
 

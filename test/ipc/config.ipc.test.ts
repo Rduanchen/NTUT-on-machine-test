@@ -3,6 +3,9 @@ import { ipcMain } from 'electron';
 import { registerConfigIpc } from '../../src/main/ipc/config.ipc';
 import { configService } from '../../src/main/services/config.service';
 import { ramStore } from '../../src/main/services/ramStore.service';
+import { healthCheck } from '../../src/main/services/api.service';
+
+vi.mock('../../src/main/services/api.service', () => ({ healthCheck: vi.fn() }));
 
 vi.mock('../../src/main/services/config.service', () => ({
   configService: {
@@ -69,5 +72,20 @@ describe('config.ipc', () => {
     ramStore.backendUrl = null;
     const result = await invoke('config:has-backend-url');
     expect(result).toBe(false);
+  });
+
+  it('reports a missing backend URL as unreachable without a request', async () => {
+    ramStore.backendUrl = null;
+    expect(await invoke('config:is-backend-reachable')).toBe(false);
+    expect(healthCheck).not.toHaveBeenCalled();
+  });
+
+  it('checks the configured backend before allowing the startup redirect', async () => {
+    ramStore.backendUrl = 'http://test';
+    vi.mocked(healthCheck).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+    expect(await invoke('config:is-backend-reachable')).toBe(false);
+    expect(await invoke('config:is-backend-reachable')).toBe(true);
+    expect(healthCheck).toHaveBeenCalledWith('http://test');
   });
 });

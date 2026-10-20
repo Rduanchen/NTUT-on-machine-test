@@ -14,6 +14,7 @@ const api = {
     getServerStatus: (hostname: string) => ipcRenderer.invoke('config:server-status', hostname),
     isSetupComplete: () => ipcRenderer.invoke('config:setup-complete'),
     hasBackendUrl: () => ipcRenderer.invoke('config:has-backend-url'),
+    isBackendReachable: () => ipcRenderer.invoke('config:is-backend-reachable'),
     isPreDeployed: () => ipcRenderer.invoke('config:is-pre-deployed'),
     isOffline: () => ipcRenderer.invoke('config:is-offline'),
     ensurePaper: () => ipcRenderer.invoke('config:ensure-paper'),

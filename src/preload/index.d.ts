@@ -20,6 +20,7 @@ interface ConfigAPI {
   getServerStatus: (hostname: string) => Promise<IpcResponse<void>>;
   isSetupComplete: () => Promise<boolean>;
   hasBackendUrl: () => Promise<boolean>;
+  isBackendReachable: () => Promise<boolean>;
   isPreDeployed: () => Promise<boolean>;
   isOffline: () => Promise<boolean>;
   ensurePaper: () => Promise<IpcResponse<void>>;

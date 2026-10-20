@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
 import { configService } from '../services/config.service';
+import { healthCheck } from '../services/api.service';
 import { ramStore } from '../services/ramStore.service';
 
 /**
@@ -32,10 +33,11 @@ export function registerConfigIpc(): void {
     return !!ramStore.backendUrl;
   });
 
-  /* Whether this machine was handed a backend address before it started.
-   *
-   * The settings page asks that question of itself: a deployed machine has
-   * nothing to configure and must not be shown a form for it. */
+  ipcMain.handle('config:is-backend-reachable', async () => {
+    return !!ramStore.backendUrl && (await healthCheck(ramStore.backendUrl));
+  });
+
+  /* Whether this machine was handed a backend address before it started. */
   ipcMain.handle('config:is-pre-deployed', () => {
     return ramStore.isPreDeployed;
   });

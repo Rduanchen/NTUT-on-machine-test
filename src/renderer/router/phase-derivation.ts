@@ -90,10 +90,12 @@ export function isSettingsReachable(examStatus: ExamState): boolean {
  *
  * Reachable and landed-on are different questions, and conflating them is what
  * left a machine with a perfectly good `pre_settings.json` sitting on a form
- * asking for the address it already had. A machine that knows where its backend
- * is has nothing to fill in; one that does not is the only reason this page
- * exists, because loading a paper from a file is the offline path's only entry.
+ * asking for the address it already had. The address alone is not enough: if
+ * its backend is absent, this page is also the offline paper's only entry.
  */
-export function isSettingsTheLandingPage(hasBackendUrl: boolean, isConfigured: boolean): boolean {
-  return !hasBackendUrl && !isConfigured;
+export function isSettingsTheLandingPage(
+  isBackendReachable: boolean,
+  isConfigured: boolean
+): boolean {
+  return !isBackendReachable && !isConfigured;
 }

@@ -58,6 +58,7 @@ declare global {
         getServerStatus: (hostname: string) => Promise<any>;
         isSetupComplete: () => Promise<boolean>;
         hasBackendUrl?: () => Promise<boolean>;
+        isBackendReachable?: () => Promise<boolean>;
         isPreDeployed?: () => Promise<boolean>;
         isOffline?: () => Promise<boolean>;
         ensurePaper?: () => Promise<{

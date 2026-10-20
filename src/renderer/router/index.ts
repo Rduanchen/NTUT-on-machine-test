@@ -75,16 +75,17 @@ router.beforeEach(async (to, from) => {
       return { name: resolvePage(derivePage(examStatus, device, isOffline)) };
     }
 
-    /* Reachable, but not somewhere to land. `/` is the startup route, and a
-     * machine deployed with `pre_settings.json` was stopping here to be asked
-     * for the address it had already been given — the connection event that
-     * would have moved it on is emitted before the window exists. A machine
-     * with no address at all still gets the form, which is the offline
-     * deployment's only way in. */
-    const hasBackendUrl = (await api?.config?.hasBackendUrl?.()) ?? false;
+    /* On startup, a configured URL is useful only if its backend responds.
+     * Keep the offline deployment form visible when the preset points to a
+     * missing server; a later connection event can move the machine onward. */
     const isConfigured = (await api?.config?.isSetupComplete?.()) ?? false;
-    if (!isSettingsTheLandingPage(hasBackendUrl, isConfigured) && from.name === undefined) {
-      return { name: resolvePage(derivePage(examStatus, device, isOffline)) };
+    if (from.name === undefined) {
+      const isBackendReachable = isConfigured
+        ? false
+        : ((await api?.config?.isBackendReachable?.()) ?? false);
+      if (!isSettingsTheLandingPage(isBackendReachable, isConfigured)) {
+        return { name: resolvePage(derivePage(examStatus, device, isOffline)) };
+      }
     }
     return true;
   }
