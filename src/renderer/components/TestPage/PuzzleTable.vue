@@ -15,24 +15,22 @@
       <template v-for="(group, sectionId) in groupedPuzzles" :key="sectionId">
         <tbody>
           <tr :class="isDark ? 'bg-grey-darken-3' : 'bg-grey-lighten-4'">
-            <td colspan="7" class="py-2">
-              <div class="d-flex align-center w-100">
+            <td colspan="4" class="py-2">
+              <div class="d-flex align-center ga-3">
                 <v-icon start size="small" class="text-primary mr-2">mdi-folder-outline</v-icon>
                 <span class="font-weight-bold text-primary text-subtitle-1">{{
                   group[0].sectionTitle || sectionId || t('examSystem.puzzles.defaultSection')
                 }}</span>
-                <v-spacer></v-spacer>
-                <div v-if="group[0].sectionMaxScore" class="mr-4 text-caption text-grey-darken-1">
-                  {{ t('examSystem.puzzles.maxScoreLabel') }} {{ formatScore(group[0].sectionMaxScore) }}
-                </div>
-                <div class="font-weight-bold ml-4">
-                  Current:
-                  <span class="text-primary">{{ formatScore(calculateSectionScore(group, false)) }}</span>
-                </div>
-                <div class="font-weight-bold ml-4">
-                  Highest:
-                  <span class="text-success">{{ formatScore(calculateSectionScore(group, true)) }}</span>
-                </div>
+                <v-chip
+                  v-if="group[0].sectionMaxScore != null"
+                  size="small"
+                  color="secondary"
+                  variant="tonal"
+                  class="font-weight-bold"
+                >
+                  {{ t('examSystem.puzzles.maxScoreLabel') }}
+                  {{ formatScore(group[0].sectionMaxScore) }}
+                </v-chip>
               </div>
               <div
                 v-if="group[0].sectionDescription"
@@ -41,6 +39,21 @@
                 {{ group[0].sectionDescription }}
               </div>
             </td>
+            <td>
+              <v-chip size="small" color="primary" variant="tonal" class="font-weight-bold">
+                Current: {{ formatScore(calculateSectionScore(group, false)) }}/{{
+                  formatScore(calculateSectionMaxScore(group))
+                }}
+              </v-chip>
+            </td>
+            <td>
+              <v-chip size="small" color="success" variant="tonal" class="font-weight-bold">
+                Highest: {{ formatScore(calculateSectionScore(group, true)) }}/{{
+                  formatScore(calculateSectionMaxScore(group))
+                }}
+              </v-chip>
+            </td>
+            <td></td>
           </tr>
           <!-- Puzzle Rows -->
           <PuzzleRow
@@ -85,7 +98,11 @@ import { useTheme } from 'vuetify';
 import PuzzleRow from './PuzzleRow.vue';
 import type { PuzzleInfo } from '../../../common/types';
 import type { SpecialRule, SpecialRuleResultRecord } from '../../../common/types';
-import { calculatePuzzleScore as scorePuzzle, formatScore, isPassedSubtask } from '../../../common/exam-score';
+import {
+  calculatePuzzleScore as scorePuzzle,
+  formatScore,
+  isPassedSubtask
+} from '../../../common/exam-score';
 
 const props = defineProps<{
   puzzles: PuzzleInfo[];
@@ -143,6 +160,17 @@ function calculatePuzzleScore(puzzle: PuzzleInfo, useHighest: boolean = false): 
   const srrSource = useHighest ? props.highestSpecialRuleResults : props.specialRuleResults;
   const srr = srrSource?.[String(puzzle.id)];
   return scorePuzzle(puzzle, result, srr ?? []);
+}
+
+function calculateSectionMaxScore(group: PuzzleInfo[]): number {
+  return (
+    group[0]?.sectionMaxScore ??
+    group.reduce(
+      (sum, puzzle) =>
+        sum + (puzzle.subtasks ?? []).reduce((points, subtask) => points + (subtask.score ?? 0), 0),
+      0
+    )
+  );
 }
 
 function calculateSectionScore(group: PuzzleInfo[], useHighest: boolean = false): number {
