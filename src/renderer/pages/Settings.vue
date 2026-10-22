@@ -75,18 +75,6 @@
               {{ t('examSystem.config.server.verifyButton') }}
             </v-btn>
 
-            <v-slide-y-transition>
-              <v-btn
-                v-if="isServerConnected"
-                color="secondary"
-                variant="outlined"
-                block
-                @click="getConfigFileFromServer"
-              >
-                <v-icon start>mdi-cloud-download-outline</v-icon>
-                {{ t('examSystem.config.server.fetchConfigButton') }}
-              </v-btn>
-            </v-slide-y-transition>
           </v-col>
 
           <!-- Upload config file -->
@@ -96,9 +84,9 @@
               {{ t('examSystem.config.upload.title') }}
             </h3>
 
-            <!-- <div class="text-body-2 text-medium-emphasis mb-3">
-              {{ t('examSystem.config.upload.description', 'Alternatively, you can upload a configuration file manually.') }}
-            </div> -->
+            <div class="text-body-2 text-medium-emphasis mb-3">
+              {{ t('examSystem.config.upload.description') }}
+            </div>
 
             <v-file-upload
               v-model="selectedFile"
@@ -120,6 +108,9 @@
             </v-file-upload>
           </v-col>
         </v-row>
+        <v-alert v-if="setupError" type="error" variant="tonal" class="mt-4" data-test="setup-error">
+          {{ setupError }}
+        </v-alert>
       </v-card-text>
 
       <v-divider></v-divider>
@@ -131,7 +122,8 @@
           color="primary"
           variant="elevated"
           size="large"
-          :disabled="!canSave"
+          :disabled="!canSave || saving"
+          :loading="saving"
           @click="saveSettings"
         >
           {{ t('examSystem.config.saveButton') }}
@@ -154,19 +146,19 @@ const { t } = useI18n();
 const serverHost = ref('');
 const selectedFile = ref<File | undefined>(undefined);
 const serverStatus = ref<'connected' | 'disconnected'>('disconnected');
-const isServerConnected = ref(false);
 const verifying = ref(false);
+const saving = ref(false);
+const setupError = ref('');
 
-const canSave = computed(() => !!serverHost.value || !!selectedFile.value);
+const canSave = computed(() => !!serverHost.value.trim() || !!selectedFile.value);
 
-const onFileSelected = async (files: File | File[] | undefined) => {
+const onFileSelected = (files: File | File[] | undefined) => {
   const file = Array.isArray(files) ? files[0] : files;
-  if (!file) return;
   selectedFile.value = file;
-  await uploadConfigFile(file);
+  setupError.value = '';
 };
 
-const uploadConfigFile = async (file: File) => {
+const uploadConfigFile = async (file: File): Promise<void> => {
   if (!window.api?.config) return;
 
   /* Not `file.path` — that property was removed in Electron 32 and this app
@@ -176,39 +168,37 @@ const uploadConfigFile = async (file: File) => {
   try {
     filePath = resolveFilePath(file);
   } catch (error) {
-    alert(error instanceof Error ? error.message : String(error));
+    setupError.value = error instanceof Error ? error.message : String(error);
     return;
   }
 
-  const re = await window.api.config.setJson(filePath);
-  if (re.success) {
-    await goToDerivedPage(router);
-  } else {
-    alert(
-      t('examSystem.config.upload.failed') +
-        `: \n ${re.error?.code || ''}
-      ${re.error?.message || ''}`
-    );
+  const response = await window.api.config.setJson(filePath);
+  if (!response.success) {
+    setupError.value = `${t('examSystem.config.upload.failed')}：${response.error?.message || response.error?.code || ''}`;
+    return;
   }
+  await goToDerivedPage(router);
 };
 
-const verifyServerStatus = async () => {
-  if (!serverHost.value || !window.api?.config) return;
-  // 合法格式為 http://localhost:3000 自動去掉最後的斜線
-  if (serverHost.value.endsWith('/')) {
-    serverHost.value = serverHost.value.slice(0, -1);
-  }
+const verifyServerStatus = async (): Promise<boolean> => {
+  if (!serverHost.value.trim() || !window.api?.config) return false;
+  serverHost.value = serverHost.value.trim().replace(/\/+$/, '');
   verifying.value = true;
+  setupError.value = '';
   try {
     const re = await window.api.config.getServerStatus(serverHost.value);
     if (re.success) {
       serverStatus.value = 'connected';
-      isServerConnected.value = true;
+      return true;
     } else {
       serverStatus.value = 'disconnected';
-      isServerConnected.value = false;
-      alert(t('examSystem.config.server.verifyFailed'));
+      setupError.value = t('examSystem.config.server.verifyFailed');
+      return false;
     }
+  } catch (error) {
+    serverStatus.value = 'disconnected';
+    setupError.value = error instanceof Error ? error.message : String(error);
+    return false;
   } finally {
     verifying.value = false;
   }
@@ -216,20 +206,27 @@ const verifyServerStatus = async () => {
 
 const getConfigFileFromServer = async () => {
   if (!window.api?.config) return;
-  
-  // Set the backend URL internally by verifying
-  await window.api.config.getServerStatus(serverHost.value);
-  
-  // Actually try to fetch it, which sets backendUrl and starts services.
-  const re = await window.api.config.getFromServer(serverHost.value);
-  
-  /* Navigate regardless of whether fetching the config succeeded: the backend
-   * URL is set either way, so the derivation now has something to work from. */
+  if (!(await verifyServerStatus())) return;
+  // The backend may not have initialized a paper yet. The URL still needs to
+  // be stored so phase and configuration updates can arrive later.
+  await window.api.config.getFromServer(serverHost.value);
   await goToDerivedPage(router);
 };
 
-const saveSettings = () => {
-  // Logic...
-  alert(t('examSystem.config.saveSuccess'));
+const saveSettings = async () => {
+  if (saving.value) return;
+  saving.value = true;
+  setupError.value = '';
+  try {
+    if (selectedFile.value) {
+      await uploadConfigFile(selectedFile.value);
+    } else {
+      await getConfigFileFromServer();
+    }
+  } catch (error) {
+    setupError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    saving.value = false;
+  }
 };
 </script>

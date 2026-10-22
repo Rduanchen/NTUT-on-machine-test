@@ -11,11 +11,13 @@ import { connectionService } from '../../src/main/services/connection.service';
 import { messageSyncService } from '../../src/main/services/message-sync.service';
 import {
     examConfigSchema,
+    backendExamConfigSchema,
     examConfigPayloadSchema,
     mergeExamConfig
 } from '../../src/main/schemas/examConfig.schema';
 import { preSettingsSchema } from '../../src/main/schemas/presettings.schema';
 import { ErrorCode } from '../../src/common/errorCodes';
+import { prepareOfflineBundle } from '../../src/main/services/offline-bundle.service';
 
 vi.mock('../../src/main/services/environment-check.service', () => ({ environmentCheckService: { applyMeta: vi.fn().mockResolvedValue(undefined) } }));
 vi.mock('fs');
@@ -57,6 +59,9 @@ vi.mock('../../src/main/services/message-sync.service', () => ({
         start: vi.fn(),
     },
 }));
+vi.mock('../../src/main/services/offline-bundle.service', () => ({
+    prepareOfflineBundle: vi.fn(),
+}));
 vi.mock('../../src/main/schemas/examConfig.schema', () => ({
     examConfigSchema: {
         safeParse: vi.fn(),
@@ -64,6 +69,9 @@ vi.mock('../../src/main/schemas/examConfig.schema', () => ({
     /* The paper now arrives split. This is the shape the delivery endpoint
      * returns; the questions inside `cipher` stay sealed until the exam. */
     examConfigPayloadSchema: {
+        safeParse: vi.fn(),
+    },
+    backendExamConfigSchema: {
         safeParse: vi.fn(),
     },
     examConfigMetaSchema: {
@@ -220,6 +228,25 @@ describe('ConfigService', () => {
     });
 
     describe('setConfigFromFile', () => {
+        it('accepts the backend plain config.json through the sealed offline path', async () => {
+            const plain = { testTitle: 'Plain paper' };
+            const bundle = { meta: { testTitle: 'Plain paper' }, cipher: { iv: 'i', ciphertext: 'c', tag: 't' } };
+            (fs.readFileSync as any).mockReturnValue(JSON.stringify(plain));
+            vi.mocked(examConfigPayloadSchema.safeParse)
+                .mockReturnValueOnce({ success: false, error: { issues: [] } } as any)
+                .mockReturnValueOnce({ success: true, data: bundle } as any);
+            vi.mocked(backendExamConfigSchema.safeParse).mockReturnValueOnce({ success: true, data: plain } as any);
+            vi.mocked(prepareOfflineBundle).mockReturnValueOnce(bundle as any);
+
+            const result = await configService.setConfigFromFile('/path/config.json');
+
+            expect(result.success).toBe(true);
+            expect(backendExamConfigSchema.safeParse).toHaveBeenCalledWith(plain);
+            expect(prepareOfflineBundle).toHaveBeenCalledWith(plain);
+            expect(ramStore.examConfigMeta).toEqual(bundle.meta);
+            expect(ramStore.examStatus).toBe('SETUP_FINISHED');
+        });
+
         it('rejects a file that is not an offline deployment bundle', async () => {
             /* The plaintext config this replaced was both a second parsing path
              * and a way for a student to hand themselves a paper. */
@@ -253,6 +280,23 @@ describe('ConfigService', () => {
             expect(ramStore.examConfigCipher).toEqual(bundle.cipher);
             // The exam starts on the invigilator's spoken password, not on load.
             expect(ramStore.examConfig).toBeFalsy();
+            expect(ramStore.isOfflineMode).toBe(true);
+            expect(ramStore.examStatus).toBe('SETUP_FINISHED');
+        });
+
+        it('enters offline login without waiting for the environment check', async () => {
+            (fs.readFileSync as any).mockReturnValue('{}');
+            const bundle = {
+                meta: { testTitle: 'Offline' },
+                cipher: { iv: 'i', ciphertext: 'c', tag: 't' }
+            };
+            (examConfigPayloadSchema.safeParse as any).mockReturnValue({ success: true, data: bundle });
+            vi.mocked(environmentCheckService.applyMeta).mockImplementationOnce(() => new Promise(() => {}));
+
+            const result = await configService.setConfigFromFile('/path/bundle.json');
+
+            expect(result.success).toBe(true);
+            expect(environmentCheckService.applyMeta).toHaveBeenCalledWith(bundle.meta);
             expect(ramStore.isOfflineMode).toBe(true);
             expect(ramStore.examStatus).toBe('SETUP_FINISHED');
         });

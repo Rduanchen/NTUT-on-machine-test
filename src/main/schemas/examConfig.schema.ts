@@ -92,6 +92,42 @@ export const examConfigSchema = z.object({
   puzzles: z.array(puzzleSchema).optional(),
 });
 
+/** The plain config.json accepted by the backend's examConfigSchema.
+ *
+ * The runtime schema above also accepts a merged, already opened paper whose
+ * startPassword is intentionally empty. Keep the import contract separate so
+ * the desktop accepts exactly the fields the backend accepts on upload. */
+const backendSubtaskSchema = subtaskSchema.extend({ score: z.number().min(0) });
+const backendPuzzleSchema = puzzleSchema.extend({
+  id: z.string(),
+  score: z.number().min(0),
+  subtasks: z.array(backendSubtaskSchema)
+});
+const backendSectionSchema = sectionSchema.extend({ puzzles: z.array(backendPuzzleSchema) });
+const backendAccessUserSchema = accessUserSchema.extend({
+  ip: z.union([z.ipv4(), z.ipv6(), z.literal('')]).optional()
+});
+
+export const backendExamConfigSchema = examConfigSchema.omit({ puzzles: true }).extend({
+  environmentVariables: environmentVariablesSchema.extend({
+    startPassword: z.string().min(1, 'startPassword is required')
+  }),
+  judgerSettings: z.object({
+    timeLimit: z.number(),
+    memoryLimit: z.number(),
+    compareMode: z.enum(['strict', 'loose']).optional().default('loose'),
+    compileTimeout: z.number().optional().default(30000),
+    compileMemoryLimit: z.number().optional().default(-1),
+    maxConcurrentJobs: z.number().optional().default(4),
+    maxSystemRetries: z.number().optional().default(2)
+  }),
+  accessibleUsers: z.array(backendAccessUserSchema),
+  sections: z.array(backendSectionSchema),
+  submitGraceSeconds: z.number().min(0).optional().default(60)
+});
+
+export type BackendExamConfig = z.infer<typeof backendExamConfigSchema>;
+
 /* ── Feature 007: the paper arrives in two halves ─────────────────────────
  *
  * The half that may reach this machine before the exam starts, and the half

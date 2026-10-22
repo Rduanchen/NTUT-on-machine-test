@@ -84,13 +84,14 @@
         "fetchConfigFailed": "從伺服器取得設定檔案失敗"
       },
       "upload": {
-        "title": "上傳設定檔案",
-        "label": "選擇設定檔案",
+        "title": "匯入離線佈署檔",
+        "description": "可選擇後台匯出的 exam-offline-bundle.json，或符合後端設定格式的 config.json。一般設定檔會在本機轉成加密離線考卷。",
+        "label": "選擇離線佈署檔或 config.json",
         "success": "設定檔案上傳成功",
         "failed": "設定檔案上傳失敗",
         "dragDropHint": "拖曳檔案至此或點擊選取"
       },
-      "saveButton": "儲存設定",
+      "saveButton": "繼續",
       "saveSuccess": "設定已儲存"
     },
     "welcome": {

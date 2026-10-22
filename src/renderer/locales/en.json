@@ -88,13 +88,14 @@
         "fetchConfigFailed": "Failed to fetch config file from server"
       },
       "upload": {
-        "title": "Upload Config File",
-        "label": "Select config file",
+        "title": "Import Offline Bundle",
+        "description": "Select exam-offline-bundle.json from the admin console or a config.json accepted by the backend. Plain configs are sealed locally for offline use.",
+        "label": "Select offline bundle or config.json",
         "success": "Config file uploaded successfully",
         "failed": "Failed to upload config file",
         "dragDropHint": "Drag & Drop or Click"
       },
-      "saveButton": "Save Settings",
+      "saveButton": "Continue",
       "saveSuccess": "Settings saved"
     },
     "welcome": {

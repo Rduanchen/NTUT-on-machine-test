@@ -9,6 +9,7 @@ import { connectionService } from './connection.service';
 import { messageSyncService } from './message-sync.service';
 import {
   examConfigMetaSchema,
+  backendExamConfigSchema,
   examConfigPayloadSchema,
   examConfigSecretSchema,
   mergeExamConfig
@@ -17,6 +18,7 @@ import { preSettingsSchema } from '../schemas/presettings.schema';
 import type { ExamConfig, IpcResponse } from '../../common/types';
 import { ErrorCode } from '../../common/errorCodes';
 import { environmentCheckService } from './environment-check.service';
+import { prepareOfflineBundle } from './offline-bundle.service';
 
 /**
  * Config Service - Handles ExamConfig loading
@@ -106,18 +108,30 @@ class ConfigService {
    * Load an exam paper from a file, for a machine that cannot reach the
    * backend.
    *
-   * Takes the same `{ meta, cipher }` the delivery endpoint returns, so there
-   * is one parsing path rather than two — and so a lost memory stick is not a
-   * leaked exam. The plaintext config this replaces was both a second path to
-   * maintain and a way for a student to hand themselves a paper and detach
-   * from every server-side control in the same gesture.
+   * Accepts the backend's exported `{ meta, cipher }` bundle or the plain
+   * config.json accepted by its examConfigSchema. A plain config is sealed in
+   * memory before entering the same offline path.
    */
   public async setConfigFromFile(jsonFilePath: string): Promise<IpcResponse<void>> {
     try {
       const fileContent = fs.readFileSync(jsonFilePath, 'utf-8');
       const json = JSON.parse(fileContent);
 
-      const validation = examConfigPayloadSchema.safeParse(json);
+      let validation = examConfigPayloadSchema.safeParse(json);
+      if (!validation.success && json && typeof json === 'object' && 'testTitle' in json) {
+        const plain = backendExamConfigSchema.safeParse(json);
+        if (plain.success) {
+          validation = examConfigPayloadSchema.safeParse(prepareOfflineBundle(plain.data));
+        } else {
+          return {
+            success: false,
+            error: {
+              code: ErrorCode.INVALID_CONFIG_FORMAT,
+              message: `設定檔與後端格式不符：${plain.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join('\n')}`
+            }
+          };
+        }
+      }
       if (!validation.success) {
         const errorMsg = validation.error.issues
           .map((e) => `${e.path.join('.')}: ${e.message}`)
@@ -131,13 +145,12 @@ class ConfigService {
         };
       }
 
-      await this.applyPaper(validation.data.meta, validation.data.cipher);
-
       /* This machine has no backend to reach, so it stays offline for the run
        * — unless it turns out to have registered successfully at some point,
        * which is what actually decides the mode. The exam starts on the
        * invigilator's spoken password. */
       ramStore.isOfflineMode = true;
+      await this.applyPaper(validation.data.meta, validation.data.cipher);
       ramStore.examStatus = 'SETUP_FINISHED';
 
       logger.info('[Config] Offline deployment bundle loaded; questions remain sealed.');
@@ -250,7 +263,13 @@ class ConfigService {
     ramStore.examConfigCipher = cipher;
     ramStore.isConfigured = true;
 
-    if (ramStore.isOfflineMode) await environmentCheckService.applyMeta(meta);
+    // Diagnostics are advisory. Running compilers for every language can take
+    // a while; loading the sealed paper must not wait for that check to finish.
+    if (ramStore.isOfflineMode) {
+      void environmentCheckService.applyMeta(meta).catch((error) => {
+        logger.error('[Config] Offline environment check failed:', error);
+      });
+    }
 
     if (ramStore.examKey) {
       this.unsealPaper(ramStore.examKey);

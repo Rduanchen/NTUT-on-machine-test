@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import {
   examConfigSchema,
   examConfigMetaSchema,
+  examConfigPayloadSchema,
   examConfigSecretSchema,
   mergeExamConfig,
   type ExamConfigMeta,
@@ -27,6 +28,10 @@ const meta = (): ExamConfigMeta => examConfigMetaSchema.parse(fixture.full.paylo
 const secret = (): ExamConfigSecret => examConfigSecretSchema.parse(fixture.full.secret);
 
 describe('the contract fixture', () => {
+  it.each(['full', 'minimal'])('accepts the backend %s offline export', (variant) => {
+    expect(() => examConfigPayloadSchema.parse(fixture[variant].payload)).not.toThrow();
+  });
+
   it('parses as a meta half, with every optional field present', () => {
     expect(() => examConfigMetaSchema.parse(fixture.full.payload.meta)).not.toThrow();
   });

@@ -1,4 +1,4 @@
-import { examConfigSchema, ExamConfigSchema as ExamConfig } from "../schemas/examConfig.schema";
+import { backendExamConfigSchema, type BackendExamConfig as ExamConfig } from "../schemas/examConfig.schema";
 
 /**
  * 驗證給定的資料是否符合 midterm_test_config.json 的格式
@@ -9,7 +9,7 @@ import { examConfigSchema, ExamConfigSchema as ExamConfig } from "../schemas/exa
 export function validateConfigFormat(
     data: unknown
 ): { success: true; data: ExamConfig } | { success: false; error: string } {
-    const result = examConfigSchema.safeParse(data);
+    const result = backendExamConfigSchema.safeParse(data);
 
     if (result.success) {
         return { success: true, data: result.data };
