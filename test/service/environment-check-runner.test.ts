@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   EnvironmentCheckRunner,
-  probeEnvironmentTool
+  probeEnvironmentTool,
+  runEnvironmentDiagnostic
 } from '../../src/main/judge/node-judger/environment-check-runner';
 import { ENVIRONMENT_LANGUAGE_PROFILES } from '../../src/main/judge/node-judger/environment-profiles';
 
@@ -45,6 +46,23 @@ describe('environment check runner', () => {
       ['tle', 'passed'],
       ['mle', 'passed']
     ]);
+    expect(result.status).toBe('passed');
+  }, 15_000);
+
+  it('accepts Python smoke output with Windows CRLF line endings', async () => {
+    const profile = ENVIRONMENT_LANGUAGE_PROFILES.Python;
+    const result = await runEnvironmentDiagnostic(
+      {
+        ...profile,
+        smoke: {
+          ...profile.smoke,
+          source: "import sys; sys.stdout.buffer.write(b'ENV_CHECK_OK\\r\\n')"
+        }
+      },
+      'smoke',
+      new AbortController().signal
+    );
+
     expect(result.status).toBe('passed');
   }, 15_000);
 });

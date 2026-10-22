@@ -133,7 +133,9 @@ export async function runEnvironmentDiagnostic(
   const handle = judge.run({
     language: profile.judgeLanguage,
     codeString: diagnostic.source,
-    compareMode: 'strict',
+    // Smoke checks the marker, not the platform's newline convention. Python
+    // on Windows writes CRLF, which strict comparison misclassifies as WA.
+    compareMode: kind === 'smoke' ? 'loose' : 'strict',
     timeLimit: diagnostic.timeLimitMs,
     memoryLimit: diagnostic.memoryLimitBytes,
     subtasks: [[{ input: '', output: kind === 'smoke' ? 'ENV_CHECK_OK\n' : '' }]]

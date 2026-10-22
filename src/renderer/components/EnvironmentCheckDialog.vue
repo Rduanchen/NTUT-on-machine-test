@@ -122,12 +122,23 @@
                     }}</v-icon>
                     <div class="flex-grow-1">
                       <div class="font-weight-bold text-body-2">
-                        {{ t(`examSystem.environmentCheck.check.${check.kind}`) }}
+                        {{
+                          t(
+                            check.kind === 'smoke'
+                              ? `examSystem.environmentCheck.check.smoke.${check.status}`
+                              : `examSystem.environmentCheck.check.${check.kind}`
+                          )
+                        }}
                       </div>
                       <div class="text-caption text-medium-emphasis">
-                        {{ check.summary }} · {{ check.durationMs }}ms
+                        <span v-if="check.kind !== 'smoke' || check.status !== 'passed'"
+                          >{{ check.summary }} · </span
+                        >{{ check.durationMs }}ms
                       </div>
-                      <div v-if="check.technicalDetails" class="technical-detail mt-2">
+                      <div
+                        v-if="check.technicalDetails && (check.kind !== 'smoke' || check.status !== 'passed')"
+                        class="technical-detail mt-2"
+                      >
                         {{ check.technicalDetails }}
                       </div>
                     </div>

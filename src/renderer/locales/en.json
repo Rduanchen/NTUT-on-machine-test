@@ -27,13 +27,13 @@
     "environmentCheck": {
       "eyebrow": "Pre-exam safety check",
       "title": "Program environment report",
-      "openReport": "View compiler and runtime-limit diagnostics",
+      "openReport": "View execution environment diagnostics",
       "failureWarning": "Some execution environment checks did not pass.",
       "fixHint": "Install or repair the tool shown in the failed item, then run the check again.",
       "ignoreRisk": "If the exam will not be affected, an assistant may acknowledge the risk and continue. The report will remain failed.",
       "ignoreAndContinue": "Acknowledge risk and continue",
       "retry": "Run check again",
-      "tools": "Compiler and runtime tools",
+      "tools": "Language tools",
       "diagnostics": "Program diagnostics",
       "languageCount": "{count} exam languages",
       "awaitingConfig": "Waiting for exam configuration",
@@ -54,7 +54,7 @@
         "failed": "Failed"
       },
       "check": {
-        "smoke": "Compile and run",
+        "smoke": { "passed": "Execution Succeeded", "failed": "Execution Failed" },
         "tle": "Time limit (TLE)",
         "mle": "Memory limit (MLE)"
       }
