@@ -8,6 +8,7 @@ import { connectionService } from './connection.service';
 import { logger, logServerEvent } from './logger.service';
 import * as fs from 'fs';
 import { applyPuzzleRuleMultiplier, roundFinalScore } from '../../common/special-rule-score';
+import { isPassedSubtask } from '../../common/exam-score';
 
 class JudgeManagerService {
   private countPassedSubtasks(result: JudgeRunResult | undefined | null): number {
@@ -143,12 +144,10 @@ class JudgeManagerService {
 
                   const visibleCount = subtaskConfig.visible ? subtaskConfig.visible.length : 0;
 
-                  if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.length > 0) {
-                    if (subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
-                      puzzleScore += (subtaskConfig.score || 0);
-                      puzzlePassedSubtasks += 1;
-                      passedSubtaskAmount += 1;
-                    }
+                  if (isPassedSubtask(subtaskResult)) {
+                    puzzleScore += (subtaskConfig.score || 0);
+                    puzzlePassedSubtasks += 1;
+                    passedSubtaskAmount += 1;
                   }
 
                   subtasksInfo.push({
@@ -211,12 +210,10 @@ class JudgeManagerService {
 
                 const visibleCount = subtaskConfig.visible ? subtaskConfig.visible.length : 0;
 
-                if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.length > 0) {
-                  if (subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
-                    puzzleScore += (subtaskConfig.score || 0);
-                    puzzlePassedSubtasks += 1;
-                    passedSubtaskAmount += 1;
-                  }
+                if (isPassedSubtask(subtaskResult)) {
+                  puzzleScore += (subtaskConfig.score || 0);
+                  puzzlePassedSubtasks += 1;
+                  passedSubtaskAmount += 1;
                 }
 
                 subtasksInfo.push({

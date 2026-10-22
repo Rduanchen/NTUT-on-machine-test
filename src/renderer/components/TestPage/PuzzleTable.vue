@@ -23,15 +23,15 @@
                 }}</span>
                 <v-spacer></v-spacer>
                 <div v-if="group[0].sectionMaxScore" class="mr-4 text-caption text-grey-darken-1">
-                  {{ t('examSystem.puzzles.maxScoreLabel') }} {{ group[0].sectionMaxScore }}
+                  {{ t('examSystem.puzzles.maxScoreLabel') }} {{ formatScore(group[0].sectionMaxScore) }}
                 </div>
                 <div class="font-weight-bold ml-4">
                   Current:
-                  <span class="text-primary">{{ calculateSectionScore(group, false) }}</span>
+                  <span class="text-primary">{{ formatScore(calculateSectionScore(group, false)) }}</span>
                 </div>
                 <div class="font-weight-bold ml-4">
                   Highest:
-                  <span class="text-success">{{ calculateSectionScore(group, true) }}</span>
+                  <span class="text-success">{{ formatScore(calculateSectionScore(group, true)) }}</span>
                 </div>
               </div>
               <div
@@ -56,8 +56,8 @@
             :special-rule-results="specialRuleResults?.[String(item.id)]"
             :highest-special-rule-results="highestSpecialRuleResults?.[String(item.id)]"
             :loading="onSent[String(item.id)]"
-            :current-score="calculatePuzzleScore(item, false)"
-            :highest-score="calculatePuzzleScore(item, true)"
+            :current-score="formatScore(calculatePuzzleScore(item, false))"
+            :highest-score="formatScore(calculatePuzzleScore(item, true))"
             @open-result="$emit('open-result', item)"
             @upload="$emit('upload', item)"
           />
@@ -69,8 +69,8 @@
           <td colspan="4" class="text-right">
             {{ t('examSystem.puzzles.totalEstimatedScoreLabel') }}
           </td>
-          <td class="text-center">{{ totalCurrentScore }}</td>
-          <td class="text-center">{{ totalHighestScore }}</td>
+          <td class="text-center">{{ formatScore(totalCurrentScore) }}</td>
+          <td class="text-center">{{ formatScore(totalHighestScore) }}</td>
           <td></td>
         </tr>
       </tfoot>
@@ -85,7 +85,7 @@ import { useTheme } from 'vuetify';
 import PuzzleRow from './PuzzleRow.vue';
 import type { PuzzleInfo } from '../../../common/types';
 import type { SpecialRule, SpecialRuleResultRecord } from '../../../common/types';
-import { applyPuzzleRuleMultiplier } from '../../../common/special-rule-score';
+import { calculatePuzzleScore as scorePuzzle, formatScore, isPassedSubtask } from '../../../common/exam-score';
 
 const props = defineProps<{
   puzzles: PuzzleInfo[];
@@ -125,8 +125,7 @@ const highestPuzzlePassRates = computed<Record<string, { text: string; color: st
 
     const totalSubtasks = result.subtasks.length;
     const passedSubtasks = result.subtasks.reduce((acc: number, subtaskCases: any) => {
-      if (!Array.isArray(subtaskCases) || subtaskCases.length === 0) return acc;
-      return subtaskCases.every((c: any) => c?.statusCode === 'AC') ? acc + 1 : acc;
+      return isPassedSubtask(subtaskCases) ? acc + 1 : acc;
     }, 0);
 
     const rate = Math.round((passedSubtasks / totalSubtasks) * 100);
@@ -141,33 +140,9 @@ const highestPuzzlePassRates = computed<Record<string, { text: string; color: st
 function calculatePuzzleScore(puzzle: PuzzleInfo, useHighest: boolean = false): number {
   const resultSource = useHighest ? props.highestTestResult : props.testResult;
   const result = resultSource?.[String(puzzle.id)];
-  let baseScore = 0;
-
-  if (result && puzzle.subtasks && puzzle.subtasks.length > 0) {
-    for (let i = 0; i < puzzle.subtasks.length; i++) {
-      const subtaskResult = result.subtasks[i];
-      const subtaskConfig = puzzle.subtasks[i];
-
-      if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.length > 0) {
-        if (subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
-          baseScore += subtaskConfig.score || 0;
-        }
-      }
-    }
-  } else {
-    const passRatesSource = useHighest ? highestPuzzlePassRates.value : props.puzzlePassRates;
-    const passRateInfo = passRatesSource[String(puzzle.id)];
-    if (passRateInfo && passRateInfo.text !== 'N/A') {
-      const rate = parseInt(passRateInfo.text.replace('%', ''), 10);
-      if (!isNaN(rate)) {
-        baseScore = Number(((puzzle.score || 0) * (rate / 100)).toFixed(1));
-      }
-    }
-  }
-
   const srrSource = useHighest ? props.highestSpecialRuleResults : props.specialRuleResults;
   const srr = srrSource?.[String(puzzle.id)];
-  return applyPuzzleRuleMultiplier(baseScore, srr ?? [], puzzle.multiplier ?? 0.5);
+  return scorePuzzle(puzzle, result, srr ?? []);
 }
 
 function calculateSectionScore(group: PuzzleInfo[], useHighest: boolean = false): number {

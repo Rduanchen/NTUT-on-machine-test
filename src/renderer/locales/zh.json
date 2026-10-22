@@ -193,10 +193,11 @@
         "versionHighestShort": "最高分版",
         "startUpload": "開始上傳",
         "confirmWithTA": "請先與助教確認成績",
-        "confirmWithTADesc": "您的成績與程式碼已上傳至伺服器。請呼叫助教來確認成績，如果成績有誤，您可以點擊「取消」重新上傳另一個版本。確認無誤後，才能點擊「確認並且結束考試」。",
-        "confirmWarningTitle": "注意：確認後將無法反悔",
-        "confirmWarningDesc": "點擊「確認並且結束考試」後，您將無法再修改或重新提交程式碼。",
-        "confirmButton": "確認並且結束考試"
+        "confirmWithTADesc": "成績與程式碼已同步。請與助教確認分數；如需修改，可關閉視窗繼續作答，再重新上傳。",
+        "confirmWarningTitle": "考試仍在進行中",
+        "confirmWarningDesc": "確認分數後會停留在此視窗。您仍可關閉視窗繼續作答，直到全域考試結束。",
+        "confirmButton": "確認分數",
+        "confirmedNotice": "已確認分數，等待全域考試結束。"
       },
       "headers": {
         "id": "編號",

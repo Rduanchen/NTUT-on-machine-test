@@ -134,8 +134,8 @@
             <div v-else-if="showPreview">
               <div class="text-center mb-4">
                 <v-icon size="48" color="primary" class="mb-2">mdi-trophy-award</v-icon>
-                <div class="text-h3 font-weight-black text-primary">{{ finalScore }}</div>
-                <div class="text-caption text-medium-emphasis">/ 100 {{ t('finished.points') || '分' }}</div>
+                <div class="text-h3 font-weight-black text-primary">{{ formatScore(scoreSummary.total) }}</div>
+                <div class="text-caption text-medium-emphasis">/ {{ formatScore(scoreSummary.maxScore) }} {{ t('finished.points') }}</div>
               </div>
 
               <!-- Sections Summary (simplified) -->
@@ -155,7 +155,7 @@
                     :color="section.passedSubtasks === section.totalSubtasks ? 'success' : section.passedSubtasks > 0 ? 'warning' : 'error'"
                     size="small"
                   >
-                    {{ section.score }}%
+                    {{ formatScore(section.score) }} {{ t('finished.points') }}
                   </v-chip>
                 </div>
               </div>
@@ -169,12 +169,15 @@
                 <div class="text-subtitle-2 font-weight-bold">{{ t('examSystem.puzzles.finisheTheExam.confirmWarningTitle') }}</div>
                 <div class="text-body-2">{{ t('examSystem.puzzles.finisheTheExam.confirmWarningDesc') }}</div>
               </v-alert>
+              <v-alert v-if="isConfirmed" type="success" variant="tonal" class="mt-4">
+                {{ t('examSystem.puzzles.finisheTheExam.confirmedNotice') }}
+              </v-alert>
             </div>
           </v-card-text>
 
           <v-card-actions>
             <v-spacer />
-            <v-btn text :disabled="isLoading" @click="cancelDialog">{{ t('examSystem.common.cancel') || '取消' }}</v-btn>
+            <v-btn text :disabled="isLoading" @click="cancelDialog">{{ showSelection ? t('examSystem.common.cancel') : t('examSystem.common.close') }}</v-btn>
             <v-btn
               v-if="showSelection"
               color="primary"
@@ -183,15 +186,11 @@
             >
               {{ t('examSystem.puzzles.finisheTheExam.startUpload') }}
             </v-btn>
-            <v-btn
-              v-else-if="!isLoading"
-              color="error"
-              variant="elevated"
-              prepend-icon="mdi-flag-checkered"
-              :disabled="countdown > 0"
-              @click="confirmAndEndExam"
-            >
-              {{ t('examSystem.puzzles.finisheTheExam.confirmButton') }} <span v-if="countdown > 0">({{ countdown }})</span>
+            <v-btn v-else-if="showPreview && !isConfirmed" color="error" variant="elevated"
+              prepend-icon="mdi-flag-checkered" :disabled="countdown > 0"
+              @click="confirmAndStay">
+              {{ t('examSystem.puzzles.finisheTheExam.confirmButton') }}
+              <span v-if="countdown > 0">({{ countdown }})</span>
             </v-btn>
           </v-card-actions>
         </v-card>
@@ -201,10 +200,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { JudgeRunResult, ExamConfig } from '../../common/types';
-import { applyPuzzleRuleMultiplier, roundFinalScore } from '../../../common/special-rule-score';
+import { formatScore, summarizeExamScore } from '../../../common/exam-score';
 
 defineProps<{ 
   puzzleCount: number,
@@ -238,13 +237,13 @@ const showSelection = ref(true);
 const selectedVersion = ref('current');
 const isLoading = ref(false);
 const showPreview = ref(false);
+const isConfirmed = ref(false);
 const countdown = ref(5);
-let countdownTimer: any = null;
+let countdownTimer: ReturnType<typeof setInterval> | null = null;
 
 const testResults = ref<Record<string, JudgeRunResult>>({});
 const examConfig = ref<ExamConfig | null>(null);
 const specialRuleResults = ref<Record<string, any>>({});
-const effectiveSpecialRules = ref<Record<string, any>>({});
 
 type StepStatus = 'waiting' | 'running' | 'success' | 'failed';
 
@@ -272,97 +271,11 @@ const steps = computed(() => [
   },
 ]);
 
-// ─── Score Computed ───
-interface SectionSummary {
-  id: string;
-  title: string;
-  passedSubtasks: number;
-  totalSubtasks: number;
-  score: number;
-}
-
-const sections = computed<SectionSummary[]>(() => {
-  if (!examConfig.value) return [];
-  
-  const allPuzzles = examConfig.value.sections?.flatMap((s: any) => s.puzzles) ?? examConfig.value.puzzles ?? [];
-  const rawSections = examConfig.value.sections || [];
-  
-  if (rawSections.length === 0 && examConfig.value.puzzles && examConfig.value.puzzles.length > 0) {
-    rawSections.push({
-      id: 'default',
-      title: t('examSystem.puzzles.defaultSection'),
-      puzzles: examConfig.value.puzzles
-    });
-  }
-
-  return rawSections.map((section: any) => {
-    let passed = 0;
-    let total = 0;
-    let sectionScore = 0;
-
-    for (const puzzle of section.puzzles) {
-      const puzzleIndexInAll = allPuzzles.findIndex((p: any) => p.id === puzzle.id && p.title === puzzle.title);
-      const fallbackKey = puzzleIndexInAll !== -1 ? String(puzzleIndexInAll) : '';
-      const puzzleKey = (puzzle.id && testResults.value[puzzle.id])
-        ? puzzle.id
-        : (testResults.value[fallbackKey] ? fallbackKey : (puzzle.id ?? puzzle.title ?? ''));
-
-      const result = testResults.value[puzzleKey];
-      let puzzlePassedSubtasks = 0;
-      let puzzleTotalSubtasks = puzzle.subtasks?.length || 0;
-      
-      let puzzleScore = 0;
-      
-      if (puzzle.subtasks && puzzle.subtasks.length > 0) {
-        for (let i = 0; i < puzzle.subtasks.length; i++) {
-          const subtask = puzzle.subtasks[i];
-          const subtaskResult = result?.subtasks?.[i];
-          if (subtaskResult && Array.isArray(subtaskResult) && subtaskResult.every((c: any) => c?.statusCode === 'AC')) {
-            puzzleScore += (subtask.score || 0);
-            puzzlePassedSubtasks++;
-          }
-        }
-      } else {
-        if (result?.subtasks) {
-          puzzleTotalSubtasks = result.subtasks.length;
-          for (const subtaskCases of result.subtasks) {
-            if (Array.isArray(subtaskCases) && subtaskCases.every((c: any) => c?.statusCode === 'AC')) {
-              puzzlePassedSubtasks++;
-            }
-          }
-        }
-        const rate = puzzleTotalSubtasks > 0 ? (puzzlePassedSubtasks / puzzleTotalSubtasks) : 0;
-        const baseScore = puzzle.score || 0;
-        puzzleScore = baseScore * rate;
-      }
-
-      passed += puzzlePassedSubtasks;
-      total += puzzleTotalSubtasks;
-
-      const srr = specialRuleResults.value?.[puzzleKey];
-      const finalPuzzleScore = applyPuzzleRuleMultiplier(puzzleScore, srr ?? [], puzzle.multiplier ?? 0.5);
-      sectionScore += finalPuzzleScore;
-    }
-
-    const cappedScore = (section.maxScore !== undefined && section.maxScore !== null && section.maxScore >= 0)
-      ? Math.min(sectionScore, section.maxScore)
-      : sectionScore;
-
-    return {
-      id: section.id,
-      title: section.title,
-      passedSubtasks: passed,
-      totalSubtasks: total,
-      score: cappedScore,
-    };
-  });
-});
-
-const finalScore = computed(() => {
-  const allSections = sections.value;
-  if (allSections.length === 0) return 0;
-  return roundFinalScore(allSections.reduce((a, s) => a + s.score, 0));
-});
+const scoreSummary = computed(() => summarizeExamScore(
+  examConfig.value, testResults.value, specialRuleResults.value,
+  t('examSystem.puzzles.defaultSection')
+));
+const sections = computed(() => scoreSummary.value.sections);
 
 // ─── Actions ───
 function startFinishFlow() {
@@ -370,6 +283,7 @@ function startFinishFlow() {
   showSelection.value = true;
   isLoading.value = false;
   showPreview.value = false;
+  isConfirmed.value = false;
   selectedVersion.value = 'current';
   if (countdownTimer) clearInterval(countdownTimer);
 }
@@ -453,7 +367,6 @@ async function startUploadFlow() {
       } else {
         specialRuleResults.value = await window.api.store.getSpecialRuleResults?.() || {};
       }
-      effectiveSpecialRules.value = await window.api.store.getEffectiveSpecialRules?.() || {};
     }
   } catch (error) {
     console.error("Failed in finish exam flow:", error);
@@ -465,23 +378,23 @@ async function startUploadFlow() {
     await new Promise((resolve) => setTimeout(resolve, 800));
     isLoading.value = false;
     showPreview.value = true;
-
-    // Start 5 second countdown for confirm button
     countdown.value = 5;
     countdownTimer = setInterval(() => {
-      countdown.value--;
-      if (countdown.value <= 0) {
-        clearInterval(countdownTimer);
-      }
+      countdown.value -= 1;
+      if (countdown.value <= 0 && countdownTimer) clearInterval(countdownTimer);
     }, 1000);
   }
 }
 
-function confirmAndEndExam() {
+function confirmAndStay() {
   if (countdownTimer) clearInterval(countdownTimer);
-  isDialogActive.value = false;
+  isConfirmed.value = true;
   emit('finish-exam');
 }
+
+onBeforeUnmount(() => {
+  if (countdownTimer) clearInterval(countdownTimer);
+});
 </script>
 
 <style scoped>

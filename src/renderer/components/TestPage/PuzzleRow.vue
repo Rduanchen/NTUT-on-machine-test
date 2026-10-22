@@ -85,8 +85,8 @@ const props = defineProps<{
   effectiveSpecialRules?: SpecialRule[];
   specialRuleResults?: SpecialRuleResultRecord[];
   highestSpecialRuleResults?: SpecialRuleResultRecord[];
-  currentScore?: number;
-  highestScore?: number;
+  currentScore?: string;
+  highestScore?: string;
 }>();
 defineEmits(['open-result', 'upload']);
 const { t } = useI18n();

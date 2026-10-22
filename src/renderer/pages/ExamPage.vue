@@ -271,8 +271,6 @@ async function handleFinishExam() {
   if (window.api?.log) {
     await window.api.log.serverEvent('END_EXAM', '使用者主動結束考試');
   }
-  // No need to sync results/code here because they were synced in the toolbar dialog
-  router.push('/finished');
 }
 
 function openResultDialog(item: PuzzleInfo) {

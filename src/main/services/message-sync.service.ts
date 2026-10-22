@@ -34,7 +34,12 @@ class MessageSyncService {
     if (this.socket && this.socket.connected) {
       const deviceUuid = await getDeviceUuid();
       logger.info(`[MessageSync] Registering socket for device: ${deviceUuid}`);
-      this.socket.emit('register', { device_uuid: deviceUuid });
+      this.socket.emit('register', {
+        device_uuid: deviceUuid,
+        session_token: ramStore.isStudentVerified
+          ? ramStore.cryptoState?.userSessionID
+          : undefined
+      });
     }
   }
 

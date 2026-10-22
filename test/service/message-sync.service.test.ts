@@ -163,6 +163,18 @@ describe('Message Sync Service', () => {
     (messageSyncService as any).isConfigRefreshing = false;
   });
 
+  it('sends the active session token when registering after reconnect', async () => {
+    (messageSyncService as any).socket = mocks.mockSocket;
+    mocks.mockRamStoreState.cryptoState.userSessionID = 'active-session';
+
+    await messageSyncService.registerSocket();
+
+    expect(mocks.mockSocket.emit).toHaveBeenCalledWith('register', {
+      device_uuid: 'device-uuid-123',
+      session_token: 'active-session'
+    });
+  });
+
   afterEach(() => {
     messageSyncService.stop();
     vi.useRealTimers();

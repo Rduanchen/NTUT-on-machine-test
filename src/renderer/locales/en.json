@@ -196,10 +196,11 @@
         "versionHighestShort": "Highest Score",
         "startUpload": "Start Upload",
         "confirmWithTA": "Please verify your score with the TA first",
-        "confirmWithTADesc": "Your score and code have been uploaded to the server. Please call the TA to verify your score. If there is an error, you can click \"Cancel\" to re-upload another version. Only after verification is correct can you click \"Confirm and End Exam\".",
-        "confirmWarningTitle": "Warning: Cannot be undone after confirmation",
-        "confirmWarningDesc": "After clicking \"Confirm and End Exam\", you will not be able to modify or resubmit your code.",
-        "confirmButton": "Confirm and End Exam"
+        "confirmWithTADesc": "Your score and code have been synced. Verify your score with the TA. You can close this dialog, keep working, and upload again if needed.",
+        "confirmWarningTitle": "The exam is still in progress",
+        "confirmWarningDesc": "Confirming your score keeps this dialog open. You can close it and continue working until the global exam ends.",
+        "confirmButton": "Confirm Score",
+        "confirmedNotice": "Score confirmed. Waiting for the global exam to end."
       },
       "summary": "{count} problems in total",
       "headers": {
