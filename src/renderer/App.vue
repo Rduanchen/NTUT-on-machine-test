@@ -45,12 +45,23 @@
           <v-text class="mr-3 font-weight-medium" style="font-size: 1.2em">
             {{ t('examSystem.developedBy') }}
             <span
-              :class="['neon-text', isDark ? 'neon-text--dark' : 'neon-text--light']"
+              :class="[
+                'neon-text',
+                isDark ? 'neon-text--dark' : 'neon-text--light',
+                { 'neon-text--inviting': easterEggHintActive }
+              ]"
+              role="button"
+              tabindex="0"
               @click="handleSecretClick"
+              @keydown.enter.prevent="handleSecretClick"
+              @keydown.space.prevent="handleSecretClick"
             >
               {{ t('examSystem.easterEgg.developerName') }}
+              <span v-if="easterEggHintActive" class="easter-egg-hint">click me</span>
               <v-tooltip activator="parent" location="bottom" open-delay="50">
-                <span class="text-caption">{{ t('examSystem.secretLabel') }}</span>
+                <span class="text-caption">{{
+                  easterEggHintActive ? 'click me' : t('examSystem.secretLabel')
+                }}</span>
               </v-tooltip>
             </span>
           </v-text>
@@ -91,8 +102,14 @@
 
       <!-- Actions -->
       <div class="d-flex align-center">
-        <v-btn icon variant="text" size="small" id="language-activator">
-          <v-icon>mdi-translate</v-icon>
+        <v-btn
+          variant="text"
+          size="small"
+          id="language-activator"
+          prepend-icon="mdi-translate"
+          class="text-none"
+        >
+          {{ locale === 'en' ? '切換語言' : 'switch language' }}
           <v-tooltip activator="parent" location="bottom">{{
             t('examSystem.currentLanguage')
           }}</v-tooltip>
@@ -177,6 +194,14 @@
         </div>
 
         <v-divider class="mb-4"></v-divider>
+
+        <div class="easter-egg-message text-body-1 mb-6">
+          <p class="mb-3">不會寫考試的內容嗎？你可以試試看：</p>
+          <pre class="easter-egg-code mb-3"><code>print("帥氣的郭佬菜菜撈撈")</code></pre>
+          <p>
+            也許他真的會撈你，學長我就只能幫到這裡了，祝各位好運~~~(如果成功浪費各位三秒鐘我就值得了)
+          </p>
+        </div>
 
         <v-btn color="primary" variant="flat" block size="large" @click="showEasterEgg = false">
           {{ t('examSystem.common.close') }}
@@ -407,6 +432,8 @@ onBeforeUnmount(() => {
   stopEnvironmentUpdates?.();
   stopConnectionUpdates?.();
   stopExamStatusUpdates?.();
+  if (clickTimer.value) clearTimeout(clickTimer.value);
+  if (easterEggHintTimer !== null) clearTimeout(easterEggHintTimer);
 });
 
 watch(
@@ -422,11 +449,48 @@ watch(
 );
 
 const showEasterEgg = ref(false);
+const easterEggHintStorageKey = 'easter-egg-hint-opened';
+const easterEggHintScheduledAtKey = 'easter-egg-hint-scheduled-at';
+const easterEggHintActive = ref(false);
+let easterEggHintTimer = null;
 const clickCount = ref(0);
 const clickTimer = ref(null);
 
+onMounted(() => {
+  if (sessionStorage.getItem(easterEggHintStorageKey) === 'true') return;
+
+  // 保留本次視窗的隨機觸發時間，重新整理不會重新抽選或重算等待時間。
+  const savedScheduledAt = Number(sessionStorage.getItem(easterEggHintScheduledAtKey));
+  const scheduledAt =
+    Number.isFinite(savedScheduledAt) && savedScheduledAt > 0
+      ? savedScheduledAt
+      : Date.now() + 30 * 60_000 + Math.random() * 10 * 60_000;
+  sessionStorage.setItem(easterEggHintScheduledAtKey, String(scheduledAt));
+
+  easterEggHintTimer = setTimeout(
+    () => {
+      easterEggHintTimer = null;
+      easterEggHintActive.value = true;
+    },
+    Math.max(0, scheduledAt - Date.now())
+  );
+});
+
+const openEasterEgg = () => {
+  if (easterEggHintTimer !== null) clearTimeout(easterEggHintTimer);
+  easterEggHintTimer = null;
+  easterEggHintActive.value = false;
+  sessionStorage.setItem(easterEggHintStorageKey, 'true');
+  showEasterEgg.value = true;
+};
+
 // 處理秘密點擊邏輯
 const handleSecretClick = () => {
+  if (easterEggHintActive.value) {
+    openEasterEgg();
+    return;
+  }
+
   clickCount.value++;
 
   // 如果已經啟動計時器，先清除它（重置時間窗口）
@@ -434,7 +498,7 @@ const handleSecretClick = () => {
 
   // 如果達到 3 次點擊
   if (clickCount.value === 3) {
-    showEasterEgg.value = true;
+    openEasterEgg();
     clickCount.value = 0; // 重置計數
   } else {
     // 設定一個短暫的時間 (500ms)，如果沒繼續點擊就會重置計數
@@ -518,6 +582,52 @@ const handleSecretClick = () => {
     /* 內層粉 */ 0 0 4px #ffe600,
     /* 中層黃 */ 0 0 6px #39ff14,
     /* 外層綠 */ 0 0 8px #00d4ff; /* 最外層青 */
+}
+
+.neon-text--inviting,
+.neon-text--inviting:hover {
+  animation:
+    easter-egg-bounce 0.65s ease-in-out infinite,
+    glow-cycle-light 1s linear infinite;
+}
+
+.neon-text--dark.neon-text--inviting {
+  animation-name: easter-egg-bounce, glow-cycle-dark;
+}
+
+.easter-egg-hint {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 6px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.65em;
+  line-height: 1.2;
+  vertical-align: middle;
+  text-shadow: none;
+}
+
+.easter-egg-message {
+  max-width: 420px;
+  line-height: 1.7;
+}
+
+.easter-egg-code {
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(var(--v-theme-on-surface), 0.06);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@keyframes easter-egg-bounce {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.05);
+  }
 }
 
 /* --- 4色輪播動畫 (低調版) --- */
