@@ -13,6 +13,7 @@ export enum ErrorCode {
    * normal path for anything arriving after the room has filled, a restarted
    * machine included. */
   ENTRY_PENDING = 'ENTRY_PENDING',
+  ENTRY_REJECTED = 'ENTRY_REJECTED',
   TOKEN_INVALID = 'TOKEN_INVALID',
   CRYPTO_NOT_INITIALIZED = 'CRYPTO_NOT_INITIALIZED',
 

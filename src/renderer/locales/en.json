@@ -1,4 +1,12 @@
 {
+  "entryApproval": {
+    "rejectedTitle": "Entry request rejected",
+    "rejectedSubtitle": "The invigilator did not approve this machine's entry request",
+    "rejectedMessage": "Please ask the invigilator for details. You can submit a new request below.",
+    "resubmit": "Submit a new request",
+    "resubmitFailed": "Could not submit the request. Check the connection and try again.",
+    "checkFailed": "Could not check the request status. Will retry shortly."
+  },
   "login": {
     "title": "Student Login",
     "subtitle": "Enter your student ID to access the exam",

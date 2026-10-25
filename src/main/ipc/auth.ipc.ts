@@ -33,7 +33,7 @@ import fs from 'fs';
  * apart. It also means a machine that is refused registration says so, instead
  * of surfacing as a failed login.
  */
-async function registerThisDevice(): Promise<IpcResponse<void>> {
+async function registerThisDevice(resubmit = false): Promise<IpcResponse<void>> {
   logger.info('[Auth] Device registration attempt');
   try {
     const keyResponse = await getPublicKey();
@@ -49,7 +49,7 @@ async function registerThisDevice(): Promise<IpcResponse<void>> {
       keyResponse.data.publicKey,
       deviceUuid
     );
-    const registerResponse = await registerDevice(deviceUuid, encrypted_aes_key);
+    const registerResponse = await registerDevice(deviceUuid, encrypted_aes_key, resubmit);
 
     if (!registerResponse.success) {
       /* The key was written to memory before the request. Clearing it keeps
@@ -69,6 +69,16 @@ async function registerThisDevice(): Promise<IpcResponse<void>> {
           error: {
             code: ErrorCode.ENTRY_PENDING,
             message: registerResponse.error?.message ?? 'Waiting for the invigilator to approve this machine.'
+          }
+        };
+      }
+
+      if (code === 'entry_rejected') {
+        return {
+          success: false,
+          error: {
+            code: ErrorCode.ENTRY_REJECTED,
+            message: registerResponse.error?.message ?? 'The invigilator rejected this entry request.'
           }
         };
       }
@@ -128,8 +138,8 @@ export function registerAuthIpc(): void {
    * 2. Generate AES key + session ID
    * 3. Encrypt and register with server
    */
-  ipcMain.handle('auth:register', async (): Promise<IpcResponse<void>> => {
-    return registerThisDevice();
+  ipcMain.handle('auth:register', async (_event, resubmit?: boolean): Promise<IpcResponse<void>> => {
+    return registerThisDevice(resubmit === true);
   });
 
   /**

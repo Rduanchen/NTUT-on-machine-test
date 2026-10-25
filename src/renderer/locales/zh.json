@@ -1,4 +1,12 @@
 {
+  "entryApproval": {
+    "rejectedTitle": "入場申請已被拒絕",
+    "rejectedSubtitle": "監考人員未核准這台機器的入場申請",
+    "rejectedMessage": "請洽監考人員確認原因。如需再次申請，請按下重新送出申請。",
+    "resubmit": "重新送出申請",
+    "resubmitFailed": "申請送出失敗，請確認網路連線後再試一次。",
+    "checkFailed": "無法確認申請狀態，稍後會自動重試。"
+  },
   "login": {
     "title": "學生登入",
     "subtitle": "請輸入您的學號以進入考試",

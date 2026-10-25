@@ -242,6 +242,22 @@ describe('auth.ipc', () => {
       expect(result.error?.code).toBe('ENTRY_PENDING');
     });
 
+    it('reports a rejected entry request and forwards explicit resubmission', async () => {
+      vi.mocked(registerDevice).mockResolvedValueOnce({
+        success: false,
+        error: { code: 'entry_rejected', message: 'Rejected by TA' }
+      } as any).mockResolvedValueOnce({
+        success: false,
+        error: { code: 'entry_pending', message: 'Pending again' }
+      } as any);
+
+      expect((await invoke('auth:register')).error?.code).toBe('ENTRY_REJECTED');
+      expect(vi.mocked(registerDevice)).toHaveBeenNthCalledWith(1, expect.any(String), expect.any(String), false);
+      expect((await invoke('auth:register', true)).error?.code).toBe('ENTRY_PENDING');
+      expect(vi.mocked(registerDevice)).toHaveBeenNthCalledWith(2, expect.any(String), expect.any(String), true);
+      expect(await invoke('auth:is-registered')).toBe(false);
+    });
+
     it('does not claim to hold a key while waiting for approval', async () => {
       /* The page derivation reads "holds a key". A machine that kept one after
        * being refused would derive to the login screen and sit there. */

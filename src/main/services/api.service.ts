@@ -131,9 +131,9 @@ export async function getPublicKey(): Promise<IpcResponse<{ publicKey: string }>
   }
 }
 
-export async function registerDevice(device_uuid: string, encrypted_aes_key: string): Promise<IpcResponse<void>> {
+export async function registerDevice(device_uuid: string, encrypted_aes_key: string, resubmit = false): Promise<IpcResponse<void>> {
   try {
-    const response = await publicClient.post(`${getBaseUrl()}/auth/register-device`, { device_uuid, encrypted_aes_key });
+    const response = await publicClient.post(`${getBaseUrl()}/auth/register-device`, { device_uuid, encrypted_aes_key, resubmit });
     return { success: true, data: response.data };
   } catch (error) {
     return makeErrorResponse('registerDevice', error);

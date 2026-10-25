@@ -34,7 +34,7 @@ const api = {
 
   /** Authentication: student login and verification */
   auth: {
-    register: () => ipcRenderer.invoke('auth:register'),
+    register: (resubmit?: boolean) => ipcRenderer.invoke('auth:register', resubmit),
     login: (studentId?: string) => ipcRenderer.invoke('auth:login', studentId),
     isVerified: () => ipcRenderer.invoke('auth:is-verified'),
     isRegistered: () => ipcRenderer.invoke('auth:is-registered'),
