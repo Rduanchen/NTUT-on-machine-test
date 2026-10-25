@@ -23,6 +23,8 @@
 
       <v-divider class="mb-6" />
 
+      <PaperPreparationStatus />
+
       <!-- Student Info Card -->
       <v-card
         v-if="studentInfo"
@@ -105,6 +107,7 @@
 </template>
 
 <script setup lang="ts">
+import PaperPreparationStatus from '../components/PaperPreparationStatus.vue';
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { goToDerivedPage } from '../router/navigate';

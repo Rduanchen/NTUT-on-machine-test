@@ -1,3 +1,4 @@
+import { configService } from '../../src/main/services/config.service';
 import { environmentCheckService } from '../../src/main/services/environment-check.service';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -51,6 +52,8 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock('../../src/main/services/environment-check.service', () => ({ environmentCheckService: { prepareOnline: vi.fn().mockResolvedValue(undefined), flushReport: vi.fn().mockResolvedValue(undefined) } }));
+
+vi.mock('../../src/main/services/config.service', () => ({ configService: { preparePaper: vi.fn().mockResolvedValue({ success: true }) } }));
 
 vi.mock('../../src/main/services/api.service', () => ({
   logAction: mocks.mockLogAction,
@@ -217,6 +220,17 @@ describe('Connection Service', () => {
       triggerStatus('connected');
       // just ensuring it doesn't throw
     });
+  });
+
+  it('starts preparation independently on reconnect and retains failed refresh intent', async () => {
+    vi.mocked(configService.preparePaper).mockResolvedValueOnce({ success: false });
+    (connectionService as any).pendingConfigRefresh = true;
+    await (connectionService as any).onConnectionRestored();
+    expect(configService.preparePaper).toHaveBeenCalledWith(true);
+    expect((connectionService as any).pendingConfigRefresh).toBe(true);
+    vi.mocked(configService.preparePaper).mockResolvedValueOnce({ success: true });
+    await (connectionService as any).onConnectionRestored();
+    expect((connectionService as any).pendingConfigRefresh).toBe(false);
   });
 
   describe('onConnectionRestored - Sync logic', () => {

@@ -61,6 +61,7 @@ vi.mock('../../src/main/services/message-sync.service', () => ({
 
 vi.mock('../../src/main/services/config.service', () => ({
   configService: {
+    preparePaper: vi.fn().mockResolvedValue({ success: true }),
     fetchAndSaveConfig: vi.fn().mockResolvedValue({ success: true }),
     ensureExamPaperReadable: vi.fn().mockResolvedValue({ success: true }),
   }
@@ -115,6 +116,7 @@ describe('auth.ipc', () => {
 
       const result = await invoke('auth:register');
       expect(messageSyncService.registerSocket).toHaveBeenCalled();
+      expect(configService.preparePaper).toHaveBeenCalledWith();
       expect(environmentCheckService.prepareOnline).toHaveBeenCalledOnce();
       expect(result).toEqual({ success: true });
     });

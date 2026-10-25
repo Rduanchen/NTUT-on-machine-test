@@ -1,3 +1,4 @@
+import { configService } from './config.service';
 import { environmentCheckService } from './environment-check.service';
 import { ramStore } from './ramStore.service';
 import {
@@ -128,6 +129,9 @@ class ConnectionService {
     }
     
     this.isSyncing = true;
+    void configService.preparePaper(this.pendingConfigRefresh).then(result => {
+      if (result.success) this.pendingConfigRefresh = false;
+    }).catch(error => logger.warn('[Connection] Paper preparation failed:', error));
     void environmentCheckService.prepareOnline();
     void environmentCheckService.flushReport();
 
@@ -164,7 +168,6 @@ class ConnectionService {
       // 3. Refresh config if pending
       if (this.pendingConfigRefresh && ramStore.backendUrl) {
         logger.info('[Connection] Refreshing config after reconnect');
-        this.pendingConfigRefresh = false;
       }
     } catch (error) {
       logger.error('[Connection] Error during reconnect sync:', error);

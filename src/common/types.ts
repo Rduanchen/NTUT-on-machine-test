@@ -236,7 +236,16 @@ export interface EnvironmentCheckReport {
   message: string;
 }
 
+export type PaperPreparationUpdate = (
+  | { status: 'IDLE'; hasUsablePaper: false }
+  | { status: 'FETCHING'; hasUsablePaper: boolean }
+  | { status: 'READY'; hasUsablePaper: true }
+  | { status: 'ERROR'; hasUsablePaper: boolean; error: { code: string; message: string } }
+);
+export type PaperPreparationState = PaperPreparationUpdate & { revision: number };
+
 export interface RamStoreState {
+  paperPreparation: PaperPreparationState;
   examConfig: ExamConfig | null;
   /* Feature 007: the paper's two halves and the key that joins them. */
   examConfigMeta: ExamConfigMetaShape | null;

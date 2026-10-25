@@ -12,7 +12,9 @@ import type {
   UploadVersionPreference,
   EnvironmentCheckReport,
   EncryptedEnvelope,
-  ExamConfigMetaShape
+  ExamConfigMetaShape,
+  PaperPreparationState,
+  PaperPreparationUpdate
 } from '../../common/types';
 import * as os from 'os';
 
@@ -40,7 +42,11 @@ export function createIdleEnvironmentCheckReport(): EnvironmentCheckReport {
 class RamStoreService {
   private static instance: RamStoreService;
 
+  private generation = 0;
+  private paperRevision = 0;
+
   private state: RamStoreState = {
+    paperPreparation: { status: 'IDLE', hasUsablePaper: false, revision: 0 },
     examConfig: null,
     examConfigMeta: null,
     examConfigCipher: null,
@@ -90,18 +96,26 @@ class RamStoreService {
   }
 
   public set<K extends keyof RamStoreState>(key: K, value: RamStoreState[K]): void {
+    if (key === 'backendUrl' && value !== this.state.backendUrl) this.invalidatePaper();
+    if (key === 'cryptoState') {
+      const nextKey = value !== null && typeof value === 'object' && 'aesKeyHex' in value ? value.aesKeyHex : undefined;
+      if (nextKey !== this.state.cryptoState?.aesKeyHex) this.invalidatePaper();
+    }
     this.state[key] = value;
     this.emit(key, value);
   }
 
   public delete<K extends keyof RamStoreState>(key: K): void {
+    if (key === 'cryptoState' || key === 'backendUrl') this.invalidatePaper();
     const mutableState = this.state as unknown as Record<string, unknown>;
     mutableState[String(key)] = null;
     this.emit(String(key), null);
   }
 
   public clear(): void {
+    this.invalidatePaper();
     this.state = {
+      paperPreparation: this.state.paperPreparation,
       examConfig: null,
       examConfigMeta: null,
       examConfigCipher: null,
@@ -146,6 +160,7 @@ class RamStoreService {
    * the machine can watch for the next exam rather than needing a restart.
    */
   public clearForReset(): void {
+    this.invalidatePaper();
     // Identity — the server has forgotten these, so must this machine.
     this.set('cryptoState', null);
     this.set('studentInfo', { id: '', name: '' });
@@ -183,6 +198,24 @@ class RamStoreService {
 
     // Last, so anything watching the phase re-derives against a cleared store.
     this.set('examStatus', 'UNINITIALIZED');
+  }
+
+  get paperGeneration(): number { return this.generation; }
+
+  get paperPreparation(): PaperPreparationState { return this.state.paperPreparation; }
+
+  public setPaperPreparation(state: PaperPreparationUpdate): void {
+    this.set('paperPreparation', { ...state, revision: ++this.paperRevision });
+  }
+
+  public invalidatePaper(): void {
+    this.generation++;
+    this.set('examConfigMeta', null);
+    this.set('examConfigCipher', null);
+    this.set('examKey', null);
+    this.set('examConfig', null);
+    this.set('isConfigured', false);
+    this.setPaperPreparation({ status: 'IDLE', hasUsablePaper: false });
   }
 
   // ─── Event System ─────────────────────────────────────────────

@@ -68,6 +68,12 @@ export function registerStoreIpc(): void {
     win.webContents?.send('store:config-updated');
   });
 
+  ramStore.on('paperPreparation', (state) => {
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) win.webContents?.send('store:paper-preparation-changed', state);
+  });
+  ipcMain.handle('store:get-paper-preparation', () => ramStore.paperPreparation);
+
   ipcMain.handle('store:get-connection-status', () => {
     return ramStore.connectionStatus;
   });

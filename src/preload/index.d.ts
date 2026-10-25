@@ -1,5 +1,6 @@
 import type {
   IpcResponse,
+  PaperPreparationState,
   PuzzleInfo,
   StudentInformation,
   JudgeRunResult,
@@ -15,6 +16,7 @@ import type {
 } from '../common/types';
 
 interface ConfigAPI {
+  preparePaper: () => Promise<IpcResponse<void>>;
   setJson: (jsonFilePath: string) => Promise<IpcResponse<void>>;
   getFromServer: (host: string) => Promise<IpcResponse<void>>;
   getServerStatus: (hostname: string) => Promise<IpcResponse<void>>;
@@ -42,6 +44,8 @@ interface EnvironmentCheckAPI {
 }
 
 interface StoreAPI {
+  getPaperPreparation: () => Promise<PaperPreparationState>;
+  onPaperPreparationChanged: (callback: (state: PaperPreparationState) => void) => () => void;
   getConnectionStatus: () => Promise<ConnectionStatus>;
   getTestResults: () => Promise<Record<string, JudgeRunResult>>;
   getHiddenTestResults: () => Promise<Record<string, JudgeRunResult>>;

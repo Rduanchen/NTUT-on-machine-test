@@ -36,6 +36,7 @@ import { prepareOfflineBundle } from './offline-bundle.service';
 
 class ConfigService {
   private static instance: ConfigService;
+  private download: { generation: number; requested: number; completed: number; promise?: Promise<IpcResponse<void>> } | null = null;
   private constructor() {}
 
   public static getInstance(): ConfigService {
@@ -214,37 +215,71 @@ class ConfigService {
    * as ciphertext until the exam starts, so a machine can be fully prepared
    * while the questions on it remain unreadable.
    */
-  public async fetchAndSaveConfig(host?: string): Promise<IpcResponse<void>> {
-    const targetHost = host ?? ramStore.backendUrl;
-    const response = await fetchSecureExamConfig();
-
-    if (!response.success || !response.data) {
-      ramStore.isConfigured = false;
-      return {
-        success: false,
-        error: { code: ErrorCode.NO_RESPONSE, message: 'No response from server' }
-      };
+  /** Idempotent pre-login delivery; a failed refresh remains dirty until retried. */
+  public preparePaper(force = false): Promise<IpcResponse<void>> {
+    if (ramStore.isOfflineMode || !ramStore.cryptoState || !ramStore.hasEverRegistered ||
+        !['SETUP_FINISHED', 'IN_PROGRESS'].includes(ramStore.examStatus)) {
+      return Promise.resolve({ success: false, error: { code: ErrorCode.NO_RESPONSE, message: '目前無法向伺服器備卷' } });
     }
+    return this.downloadPaper(force);
+  }
 
-    const validation = examConfigPayloadSchema.safeParse(response.data);
-    if (!validation.success) {
-      ramStore.isConfigured = false;
-      const errorMsg = validation.error.issues
-        .map((e) => `${e.path.join('.')}: ${e.message}`)
-        .join('\n');
-      return {
-        success: false,
-        error: {
-          code: ErrorCode.INVALID_CONFIG_FORMAT,
-          message: `Config from server is invalid: ${errorMsg}`
+  public fetchAndSaveConfig(host?: string): Promise<IpcResponse<void>> {
+    if (host && host !== ramStore.backendUrl) ramStore.backendUrl = host;
+    return this.downloadPaper(true);
+  }
+
+  private downloadPaper(force: boolean): Promise<IpcResponse<void>> {
+    const generation = ramStore.paperGeneration;
+    if (!this.download || this.download.generation !== generation) {
+      this.download = { generation, requested: 0, completed: 0 };
+    }
+    const operation = this.download;
+    if (force) operation.requested++;
+    if (operation.promise) return operation.promise;
+    const hasPaper = () => !!(ramStore.examConfigMeta && ramStore.examConfigCipher);
+    if (!force && hasPaper() && operation.completed === operation.requested) return Promise.resolve({ success: true });
+    if (operation.requested === operation.completed) operation.requested++;
+    const backend = ramStore.backendUrl;
+    const key = ramStore.cryptoState?.aesKeyHex;
+    const current = () => ramStore.paperGeneration === generation && ramStore.backendUrl === backend &&
+      ramStore.cryptoState?.aesKeyHex === key;
+    const stale: IpcResponse<void> = { success: false, error: { code: ErrorCode.NO_RESPONSE, message: '備卷作業已失效' } };
+    const run = async (): Promise<IpcResponse<void>> => {
+      do {
+        const requested = operation.requested;
+        ramStore.setPaperPreparation({ status: 'FETCHING', hasUsablePaper: hasPaper() });
+        try {
+          const response = await fetchSecureExamConfig();
+          if (!current()) return stale;
+          if (!['INITIALIZED', 'SETUP_FINISHED', 'IN_PROGRESS'].includes(ramStore.examStatus)) {
+            ramStore.setPaperPreparation({ status: 'ERROR', hasUsablePaper: hasPaper(), error: { code: ErrorCode.NO_RESPONSE, message: '備卷作業已失效' } });
+            return stale;
+          }
+          if (!response.success || !response.data) throw new Error('download');
+          const parsed = examConfigPayloadSchema.safeParse(response.data);
+          if (!parsed.success) {
+            ramStore.setPaperPreparation({ status: 'ERROR', hasUsablePaper: hasPaper(),
+              error: { code: ErrorCode.INVALID_CONFIG_FORMAT, message: '考卷格式無效，請通知監考人員' } });
+            return { success: false, error: { code: ErrorCode.INVALID_CONFIG_FORMAT, message: '考卷格式無效，請通知監考人員' } };
+          }
+          await this.applyPaper(parsed.data.meta, parsed.data.cipher, false);
+          if (!current()) return stale;
+          operation.completed = requested;
+          if (operation.completed === operation.requested) {
+            ramStore.setPaperPreparation({ status: 'READY', hasUsablePaper: true });
+          }
+        } catch {
+          if (!current()) return stale;
+          const error = { code: ErrorCode.NO_RESPONSE, message: '無法取得考卷，連線恢復後將自動重試' };
+          ramStore.setPaperPreparation({ status: 'ERROR', hasUsablePaper: hasPaper(), error });
+          return { success: false, error };
         }
-      };
-    }
-
-    ramStore.backendUrl = targetHost;
-    await this.applyPaper(validation.data.meta, validation.data.cipher);
-    logger.info('[Config] Split exam paper stored; questions remain sealed.');
-    return { success: true };
+      } while (operation.completed < operation.requested);
+      return { success: true };
+    };
+    operation.promise = run().finally(() => { operation.promise = undefined; });
+    return operation.promise;
   }
 
   /**
@@ -257,11 +292,16 @@ class ConfigService {
    */
   public async applyPaper(
     meta: ReturnType<typeof examConfigMetaSchema.parse>,
-    cipher: { iv: string; ciphertext: string; tag: string }
+    cipher: { iv: string; ciphertext: string; tag: string },
+    announceReady = true
   ): Promise<void> {
+    const opened = ramStore.examKey
+      ? mergeExamConfig(meta, examConfigSecretSchema.parse(cryptoService.decryptExamPaper(cipher, ramStore.examKey))) as ExamConfig
+      : null;
     ramStore.examConfigMeta = meta;
     ramStore.examConfigCipher = cipher;
     ramStore.isConfigured = true;
+    if (announceReady) ramStore.setPaperPreparation({ status: 'READY', hasUsablePaper: true });
 
     // Diagnostics are advisory. Running compilers for every language can take
     // a while; loading the sealed paper must not wait for that check to finish.
@@ -272,13 +312,13 @@ class ConfigService {
     }
 
     if (ramStore.examKey) {
-      this.unsealPaper(ramStore.examKey);
+      ramStore.examConfig = opened;
       return;
     }
 
     /* A paper that arrives while the exam is already running is opened now,
      * not on the next phase change — there may not be another one. */
-    await this.ensureExamPaperReadable();
+    if (ramStore.isStudentVerified) await this.ensureExamPaperReadable();
   }
 
   /**
@@ -296,6 +336,7 @@ class ConfigService {
    * empty with nothing to explain it.
    */
   public async ensureExamPaperReadable(): Promise<IpcResponse<void>> {
+    const generation = ramStore.paperGeneration;
     if (ramStore.examKey && ramStore.examConfig) return { success: true };
     if (ramStore.isOfflineMode) {
       return {
@@ -316,7 +357,11 @@ class ConfigService {
       return { success: true };
     }
 
+    const paper = ramStore.examConfigCipher;
     const response = await fetchExamKey();
+    if (generation !== ramStore.paperGeneration || ramStore.examConfigCipher !== paper || ramStore.examStatus !== 'IN_PROGRESS') {
+      return { success: false, error: { code: ErrorCode.NO_RESPONSE, message: '開卷作業已失效' } };
+    }
     if (!response.success || !response.data?.examKey) {
       logger.warn('[Config] The exam has started but the key could not be fetched.');
       return {

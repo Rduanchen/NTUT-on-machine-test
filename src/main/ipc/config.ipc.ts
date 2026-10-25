@@ -13,6 +13,7 @@ import { ramStore } from '../services/ramStore.service';
  * - config:setup-complete    → Check if config is loaded
  */
 export function registerConfigIpc(): void {
+  ipcMain.handle('config:prepare-paper', () => configService.preparePaper(true));
   ipcMain.handle('config:set-json', async (_event, jsonFilePath: string) => {
     return configService.setConfigFromFile(jsonFilePath);
   });

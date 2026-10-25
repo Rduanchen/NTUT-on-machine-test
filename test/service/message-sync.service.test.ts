@@ -82,6 +82,7 @@ const mocks = vi.hoisted(() => {
       clearQueues: vi.fn()
     },
     mockConfigService: {
+      preparePaper: vi.fn().mockResolvedValue({ success: true }),
       applyPaper: vi.fn(async (meta: any) => {
         mockRamStoreState.examConfig = meta;
       }),
@@ -148,6 +149,7 @@ describe('Message Sync Service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.resetRamStore();
+    mocks.mockConfigService.preparePaper.mockReset().mockResolvedValue({ success: true });
     mocks.setWinState(false, false, false);
     
     // Default mocks
@@ -403,15 +405,13 @@ describe('Message Sync Service', () => {
         // Wait for async config fetch
         await vi.advanceTimersByTimeAsync(1);
         
-        expect(mocks.mockApi.fetchSecureExamConfig).toHaveBeenCalled();
-        expect(mocks.mockRamStoreState.examConfig.name).toBe('New Config');
-        expect(mocks.mockJudgeManager.rejudgeAllStoredPrograms).toHaveBeenCalled();
+        expect(mocks.mockConfigService.preparePaper).toHaveBeenCalledWith(true);
+        expect(mocks.mockRamStoreState.examConfig).toBeNull();
+        expect(mocks.mockJudgeManager.rejudgeAllStoredPrograms).not.toHaveBeenCalled();
       });
 
       it('catches and logs error if config_update fails', async () => {
-        mocks.mockApi.fetchSecureExamConfig.mockResolvedValueOnce({
-          success: false
-        });
+        mocks.mockConfigService.preparePaper.mockResolvedValueOnce({ success: false });
         
         socketHandlers['exam-message']({
           id: 1, type: 'config_update', message: ''
@@ -425,6 +425,17 @@ describe('Message Sync Service', () => {
   });
 
   describe('Polling & syncVersionsAndMessages', () => {
+    it('retries preparation at 60 seconds even while initial message sync is pending', async () => {
+      mocks.mockApi.getMessages.mockReturnValueOnce(new Promise(() => {}));
+      messageSyncService.start();
+      mocks.mockConfigService.preparePaper.mockClear();
+      await vi.advanceTimersByTimeAsync(59999);
+      expect(mocks.mockConfigService.preparePaper).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mocks.mockConfigService.preparePaper).toHaveBeenCalledTimes(1);
+      (messageSyncService as any).isSyncing = false;
+    });
+
     it('periodic poll syncs messages and exam status', async () => {
       messageSyncService.start();
       await vi.advanceTimersByTimeAsync(1); // Allow initial sync to finish
@@ -497,37 +508,28 @@ describe('Message Sync Service', () => {
   });
 
   describe('Config Refresh', () => {
-    it('returns early if already refreshing', async () => {
-      (messageSyncService as any).isConfigRefreshing = true;
+    it('delegates forced refresh to the shared single-flight preparation service', async () => {
       await messageSyncService.forceConfigRefresh();
-      expect(mocks.mockApi.fetchSecureExamConfig).not.toHaveBeenCalled();
+      expect(mocks.mockConfigService.preparePaper).toHaveBeenCalledWith(true);
     });
-
-    it('returns early if cryptoState missing', async () => {
-      mocks.mockRamStoreState.cryptoState = null;
-      await messageSyncService.forceConfigRefresh();
-      expect(mocks.mockApi.fetchSecureExamConfig).not.toHaveBeenCalled();
-    });
-
-    it('throws if API returns false success', async () => {
-      mocks.mockApi.fetchSecureExamConfig.mockResolvedValueOnce({ success: false });
+    it('reports shared preparation errors without updating the version', async () => {
+      mocks.mockConfigService.preparePaper.mockResolvedValueOnce({ success: false });
       await expect(messageSyncService.forceConfigRefresh()).rejects.toThrow('Unable to fetch secure exam config');
+      expect(mocks.mockRamStoreState.configVersion).toBe(0);
     });
-
-    it('throws if schema validation fails', async () => {
-      mocks.mockApi.fetchSecureExamConfig.mockResolvedValueOnce({ success: true, data: { invalid_field: 'a' } }); // missing required fields
-      mocks.mockSafeParse.mockReturnValueOnce({ success: false });
-      await expect(messageSyncService.forceConfigRefresh()).rejects.toThrow('Secure config validation failed');
-    });
-
-    it('updates config and sets version if targetVersion provided', async () => {
-      mocks.mockApi.fetchSecureExamConfig.mockResolvedValueOnce({
-        success: true, data: { meta: { name: 'Test' }, cipher: { iv: 'i', ciphertext: 'c', tag: 't' } }
-      });
+    it('updates version after a successful delivery and rejudges only opened papers', async () => {
       await (messageSyncService as any).refreshConfigFromServer(5);
-      
       expect(mocks.mockRamStoreState.configVersion).toBe(5);
-      expect(mocks.mockRamStoreState.examConfig.name).toBe('Test');
+      expect(mocks.mockJudgeManager.rejudgeAllStoredPrograms).not.toHaveBeenCalled();
+      mocks.mockRamStoreState.examConfig = { name: 'opened' };
+      await messageSyncService.forceConfigRefresh();
+      expect(mocks.mockJudgeManager.rejudgeAllStoredPrograms).toHaveBeenCalled();
+    });
+    it('prepares even when the successfully queried phase has not changed', async () => {
+      mocks.mockRamStoreState.examStatus = 'SETUP_FINISHED';
+      mocks.mockApi.getExamStatus.mockResolvedValue({ success: true, data: { status: 'SETUP_FINISHED' } });
+      await messageSyncService.manualRefresh();
+      expect(mocks.mockConfigService.preparePaper).toHaveBeenCalledWith();
     });
   });
 

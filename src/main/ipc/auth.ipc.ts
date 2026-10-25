@@ -96,6 +96,7 @@ async function registerThisDevice(resubmit = false): Promise<IpcResponse<void>> 
      * connection later. A drop is a drop; it is not a different kind of
      * machine. */
     ramStore.hasEverRegistered = true;
+    void configService.preparePaper().catch(error => logger.warn('[Auth] Paper preparation failed:', error));
     messageSyncService.registerSocket();
     void environmentCheckService.prepareOnline();
     return { success: true };

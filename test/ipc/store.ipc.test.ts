@@ -58,6 +58,16 @@ describe('store.ipc', () => {
     return (ipcMain as any)._invokeHandler(channel, {}, ...args);
   };
 
+  it('reads and pushes only the preparation status contract', async () => {
+    const state = { status: 'READY', hasUsablePaper: true, revision: 4 };
+    Object.assign(ramStore, { paperPreparation: state });
+    expect(await invoke('store:get-paper-preparation')).toEqual(state);
+    ramStore.emit('paperPreparation', state);
+    expect(mockWebContents.send).toHaveBeenCalledWith('store:paper-preparation-changed', state);
+    mockWindow.isDestroyed.mockReturnValue(true);
+    expect(() => ramStore.emit('paperPreparation', state)).not.toThrow();
+  });
+
   describe('Events to renderer', () => {
     it('testResults', () => {
       ramStore.emit('testResults', { p1: { status: 'AC' } });

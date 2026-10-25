@@ -1,3 +1,4 @@
+import type { PaperPreparationState } from '../common/types';
 import { ipcRenderer, contextBridge, webUtils } from 'electron';
 
 /**
@@ -9,6 +10,7 @@ import { ipcRenderer, contextBridge, webUtils } from 'electron';
 const api = {
   /** Config management: load from file or server */
   config: {
+    preparePaper: () => ipcRenderer.invoke('config:prepare-paper'),
     setJson: (jsonFilePath: string) => ipcRenderer.invoke('config:set-json', jsonFilePath),
     getFromServer: (host: string) => ipcRenderer.invoke('config:get-from-server', host),
     getServerStatus: (hostname: string) => ipcRenderer.invoke('config:server-status', hostname),
@@ -50,6 +52,12 @@ const api = {
 
   /** Store: read exam state (test results, puzzles, exam info) */
   store: {
+    getPaperPreparation: () => ipcRenderer.invoke('store:get-paper-preparation'),
+    onPaperPreparationChanged: (callback: (state: PaperPreparationState) => void) => {
+      const listener = (_event: unknown, state: PaperPreparationState) => callback(state);
+      ipcRenderer.on('store:paper-preparation-changed', listener);
+      return () => ipcRenderer.removeListener('store:paper-preparation-changed', listener);
+    },
     getConnectionStatus: () => ipcRenderer.invoke('store:get-connection-status'),
     getTestResults: () => ipcRenderer.invoke('store:get-test-results'),
     getHiddenTestResults: () => ipcRenderer.invoke('store:get-hidden-test-results'),

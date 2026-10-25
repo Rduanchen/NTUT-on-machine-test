@@ -1,4 +1,14 @@
 {
+  "paperPreparation": {
+    "idle": "Offline paper not downloaded",
+    "fetching": "Downloading exam paper…",
+    "ready": "Offline exam paper ready",
+    "error": "Offline paper is not ready",
+    "updateFailed": "Update failed. Your downloaded paper is still available. The app will retry automatically.",
+    "failedHint": "Check your connection. The app will retry automatically, or you can retry now.",
+    "retryFailed": "Unable to prepare the paper. Check the connection and device registration, or ask the invigilator.",
+    "retry": "Retry paper download"
+  },
   "entryApproval": {
     "rejectedTitle": "Entry request rejected",
     "rejectedSubtitle": "The invigilator did not approve this machine's entry request",

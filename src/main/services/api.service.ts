@@ -6,7 +6,6 @@ import { logger } from './logger.service';
 import * as os from 'os';
 import * as si from 'systeminformation';
 import type {
-  ExamConfig,
   LogActionPayload,
   IpcResponse,
   ServerMessage
@@ -222,7 +221,7 @@ export async function getExamStatus(): Promise<IpcResponse<{ status: string }>> 
   }
 }
 
-export async function fetchSecureExamConfig(): Promise<IpcResponse<ExamConfig>> {
+export async function fetchSecureExamConfig(): Promise<IpcResponse<unknown>> {
   try {
     const response = await authClient.post(`${getBaseUrl()}/exam/config`, {});
     const encryptedConfig = response.data;
@@ -237,7 +236,7 @@ export async function fetchSecureExamConfig(): Promise<IpcResponse<ExamConfig>> 
     }
 
     const decrypted = cryptoService.decryptAesPayload(encryptedConfig, cryptoState.aesKeyHex);
-    const parsed = JSON.parse(decrypted) as ExamConfig;
+    const parsed: unknown = JSON.parse(decrypted);
     return { success: true, data: parsed };
   } catch (error) {
     return makeErrorResponse('fetchSecureExamConfig', error);

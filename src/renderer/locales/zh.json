@@ -1,4 +1,14 @@
 {
+  "paperPreparation": {
+    "idle": "尚未取得離線考卷",
+    "fetching": "正在取得考卷…",
+    "ready": "離線考卷已備妥",
+    "error": "尚未備妥離線考卷",
+    "updateFailed": "考卷更新失敗，仍保留已取得的考卷，連線恢復後將自動重試。",
+    "failedHint": "請確認網路連線；系統會自動重試，也可按下重試。",
+    "retryFailed": "目前無法備卷，請確認連線與裝置資格，必要時通知監考人員。",
+    "retry": "重新取得考卷"
+  },
   "entryApproval": {
     "rejectedTitle": "入場申請已被拒絕",
     "rejectedSubtitle": "監考人員未核准這台機器的入場申請",

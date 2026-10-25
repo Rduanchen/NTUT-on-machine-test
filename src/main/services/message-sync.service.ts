@@ -2,10 +2,9 @@ import { environmentCheckService } from './environment-check.service';
 import { io, Socket } from 'socket.io-client';
 import { getMainWindow } from '../system/windowManager';
 import { ramStore } from './ramStore.service';
-import { getMessages, getExamStatus, fetchSecureExamConfig, getDeviceUuid } from './api.service';
+import { getMessages, getExamStatus, getDeviceUuid } from './api.service';
 import { logger } from './logger.service';
 import type { ServerMessage, ExamState } from '../../common/types';
-import { examConfigPayloadSchema } from '../schemas/examConfig.schema';
 import { configService } from './config.service';
 import { judgeManager } from './judge-manager.service';
 import { localProgramStore } from './localProgram.service';
@@ -19,7 +18,6 @@ class MessageSyncService {
   private pollTimer: NodeJS.Timeout | null = null;
   private currentHost: string | null = null;
   private isSyncing = false;
-  private isConfigRefreshing = false;
 
   private constructor() {}
 
@@ -187,6 +185,8 @@ class MessageSyncService {
 
   private startPolling(): void {
     this.pollTimer = setInterval(() => {
+      // Preparation must not wait behind status/message retrieval.
+      void configService.preparePaper().catch(error => logger.warn('[MessageSync] Preparation failed:', error));
       this.syncVersionsAndMessages(false).catch((error) => {
         // logger.warn('[MessageSync] Periodic sync failed:', error);
         console.warn(
@@ -211,14 +211,19 @@ class MessageSyncService {
       const statusRes = await getExamStatus();
       if (statusRes.success && statusRes.data?.status) {
         const newStatus = statusRes.data.status as ExamState;
+        if (newStatus === 'UNINITIALIZED' && ramStore.examStatus !== 'UNINITIALIZED') {
+          this.handleExamReset();
+          return;
+        }
         if (ramStore.examStatus !== newStatus) {
           ramStore.examStatus = newStatus;
-          void this.onPhaseChanged(newStatus);
+          void this.onPhaseChanged(newStatus).catch(error => logger.warn('[MessageSync] Phase preparation failed:', error));
           const win = getMainWindow();
           if (win && !win.isDestroyed()) {
             win.webContents?.send('exam:status-changed', newStatus);
           }
         }
+        void configService.preparePaper().catch(error => logger.warn('[MessageSync] Preparation failed:', error));
       }
     } finally {
       this.isSyncing = false;
@@ -260,7 +265,7 @@ class MessageSyncService {
     if (message.namespace === 'STATUS') {
       const newState = message.message as ExamState;
       ramStore.examStatus = newState;
-      void this.onPhaseChanged(newState);
+      void this.onPhaseChanged(newState).catch(error => logger.warn('[MessageSync] Phase preparation failed:', error));
       const win = getMainWindow();
       if (win && !win.isDestroyed()) {
         win.webContents?.send('exam:status-changed', newState);
@@ -304,6 +309,10 @@ class MessageSyncService {
    * idempotent, but there is no reason to make it twice.
    */
   private async onPhaseChanged(phase: ExamState): Promise<void> {
+    if (phase === 'SETUP_FINISHED') {
+      await configService.preparePaper();
+      return;
+    }
     if (phase !== 'IN_PROGRESS') return;
     if (ramStore.examKey) return;
 
@@ -352,33 +361,12 @@ class MessageSyncService {
   }
 
   private async refreshConfigFromServer(targetVersion?: number): Promise<void> {
-    if (this.isConfigRefreshing) return;
-    if (!ramStore.cryptoState) {
-      logger.warn('[MessageSync] Crypto state missing, skip secure config refresh.');
-      return;
-    }
-    this.isConfigRefreshing = true;
-    try {
-      const response = await fetchSecureExamConfig();
-      if (!response.success || !response.data) {
-        throw new Error('Unable to fetch secure exam config');
-      }
-
-      const validation = examConfigPayloadSchema.safeParse(response.data);
-      if (!validation.success) {
-        throw new Error('Secure config validation failed');
-      }
-
-      await configService.applyPaper(validation.data.meta, validation.data.cipher);
-      logger.info('[MessageSync] Exam config updated from secure endpoint.');
-
-      if (typeof targetVersion === 'number') {
-        ramStore.configVersion = targetVersion;
-      }
-      await judgeManager.rejudgeAllStoredPrograms();
-    } finally {
-      this.isConfigRefreshing = false;
-    }
+    const generation = ramStore.paperGeneration;
+    const result = await configService.preparePaper(true);
+    if (!result.success) throw new Error(result.error?.message ?? 'Unable to fetch secure exam config');
+    if (generation !== ramStore.paperGeneration) return;
+    if (typeof targetVersion === 'number') ramStore.configVersion = targetVersion;
+    if (ramStore.examConfig) await judgeManager.rejudgeAllStoredPrograms();
   }
 }
 

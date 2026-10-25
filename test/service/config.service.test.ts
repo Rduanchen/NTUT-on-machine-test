@@ -36,6 +36,8 @@ vi.mock('../../src/main/services/ramStore.service', () => ({
         examConfig: undefined,
         isOfflineMode: false,
         examStatus: '',
+        paperGeneration: 0,
+        setPaperPreparation: vi.fn(),
     },
 }));
 vi.mock('../../src/main/services/logger.service', () => ({
@@ -101,7 +103,9 @@ describe('ConfigService', () => {
         ramStore.backendUrl = '';
         ramStore.examConfig = undefined as any;
         ramStore.isOfflineMode = false;
-        ramStore.examStatus = '';
+        ramStore.examStatus = 'SETUP_FINISHED';
+        ramStore.examConfigMeta = null; ramStore.examConfigCipher = null; ramStore.examKey = null;
+        (ramStore as any).paperGeneration++;
         
         // Default mocks
         (path.join as any).mockImplementation((...args: string[]) => args.join('/'));
@@ -417,7 +421,7 @@ describe('ConfigService', () => {
             expect(res.success).toBe(false);
             if (!res.success) {
                 expect(res.error.code).toBe(ErrorCode.INVALID_CONFIG_FORMAT);
-                expect(res.error.message).toContain('field: invalid');
+                expect(res.error.message).toContain('考卷格式無效');
             }
         });
 

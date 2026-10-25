@@ -9,6 +9,7 @@ vi.mock('../../src/main/services/api.service', () => ({ healthCheck: vi.fn() }))
 
 vi.mock('../../src/main/services/config.service', () => ({
   configService: {
+    preparePaper: vi.fn().mockResolvedValue({ success: true }),
     setConfigFromFile: vi.fn(),
     setConfigFromServer: vi.fn(),
     checkServerStatus: vi.fn(),
@@ -33,6 +34,11 @@ describe('config.ipc', () => {
   const invoke = (channel: string, ...args: any[]) => {
     return (ipcMain as any)._invokeHandler(channel, {}, ...args);
   };
+
+  it('config:prepare-paper delegates to guarded main-process preparation', async () => {
+    expect(await invoke('config:prepare-paper', { bypass: true })).toEqual({ success: true });
+    expect(configService.preparePaper).toHaveBeenCalledWith(true);
+  });
 
   it('config:set-json', async () => {
     vi.mocked(configService.setConfigFromFile).mockResolvedValueOnce({ success: true } as any);

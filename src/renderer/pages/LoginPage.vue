@@ -13,6 +13,8 @@
         <div class="text-body-2 text-medium-emphasis">{{ examInfo.description }}</div>
       </v-card>
 
+      <PaperPreparationStatus />
+
       <!-- Auto-login in progress -->
       <div v-if="isAutoLoggingIn" class="text-center py-6">
         <v-progress-circular indeterminate color="primary" size="48" class="mb-4" />
@@ -105,6 +107,7 @@
 </template>
 
 <script setup lang="ts">
+import PaperPreparationStatus from '../components/PaperPreparationStatus.vue';
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { goToDerivedPage } from '../router/navigate';
